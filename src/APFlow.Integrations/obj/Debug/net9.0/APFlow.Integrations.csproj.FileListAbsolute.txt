@@ -1,0 +1,11 @@
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Integrations.deps.json
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Integrations.dll
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Integrations.pdb
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.GeneratedMSBuildEditorConfig.editorconfig
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.AssemblyInfoInputs.cache
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.AssemblyInfo.cs
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.csproj.CoreCompileInputs.cache
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.dll
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\refint\APFlow.Integrations.dll
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.pdb
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\ref\APFlow.Integrations.dll

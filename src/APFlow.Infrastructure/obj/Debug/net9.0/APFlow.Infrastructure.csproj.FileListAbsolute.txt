@@ -1,0 +1,11 @@
+C:\Development\APFlow\src\APFlow.Infrastructure\bin\Debug\net9.0\APFlow.Infrastructure.deps.json
+C:\Development\APFlow\src\APFlow.Infrastructure\bin\Debug\net9.0\APFlow.Infrastructure.dll
+C:\Development\APFlow\src\APFlow.Infrastructure\bin\Debug\net9.0\APFlow.Infrastructure.pdb
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.AssemblyInfoInputs.cache
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.AssemblyInfo.cs
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.dll
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\refint\APFlow.Infrastructure.dll
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\APFlow.Infrastructure.pdb
+C:\Development\APFlow\src\APFlow.Infrastructure\obj\Debug\net9.0\ref\APFlow.Infrastructure.dll

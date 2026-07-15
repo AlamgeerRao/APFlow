@@ -1,0 +1,11 @@
+C:\Development\APFlow\src\APFlow.Domain\bin\Debug\net9.0\APFlow.Domain.deps.json
+C:\Development\APFlow\src\APFlow.Domain\bin\Debug\net9.0\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Domain\bin\Debug\net9.0\APFlow.Domain.pdb
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.AssemblyInfoInputs.cache
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.AssemblyInfo.cs
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.csproj.CoreCompileInputs.cache
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\refint\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.pdb
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\ref\APFlow.Domain.dll
