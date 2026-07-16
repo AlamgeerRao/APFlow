@@ -30,3 +30,8 @@ C:\Development\APFlow\src\APFlow.Api\obj\Debug\net9.0\refint\APFlow.Api.dll
 C:\Development\APFlow\src\APFlow.Api\obj\Debug\net9.0\APFlow.Api.pdb
 C:\Development\APFlow\src\APFlow.Api\obj\Debug\net9.0\APFlow.Api.genruntimeconfig.cache
 C:\Development\APFlow\src\APFlow.Api\obj\Debug\net9.0\ref\APFlow.Api.dll
+C:\Development\APFlow\src\APFlow.Api\obj\Debug\net9.0\APFlow.Api.sourcelink.json
+C:\Development\APFlow\src\APFlow.Api\bin\Debug\net9.0\APFlow.Application.dll
+C:\Development\APFlow\src\APFlow.Api\bin\Debug\net9.0\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Api\bin\Debug\net9.0\APFlow.Application.pdb
+C:\Development\APFlow\src\APFlow.Api\bin\Debug\net9.0\APFlow.Domain.pdb

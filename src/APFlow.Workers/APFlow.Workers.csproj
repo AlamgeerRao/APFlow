@@ -10,4 +10,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.18" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\APFlow.Application\APFlow.Application.csproj" />
+  </ItemGroup>
 </Project>

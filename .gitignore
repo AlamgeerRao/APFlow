@@ -1,0 +1,42 @@
+# Build
+bin/
+obj/
+
+# User files
+*.user
+*.suo
+*.userosscache
+
+# Visual Studio
+.vs/
+
+# VS Code
+.vscode/settings.json
+
+# Node
+node_modules/
+dist/
+
+# Logs
+*.log
+
+# Coverage
+TestResults/
+coverage/
+
+# Azure
+local.settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Packages
+*.nupkg
+
+# Rider
+.idea/

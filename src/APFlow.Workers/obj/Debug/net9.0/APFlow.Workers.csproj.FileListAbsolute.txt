@@ -46,3 +46,8 @@ C:\Development\APFlow\src\APFlow.Workers\obj\Debug\net9.0\refint\APFlow.Workers.
 C:\Development\APFlow\src\APFlow.Workers\obj\Debug\net9.0\APFlow.Workers.pdb
 C:\Development\APFlow\src\APFlow.Workers\obj\Debug\net9.0\APFlow.Workers.genruntimeconfig.cache
 C:\Development\APFlow\src\APFlow.Workers\obj\Debug\net9.0\ref\APFlow.Workers.dll
+C:\Development\APFlow\src\APFlow.Workers\obj\Debug\net9.0\APFlow.Workers.sourcelink.json
+C:\Development\APFlow\src\APFlow.Workers\bin\Debug\net9.0\APFlow.Application.dll
+C:\Development\APFlow\src\APFlow.Workers\bin\Debug\net9.0\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Workers\bin\Debug\net9.0\APFlow.Application.pdb
+C:\Development\APFlow\src\APFlow.Workers\bin\Debug\net9.0\APFlow.Domain.pdb

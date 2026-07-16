@@ -9,3 +9,10 @@ C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integratio
 C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\refint\APFlow.Integrations.dll
 C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.pdb
 C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\ref\APFlow.Integrations.dll
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.sourcelink.json
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Application.dll
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Application.pdb
+C:\Development\APFlow\src\APFlow.Integrations\bin\Debug\net9.0\APFlow.Domain.pdb
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.Integrations.csproj.AssemblyReference.cache
+C:\Development\APFlow\src\APFlow.Integrations\obj\Debug\net9.0\APFlow.I.88C41DA8.Up2Date

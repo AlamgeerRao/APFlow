@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("APFlow.Workers")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6d1c8d1b617a80dcb85725bd92d151dde046e9bc")]
 [assembly: System.Reflection.AssemblyProductAttribute("APFlow.Workers")]
 [assembly: System.Reflection.AssemblyTitleAttribute("APFlow.Workers")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

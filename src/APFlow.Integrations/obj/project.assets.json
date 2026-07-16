@@ -1,11 +1,48 @@
 {
   "version": 3,
   "targets": {
-    "net9.0": {}
+    "net9.0": {
+      "APFlow.Application/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "APFlow.Domain": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/APFlow.Application.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/APFlow.Application.dll": {}
+        }
+      },
+      "APFlow.Domain/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "compile": {
+          "bin/placeholder/APFlow.Domain.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/APFlow.Domain.dll": {}
+        }
+      }
+    }
   },
-  "libraries": {},
+  "libraries": {
+    "APFlow.Application/1.0.0": {
+      "type": "project",
+      "path": "../APFlow.Application/APFlow.Application.csproj",
+      "msbuildProject": "../APFlow.Application/APFlow.Application.csproj"
+    },
+    "APFlow.Domain/1.0.0": {
+      "type": "project",
+      "path": "../APFlow.Domain/APFlow.Domain.csproj",
+      "msbuildProject": "../APFlow.Domain/APFlow.Domain.csproj"
+    }
+  },
   "projectFileDependencyGroups": {
-    "net9.0": []
+    "net9.0": [
+      "APFlow.Application >= 1.0.0"
+    ]
   },
   "packageFolders": {
     "C:\\Users\\alam\\.nuget\\packages\\": {}
@@ -31,7 +68,11 @@
       "frameworks": {
         "net9.0": {
           "targetAlias": "net9.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "C:\\Development\\APFlow\\src\\APFlow.Application\\APFlow.Application.csproj": {
+              "projectPath": "C:\\Development\\APFlow\\src\\APFlow.Application\\APFlow.Application.csproj"
+            }
+          }
         }
       },
       "warningProperties": {

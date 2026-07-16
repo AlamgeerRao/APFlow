@@ -9,3 +9,4 @@ C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.dll
 C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\refint\APFlow.Domain.dll
 C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.pdb
 C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\ref\APFlow.Domain.dll
+C:\Development\APFlow\src\APFlow.Domain\obj\Debug\net9.0\APFlow.Domain.sourcelink.json
