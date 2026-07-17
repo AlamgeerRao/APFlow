@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <RootNamespace>APFlow.Api.Tests</RootNamespace>
+    <AssemblyName>APFlow.Api.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <!-- Test projects are not public API surface; XML doc coverage is not required here. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +21,17 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Middleware is tested directly (DefaultHttpContext + a throwing RequestDelegate)
+      rather than via WebApplicationFactory, per Testing Standards §5 ("Business logic
+      must be testable in isolation from infrastructure concerns"). This needs the
+      ASP.NET Core shared framework (DefaultHttpContext, ProblemDetails) but no
+      Microsoft.AspNetCore.Mvc.Testing package.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

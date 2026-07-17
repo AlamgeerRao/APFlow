@@ -4,14 +4,27 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>APFlow.Api</RootNamespace>
+    <AssemblyName>APFlow.Api</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Built-in OpenAPI generation only (Microsoft.AspNetCore.OpenApi), per Project Standards §2
+      ("prefer built-in .NET and Azure capabilities") and to match the existing local scaffold.
+      No Swagger UI package: there is no interactive UI page without adding a third-party
+      package (Swashbuckle/NSwag/Scalar). The raw document is served at /openapi/v1.json in
+      Development. If an interactive UI is wanted, that is a separate approval decision -
+      see WP-001 review notes.
+    -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.18" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\APFlow.Application\APFlow.Application.csproj" />
+    <ProjectReference Include="..\APFlow.Infrastructure\APFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\APFlow.Integrations\APFlow.Integrations.csproj" />
+    <ProjectReference Include="..\APFlow.Workers\APFlow.Workers.csproj" />
   </ItemGroup>
 
 </Project>

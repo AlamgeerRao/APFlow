@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <RootNamespace>APFlow.Domain.Tests</RootNamespace>
+    <AssemblyName>APFlow.Domain.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <!-- Test projects are not public API surface; XML doc coverage is not required here. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

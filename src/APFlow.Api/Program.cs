@@ -1,41 +1,79 @@
+using APFlow.Api.Extensions;
+using APFlow.Api.Middleware;
+using APFlow.Application;
+using APFlow.Infrastructure;
+using APFlow.Infrastructure.Configuration;
+using APFlow.Integrations;
+using APFlow.Workers;
+using Azure.Identity;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// --- Configuration -----------------------------------------------------
+// Optionally load secrets from Azure Key Vault. Disabled by default so local
+// development and this solution's own build/test do not require an Azure
+// resource; enable via "AzureKeyVault:Enabled" in appsettings per environment.
+var keyVaultOptions = builder.Configuration
+    .GetSection(KeyVaultOptions.SectionName)
+    .Get<KeyVaultOptions>();
+
+if (keyVaultOptions is { Enabled: true } && !string.IsNullOrWhiteSpace(keyVaultOptions.VaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultOptions.VaultUri),
+        new DefaultAzureCredential());
+}
+
+// --- Logging -------------------------------------------------------------
+// Built-in Microsoft.Extensions.Logging only, per Project Standards §2
+// ("prefer built-in .NET and Azure capabilities"). Providers and levels are
+// configured via the standard "Logging" section in appsettings per environment.
+// The default host configuration already includes the Console provider; no
+// additional wiring is required here.
+
+// --- Dependency Injection --------------------------------------------------
+builder.Services.AddControllers();
+builder.Services
+    .AddApplication()
+    .AddInfrastructure(builder.Configuration)
+    .AddIntegrations()
+    .AddWorkers()
+    .AddApiServices(builder.Configuration);
+
+// NOTE: No CORS policy is configured. APFlow.Web (the React SPA) will need one
+// to call this API cross-origin from a different host/port. Deferred to the
+// work package that wires up APFlow.Web against this API - not implemented here.
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- Middleware Pipeline -----------------------------------------------
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseApiOpenApi();
 }
+
+app.UseApiHealthChecks();
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// NOTE: No UseAuthentication()/UseAuthorization() pipeline is wired up yet.
+// No Microsoft Entra External ID scheme is registered anywhere in this solution.
+// Adding UseAuthorization() against an unauthenticated pipeline would be
+// misleading, so it is deliberately omitted rather than added as a no-op.
+// This is intentionally deferred to the authentication work package - see
+// WP-001 review notes. Do not add [Authorize] attributes to controllers until
+// that work package lands.
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.MapControllers();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+/// <summary>
+/// Exposed as a public partial class so integration tests can bootstrap this
+/// application via <c>WebApplicationFactory&lt;Program&gt;</c>.
+/// </summary>
+public partial class Program
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
