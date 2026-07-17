@@ -4,6 +4,11 @@
     <ProjectReference Include="..\APFlow.Application\APFlow.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Bug fix (found during WP-002 offline verification) - see APFlow.Application.csproj. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.18" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

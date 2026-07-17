@@ -38,7 +38,9 @@ builder.Services
     .AddInfrastructure(builder.Configuration)
     .AddIntegrations()
     .AddWorkers()
-    .AddApiServices(builder.Configuration);
+    .AddApiServices(builder.Configuration)
+    .AddApiAuthentication(builder.Configuration, builder.Environment)
+    .AddApiAuthorization();
 
 // NOTE: No CORS policy is configured. APFlow.Web (the React SPA) will need one
 // to call this API cross-origin from a different host/port. Deferred to the
@@ -47,7 +49,23 @@ builder.Services
 var app = builder.Build();
 
 // --- Middleware Pipeline -----------------------------------------------
+// Ordering matters and follows Microsoft's canonical sequence: exception handling
+// first (outermost, catches everything below it, including auth failures routed
+// through it); then authentication/authorization; then all endpoint mappings.
+// Deliberately placing UseAuthentication/UseAuthorization BEFORE the Map* calls
+// below, rather than interleaved after them, to avoid relying on ASP.NET Core's
+// implicit routing-insertion behavior in minimal hosting.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseHttpsRedirection();
+
+// WP-002: Microsoft Entra External ID JWT bearer authentication, with a
+// solution-wide fallback authorization policy requiring an authenticated caller
+// on every endpoint unless explicitly marked [AllowAnonymous] (see
+// AddApiAuthorization). Do not add [Authorize(Roles = "...")] using ad-hoc role
+// strings - use the named policies in AuthorizationExtensions or the Roles
+// constants in APFlow.Domain.Common.Constants.
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
@@ -55,16 +73,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseApiHealthChecks();
-
-app.UseHttpsRedirection();
-
-// NOTE: No UseAuthentication()/UseAuthorization() pipeline is wired up yet.
-// No Microsoft Entra External ID scheme is registered anywhere in this solution.
-// Adding UseAuthorization() against an unauthenticated pipeline would be
-// misleading, so it is deliberately omitted rather than added as a no-op.
-// This is intentionally deferred to the authentication work package - see
-// WP-001 review notes. Do not add [Authorize] attributes to controllers until
-// that work package lands.
 
 app.MapControllers();
 

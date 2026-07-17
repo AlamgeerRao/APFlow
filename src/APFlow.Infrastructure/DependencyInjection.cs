@@ -1,4 +1,6 @@
+using APFlow.Application.Interfaces;
 using APFlow.Infrastructure.Configuration;
+using APFlow.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +18,9 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<KeyVaultOptions>(configuration.GetSection(KeyVaultOptions.SectionName));
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         // Persistence (Azure SQL / EF Core), Blob Storage, and Service Bus registrations
         // are added here as they are implemented. Intentionally empty at solution-foundation stage.

@@ -18,4 +18,14 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.18" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Needed for CurrentUserService (IHttpContextAccessor, ClaimsPrincipal). This is a
+      FrameworkReference, not a NuGet package - it's part of the shared ASP.NET Core
+      runtime already installed with the SDK, so it adds no new external dependency
+      per Project Standards §2.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
 </Project>

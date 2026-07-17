@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using APFlow.Domain.Common.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -73,7 +72,7 @@ public sealed class ExceptionHandlingMiddleware
         }
 
         context.Response.StatusCode = (int)statusCode;
-        await context.Response.WriteAsJsonAsync(problemDetails, options: (JsonSerializerOptions?)null, contentType: "application/problem+json");
+        await context.Response.WriteAsJsonAsync(problemDetails, options: null, contentType: "application/problem+json");
     }
 
     private static (HttpStatusCode StatusCode, string Title) MapException(Exception exception) => exception switch

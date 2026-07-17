@@ -18,6 +18,14 @@
       see WP-001 review notes.
     -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.18" />
+
+    <!--
+      Bug fix (WP-002 review): unlike Authorization, the JwtBearer authentication
+      handler is NOT part of the ASP.NET Core shared framework in .NET 9 - it requires
+      this explicit package reference. Microsoft-authored, ships as an official
+      ASP.NET Core package - not a new third-party dependency.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.18" />
   </ItemGroup>
 
   <ItemGroup>
