@@ -2,10 +2,15 @@ using APFlow.Application.Interfaces;
 using APFlow.Infrastructure.Configuration;
 using APFlow.Infrastructure.Persistence;
 using APFlow.Infrastructure.Security;
+using APFlow.Infrastructure.Storage;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace APFlow.Infrastructure;
 
@@ -26,9 +31,10 @@ public static class DependencyInjection
         services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         services.AddDatabase(configuration, environment);
+        services.AddBlobStorage(configuration, environment);
 
-        // Blob Storage and Service Bus registrations are added here as they are
-        // implemented. Intentionally empty at solution-foundation stage.
+        // Service Bus registrations are added here as they are implemented.
+        // Intentionally empty at solution-foundation stage.
         return services;
     }
 
@@ -66,6 +72,64 @@ public static class DependencyInjection
                 sqlOptions.CommandTimeout(databaseOptions.CommandTimeoutSeconds);
             });
         });
+
+        return services;
+    }
+
+    private static IServiceCollection AddBlobStorage(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
+    {
+        services.Configure<BlobStorageOptions>(configuration.GetSection(BlobStorageOptions.SectionName));
+        var blobOptions = configuration.GetSection(BlobStorageOptions.SectionName).Get<BlobStorageOptions>()
+                           ?? new BlobStorageOptions();
+
+        var isConfigured = !string.IsNullOrWhiteSpace(blobOptions.ContainerName)
+                            && (!string.IsNullOrWhiteSpace(blobOptions.AccountUrl) || !string.IsNullOrWhiteSpace(blobOptions.ConnectionString));
+
+        if (!isConfigured && !environment.IsDevelopment())
+        {
+            throw new InvalidOperationException(
+                "BlobStorage:ContainerName and either BlobStorage:AccountUrl or BlobStorage:ConnectionString " +
+                "must be configured outside Development. Refusing to start with Blob Storage unconfigured in a " +
+                "non-Development environment.");
+        }
+
+        // BlobServiceClient construction does not itself make a network call, so this
+        // is safe to register even when unconfigured in Development - it will simply
+        // fail (and be logged) on the first real call, consistent with the
+        // Development-convenience pattern used for EntraId (WP-002) and Graph (WP-004).
+        services.AddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<BlobStorageOptions>>().Value;
+
+            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                return new BlobServiceClient(options.ConnectionString);
+            }
+
+            if (!string.IsNullOrWhiteSpace(options.AccountUrl))
+            {
+                return new BlobServiceClient(new Uri(options.AccountUrl), new DefaultAzureCredential());
+            }
+
+            // Development-unconfigured placeholder - fails on first real call, not at
+            // startup. Never reached outside Development (see the throw above).
+            return new BlobServiceClient(new Uri("https://placeholder.blob.core.windows.net/"), new DefaultAzureCredential());
+        });
+
+        // BlobStorageService is registered via an explicit factory lambda, not
+        // services.AddSingleton<TInterface, TImpl>(): its constructor is internal (it
+        // takes the internal IBlobContainerOperations - see BlobContainerOperations.cs),
+        // and the default DI container's reflection-based activation only finds
+        // PUBLIC constructors. Same pattern as EmailService (WP-004).
+        // BlobContainerOperations' own constructor is public (only its class is
+        // internal, which reflection-based activation tolerates - verified in WP-004b);
+        // it's registered via factory here too only for consistency with the line below.
+        services.AddSingleton<IBlobContainerOperations>(sp => new BlobContainerOperations(
+            sp.GetRequiredService<BlobServiceClient>(),
+            sp.GetRequiredService<IOptions<BlobStorageOptions>>()));
+        services.AddSingleton<IBlobStorageService>(sp => new BlobStorageService(
+            sp.GetRequiredService<IBlobContainerOperations>(),
+            sp.GetRequiredService<ILogger<BlobStorageService>>()));
 
         return services;
     }

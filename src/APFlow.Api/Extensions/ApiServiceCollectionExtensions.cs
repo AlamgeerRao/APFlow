@@ -1,5 +1,7 @@
 using APFlow.Api.Configuration;
 using APFlow.Infrastructure.Persistence;
+using APFlow.Infrastructure.Storage;
+using APFlow.Integrations.Graph;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
 
@@ -60,11 +62,14 @@ public static class ApiServiceCollectionExtensions
         // dependency checks, tagged "ready" so the /health/ready mapping can filter to
         // just these. AddDbContextCheck was flagged as pending since WP-001
         // ("Dependency-specific checks... added here as their infrastructure
-        // registrations land") and is added now that AppDbContext exists (WP-003).
+        // registrations land") and was added in WP-003. GraphMailboxHealthCheck
+        // (WP-004) and BlobStorageHealthCheck (WP-005) follow the same pattern.
         services.AddHealthChecks()
-            .AddDbContextCheck<AppDbContext>("database", tags: ["ready"]);
-        // Blob Storage and Service Bus checks are added here (tagged "ready") as their
-        // infrastructure registrations land.
+            .AddDbContextCheck<AppDbContext>("database", tags: ["ready"])
+            .AddCheck<GraphMailboxHealthCheck>("graph-mailbox", tags: ["ready"])
+            .AddCheck<BlobStorageHealthCheck>("blob-storage", tags: ["ready"]);
+        // Service Bus checks are added here (tagged "ready") as its infrastructure
+        // registration lands.
 
         return services;
     }
@@ -90,8 +95,8 @@ public static class ApiServiceCollectionExtensions
     /// would otherwise require authentication here too.
     /// Deliberately split: liveness runs no checks at all (just confirms the process is
     /// responding - a DB outage should not cause a load balancer to kill and restart a
-    /// perfectly healthy process). Readiness runs every check tagged "ready" (currently
-    /// just the database), so traffic can be routed away from an instance that can't
+    /// perfectly healthy process). Readiness runs every check tagged "ready" (database,
+    /// Graph mailbox, Blob Storage), so traffic can be routed away from an instance that can't
     /// actually serve requests without also treating that as a reason to restart it.
     /// </summary>
     public static WebApplication UseApiHealthChecks(this WebApplication app)

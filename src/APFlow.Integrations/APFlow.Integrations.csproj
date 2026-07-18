@@ -9,6 +9,26 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.18" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Needed for GraphMailboxHealthCheck (IHealthCheck/HealthCheckResult). Same
+      technique as APFlow.Infrastructure's FrameworkReference for IHttpContextAccessor
+      (WP-002) - not a NuGet package, no new external dependency.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Graph" Version="5.68.0" />
+    <!--
+      Azure.Identity here is a separate reference from APFlow.Infrastructure's copy
+      (version 1.13.1, used for Key Vault) - Infrastructure and Integrations must never
+      reference each other (Solution Structure §2), so each takes its own dependency.
+      Kept at the same version deliberately for consistency; update both together.
+    -->
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

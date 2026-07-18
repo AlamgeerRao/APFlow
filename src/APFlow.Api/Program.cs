@@ -36,7 +36,7 @@ builder.Services.AddControllers();
 builder.Services
     .AddApplication()
     .AddInfrastructure(builder.Configuration, builder.Environment)
-    .AddIntegrations()
+    .AddIntegrations(builder.Configuration, builder.Environment)
     .AddWorkers()
     .AddApiServices(builder.Configuration)
     .AddApiAuthentication(builder.Configuration, builder.Environment)
