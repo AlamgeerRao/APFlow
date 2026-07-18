@@ -28,4 +28,18 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Microsoft.EntityFrameworkCore.SqlServer brings Microsoft.EntityFrameworkCore transitively. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.18" />
+    <!--
+      Design-time only (dotnet ef migrations add / database update). PrivateAssets=all
+      so it does not flow into APFlow.Api's dependency graph - it is only needed here,
+      where AppDbContext and its migrations live.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.18">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
 </Project>

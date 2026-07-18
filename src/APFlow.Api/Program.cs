@@ -35,7 +35,7 @@ if (keyVaultOptions is { Enabled: true } && !string.IsNullOrWhiteSpace(keyVaultO
 builder.Services.AddControllers();
 builder.Services
     .AddApplication()
-    .AddInfrastructure(builder.Configuration)
+    .AddInfrastructure(builder.Configuration, builder.Environment)
     .AddIntegrations()
     .AddWorkers()
     .AddApiServices(builder.Configuration)

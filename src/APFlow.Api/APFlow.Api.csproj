@@ -26,6 +26,15 @@
       ASP.NET Core package - not a new third-party dependency.
     -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.18" />
+
+    <!--
+      Microsoft-authored EF Core health check extension (AddDbContextCheck), added
+      WP-003 to wire the DB check that AddApiServices' own comment flagged as
+      pending since WP-001 ("Dependency-specific checks... added here as their
+      infrastructure registrations land" - AppDbContext landed in WP-003, this closes
+      that gap).
+    -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="9.0.18" />
   </ItemGroup>
 
   <ItemGroup>
