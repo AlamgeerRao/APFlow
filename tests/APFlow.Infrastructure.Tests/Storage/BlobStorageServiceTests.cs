@@ -1,3 +1,4 @@
+using APFlow.Domain.Common;
 using APFlow.Infrastructure.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -218,10 +219,67 @@ public class BlobStorageServiceTests
         Assert.False(await service.VerifyContainerAccessAsync());
     }
 
-    private static (BlobStorageService Service, FakeBlobContainerOperations Operations) CreateService(FakeBlobContainerOperations.Behavior behavior)
+    // --- Tenant scoping (docs/WP-005-Blob-Storage-Tenant-Isolation-Decision.md) -----
+
+    [Fact]
+    public async Task UploadAsync_PrefixesPhysicalBlobNameWithCallerTenantId()
+    {
+        var (service, ops) = CreateService(FakeBlobContainerOperations.Behavior.Succeed, tenantId: "tenant-a");
+
+        await service.UploadAsync("invoice.pdf", new MemoryStream());
+
+        Assert.Equal("tenant-a/invoice.pdf", ops.LastBlobName);
+    }
+
+    [Fact]
+    public async Task UploadAsync_DifferentTenants_ProduceDifferentPhysicalBlobNames_ForSameLogicalName()
+    {
+        // Proves the isolation property directly: two different tenant contexts
+        // requesting the identical logical blob name must never resolve to the same
+        // physical blob - same "prove non-leakage across tenants" bar WP-003's
+        // decision doc set for the EF Core query filter.
+        var (serviceA, opsA) = CreateService(FakeBlobContainerOperations.Behavior.Succeed, tenantId: "tenant-a");
+        var (serviceB, opsB) = CreateService(FakeBlobContainerOperations.Behavior.Succeed, tenantId: "tenant-b");
+
+        await serviceA.UploadAsync("invoice.pdf", new MemoryStream());
+        await serviceB.UploadAsync("invoice.pdf", new MemoryStream());
+
+        Assert.NotEqual(opsA.LastBlobName, opsB.LastBlobName);
+        Assert.Equal("tenant-a/invoice.pdf", opsA.LastBlobName);
+        Assert.Equal("tenant-b/invoice.pdf", opsB.LastBlobName);
+    }
+
+    [Theory]
+    [InlineData("upload")]
+    [InlineData("download")]
+    [InlineData("delete")]
+    [InlineData("sas")]
+    public async Task AllBlobNameOperations_NoTenantContext_ReturnFailure_WithoutCallingOperations(string operation)
+    {
+        var (service, ops) = CreateService(FakeBlobContainerOperations.Behavior.ThrowGeneric, tenantId: null);
+
+        Func<Task<Result>> act = operation switch
+        {
+            "upload" => async () => await service.UploadAsync("invoice.pdf", new MemoryStream()),
+            "download" => async () => await service.DownloadAsync("invoice.pdf"),
+            "delete" => () => service.DeleteAsync("invoice.pdf"),
+            "sas" => async () => await service.GenerateSasUrlAsync("invoice.pdf", TimeSpan.FromMinutes(15)),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+        };
+
+        var result = await act();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("BlobStorage.NoTenantContext", result.Error.Code);
+        Assert.Null(ops.LastBlobName);
+    }
+
+    private static (BlobStorageService Service, FakeBlobContainerOperations Operations) CreateService(
+        FakeBlobContainerOperations.Behavior behavior, string? tenantId = "tenant-a")
     {
         var operations = new FakeBlobContainerOperations { Mode = behavior };
-        var service = new BlobStorageService(operations, NullLogger<BlobStorageService>.Instance);
+        var currentUser = new FakeCurrentUserService { TenantId = tenantId };
+        var service = new BlobStorageService(operations, currentUser, NullLogger<BlobStorageService>.Instance);
         return (service, operations);
     }
 }

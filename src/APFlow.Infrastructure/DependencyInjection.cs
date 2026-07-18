@@ -117,18 +117,27 @@ public static class DependencyInjection
         });
 
         // BlobStorageService is registered via an explicit factory lambda, not
-        // services.AddSingleton<TInterface, TImpl>(): its constructor is internal (it
+        // services.AddScoped<TInterface, TImpl>(): its constructor is internal (it
         // takes the internal IBlobContainerOperations - see BlobContainerOperations.cs),
         // and the default DI container's reflection-based activation only finds
         // PUBLIC constructors. Same pattern as EmailService (WP-004).
         // BlobContainerOperations' own constructor is public (only its class is
         // internal, which reflection-based activation tolerates - verified in WP-004b);
         // it's registered via factory here too only for consistency with the line below.
+        // BlobContainerOperations itself stays Singleton (thin, stateless wrapper over
+        // the thread-safe BlobServiceClient - no request-scoped state).
         services.AddSingleton<IBlobContainerOperations>(sp => new BlobContainerOperations(
             sp.GetRequiredService<BlobServiceClient>(),
             sp.GetRequiredService<IOptions<BlobStorageOptions>>()));
-        services.AddSingleton<IBlobStorageService>(sp => new BlobStorageService(
+        // Scoped, not Singleton: BlobStorageService now depends on the Scoped
+        // ICurrentUserService to enforce tenant-scoped blob names (see
+        // docs/WP-005-Blob-Storage-Tenant-Isolation-Decision.md). A Singleton would
+        // capture whichever tenant's request constructed it first and freeze to that
+        // tenant forever - the same bug class flagged for the EF Core query filter in
+        // docs/WP-003-Tenant-Isolation-Decision.md.
+        services.AddScoped<IBlobStorageService>(sp => new BlobStorageService(
             sp.GetRequiredService<IBlobContainerOperations>(),
+            sp.GetRequiredService<ICurrentUserService>(),
             sp.GetRequiredService<ILogger<BlobStorageService>>()));
 
         return services;

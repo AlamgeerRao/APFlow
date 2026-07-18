@@ -8,6 +8,13 @@ namespace APFlow.Application.Interfaces;
 /// stream, content type only. WP-005 scope: not wired into any invoice/document
 /// workflow - that wiring is explicitly deferred to whichever future work package
 /// needs it.
+/// TENANT ISOLATION (see docs/WP-005-Blob-Storage-Tenant-Isolation-Decision.md):
+/// every <c>blobName</c> below is a caller-chosen *logical* name, scoped to a single
+/// shared container. The implementation transparently prefixes it with the current
+/// caller's tenant id before touching Azure Storage - callers never see or supply
+/// that prefix, and cannot address another tenant's blob through this interface.
+/// Fails with error code <c>BlobStorage.NoTenantContext</c> if called with no
+/// authenticated tenant in scope.
 /// </summary>
 public interface IBlobStorageService
 {
