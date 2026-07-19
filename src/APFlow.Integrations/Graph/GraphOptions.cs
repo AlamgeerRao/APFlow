@@ -45,4 +45,12 @@ public sealed class GraphOptions
     /// UPN/address, e.g. "ap-invoices@clienttenant.onmicrosoft.com".
     /// </summary>
     public string MailboxUserPrincipalName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The Outlook category applied to a message once AP Flow has processed it (see
+    /// EmailSyncService.MarkAsProcessedAsync, WP-006). Emails are never deleted or
+    /// moved - this category is the only record that AP Flow has handled a message.
+    /// Configurable so it doesn't collide with a customer's existing category naming.
+    /// </summary>
+    public string ProcessedCategoryName { get; init; } = "APFlow-Processed";
 }

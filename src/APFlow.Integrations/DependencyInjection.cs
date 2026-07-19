@@ -80,6 +80,15 @@ public static class DependencyInjection
             sp.GetRequiredService<IOptions<GraphOptions>>(),
             sp.GetRequiredService<ILogger<EmailService>>()));
 
+        // WP-006: same internal-constructor-needs-a-factory reasoning as EmailService
+        // above. GraphMessageOperations' own constructor is public (only its class is
+        // internal), registered via the generic form directly since nothing prevents it.
+        services.AddSingleton<IGraphMessageOperations, GraphMessageOperations>();
+        services.AddSingleton<IEmailSyncService>(sp => new EmailSyncService(
+            sp.GetRequiredService<IGraphMessageOperations>(),
+            sp.GetRequiredService<IOptions<GraphOptions>>(),
+            sp.GetRequiredService<ILogger<EmailSyncService>>()));
+
         return services;
     }
 }
