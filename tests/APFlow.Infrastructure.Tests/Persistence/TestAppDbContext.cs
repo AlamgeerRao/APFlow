@@ -8,9 +8,11 @@ namespace APFlow.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// Test-only concrete entity so <see cref="TenantEntity"/>'s behavior (via
-/// <see cref="AppDbContext"/>'s audit-stamping and soft-delete conventions) can be
-/// exercised. Never referenced by production code - APFlow.Domain has no concrete
-/// entities yet per WP-003 scope ("no invoice entities yet").
+/// <see cref="AppDbContext"/>'s audit-stamping, soft-delete, and tenant-filtering
+/// conventions) can be exercised in isolation from the real Invoice/Supplier/
+/// InvoiceNote entities added in WP-009 - useful for testing base AppDbContext
+/// mechanics without real-entity complexity (navigation properties, EF
+/// configurations) getting in the way.
 /// </summary>
 internal sealed class TestTenantEntity : TenantEntity
 {

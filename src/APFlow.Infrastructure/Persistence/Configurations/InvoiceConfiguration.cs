@@ -1,0 +1,48 @@
+using APFlow.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace APFlow.Infrastructure.Persistence.Configurations;
+
+/// <summary>
+/// EF Core mapping for <see cref="Invoice"/>. Money fields use HasPrecision(18, 2) -
+/// SQL Server's decimal columns need an explicit precision/scale, and EF Core will
+/// otherwise fall back to a default that isn't guaranteed and produces a build-time
+/// warning. (18, 2) is a conventional, generous choice for currency amounts; revisit
+/// if a currency requiring more decimal places is ever supported.
+/// </summary>
+public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
+{
+    /// <inheritdoc/>
+    public void Configure(EntityTypeBuilder<Invoice> builder)
+    {
+        builder.ToTable("Invoices");
+
+        builder.HasKey(i => i.Id);
+
+        builder.Property(i => i.SupplierInvoiceNumber)
+            .HasMaxLength(128);
+
+        builder.Property(i => i.Currency)
+            .HasMaxLength(3); // ISO 4217 currency codes are always 3 characters.
+
+        builder.Property(i => i.NetAmount).HasPrecision(18, 2);
+        builder.Property(i => i.Vat).HasPrecision(18, 2);
+        builder.Property(i => i.GrossTotal).HasPrecision(18, 2);
+
+        builder.Property(i => i.Status)
+            .HasConversion<string>() // Store as string, not int - readable in the
+            .HasMaxLength(32);       // database, and resilient to enum member reordering.
+
+        builder.Property(i => i.SourceEmailMessageId)
+            .HasMaxLength(512); // Graph message ids are long opaque strings.
+
+        builder.HasIndex(i => new { i.TenantId, i.Status });
+        builder.HasIndex(i => new { i.TenantId, i.SupplierId });
+
+        builder.HasMany(i => i.Notes)
+            .WithOne(n => n.Invoice)
+            .HasForeignKey(n => n.InvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

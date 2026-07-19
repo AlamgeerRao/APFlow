@@ -33,6 +33,11 @@ public static class DependencyInjection
         services.AddDatabase(configuration, environment);
         services.AddBlobStorage(configuration, environment);
 
+        // Scoped, not singleton: these wrap the scoped AppDbContext (registered via
+        // AddDbContext in AddDatabase) and must share its per-request lifetime.
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<ISupplierRepository, SupplierRepository>();
+
         // Service Bus registrations are added here as they are implemented.
         // Intentionally empty at solution-foundation stage.
         return services;
