@@ -5,9 +5,11 @@ namespace APFlow.Application.Interfaces;
 
 /// <summary>
 /// CRUD orchestration for invoices. WP-009 scope only: create/read/update/delete and
-/// note-taking. No duplicate detection, no query/dispute workflow, no remittance
-/// handling, no approval workflow - all explicit WP-009 out-of-scope items, deferred
-/// to future work packages.
+/// note-taking. No query/dispute workflow, no remittance handling, no approval
+/// workflow - all explicit WP-009 out-of-scope items, deferred to future work
+/// packages. Duplicate detection (WP-010) is intentionally a separate service - see
+/// <see cref="IDuplicateDetectionService"/> - rather than folded in here, so this
+/// interface stays focused on plain CRUD.
 /// </summary>
 public interface IInvoiceService
 {

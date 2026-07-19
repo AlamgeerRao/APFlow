@@ -18,6 +18,7 @@ public static class DependencyInjection
         // registrations) on the scoped AppDbContext.
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<ISupplierService, SupplierService>();
+        services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
 
         // Further feature registrations, validators, and mapping profiles are added
         // here as they are implemented.
