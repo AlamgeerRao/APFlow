@@ -89,6 +89,16 @@ public static class DependencyInjection
             sp.GetRequiredService<IOptions<GraphOptions>>(),
             sp.GetRequiredService<ILogger<EmailSyncService>>()));
 
+        // WP-007: same internal-constructor-needs-a-factory reasoning as EmailService
+        // (WP-004) and EmailSyncService (WP-006). GraphAttachmentOperations' own
+        // constructor is public (only its class is internal), registered via the
+        // generic form directly since nothing prevents it.
+        services.AddSingleton<IGraphAttachmentOperations, GraphAttachmentOperations>();
+        services.AddSingleton<IPdfExtractionService>(sp => new PdfExtractionService(
+            sp.GetRequiredService<IGraphAttachmentOperations>(),
+            sp.GetRequiredService<IOptions<GraphOptions>>(),
+            sp.GetRequiredService<ILogger<PdfExtractionService>>()));
+
         return services;
     }
 }
