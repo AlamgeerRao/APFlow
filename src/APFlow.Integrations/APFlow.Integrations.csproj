@@ -29,6 +29,17 @@
     <PackageReference Include="Azure.Identity" Version="1.13.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Version chosen from training knowledge (the GA-stable Azure.AI.DocumentIntelligence
+      SDK, the renamed successor to Azure.AI.FormRecognizer) - NOT verified against a
+      real NuGet feed. The API usage in DocumentIntelligenceOperations.cs WAS checked
+      against real Microsoft documentation/samples after WP-008 review (web search) -
+      see that file's doc comment for what was confirmed and what remains residual risk.
+    -->
+    <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
