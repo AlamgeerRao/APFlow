@@ -1,3 +1,4 @@
+using APFlow.Application.DTOs;
 using APFlow.Domain.Entities;
 
 namespace APFlow.Application.Interfaces;
@@ -21,6 +22,20 @@ public interface IInvoiceRepository
 
     /// <summary>Returns every invoice visible to the current tenant.</summary>
     Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a filtered, sorted, paged slice of invoices visible to the current
+    /// tenant, together with the total count of rows matching the filter (not just
+    /// the page). Filtering, sorting, and paging are performed by the underlying
+    /// data store - unlike <see cref="GetAllAsync"/>, this method is safe to call
+    /// against a large invoice table without loading every row into memory.
+    /// Callers are expected to have already validated <paramref name="parameters"/>
+    /// (see <c>IInvoiceQueryService</c>); this method does not return validation
+    /// errors, only results.
+    /// </summary>
+    Task<(IReadOnlyList<Invoice> Items, int TotalCount)> QueryAsync(
+        InvoiceQueryParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Begins tracking a new invoice. Does not persist until <see cref="SaveChangesAsync"/> is called.</summary>
     Task AddAsync(Invoice invoice, CancellationToken cancellationToken = default);

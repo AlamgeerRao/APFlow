@@ -40,6 +40,14 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(i => new { i.TenantId, i.Status });
         builder.HasIndex(i => new { i.TenantId, i.SupplierId });
 
+        // Supports WP-011's InvoiceDateFrom/InvoiceDateTo range filter
+        // (InvoiceRepository.QueryAsync) without a full table scan per tenant.
+        // No index added for SupplierInvoiceNumber: WP-011's filter on it is a
+        // substring match (Contains), which a standard B-tree index cannot serve
+        // efficiently regardless - only a full-text/trigram index would help, and
+        // nothing in WP-011's scope calls for that infrastructure.
+        builder.HasIndex(i => new { i.TenantId, i.InvoiceDate });
+
         builder.HasMany(i => i.Notes)
             .WithOne(n => n.Invoice)
             .HasForeignKey(n => n.InvoiceId)

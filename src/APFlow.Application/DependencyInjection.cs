@@ -17,6 +17,7 @@ public static class DependencyInjection
         // Scoped: these depend (transitively, via Infrastructure's repository
         // registrations) on the scoped AppDbContext.
         services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IInvoiceQueryService, InvoiceQueryService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
 
