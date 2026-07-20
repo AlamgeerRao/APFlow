@@ -37,6 +37,7 @@ public static class DependencyInjection
         // AddDbContext in AddDatabase) and must share its per-request lifetime.
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<ISupplierRepository, SupplierRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         // Service Bus registrations are added here as they are implemented.
         // Intentionally empty at solution-foundation stage.

@@ -1,3 +1,4 @@
+using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Suppliers;
 using APFlow.Application.Interfaces;
@@ -16,6 +17,8 @@ public static class DependencyInjection
     {
         // Scoped: these depend (transitively, via Infrastructure's repository
         // registrations) on the scoped AppDbContext.
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IInvoiceQueryService, InvoiceQueryService>();
         services.AddScoped<ISupplierService, SupplierService>();

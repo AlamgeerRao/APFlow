@@ -1,6 +1,8 @@
 using APFlow.Application.DTOs;
+using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Tests.Features;
+using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
 using APFlow.Domain.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -63,6 +65,48 @@ public class InvoiceServiceTests
 
         Assert.True(result.IsFailure);
         Assert.Equal("Invoice.NotFound", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChanged_StagesAuditLogEntry_CommittedWithTheUpdate()
+    {
+        var (service, invoiceRepo, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Extracted));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(auditLogRepo.AuditLogs);
+        Assert.Equal(AuditActions.InvoiceStatusChanged, entry.Action);
+        Assert.Equal(nameof(Invoice), entry.EntityName);
+        Assert.Equal(created.Value.Id, entry.EntityId);
+        Assert.Equal(InvoiceStatus.Received.ToString(), entry.PreviousValue); // CreateAsync always starts at Received
+        Assert.Equal(InvoiceStatus.Extracted.ToString(), entry.NewValue);
+
+        // Staged, not independently saved - InvoiceService.UpdateAsync's own
+        // SaveChangesAsync call is what commits it (see IAuditService.LogAsync's
+        // doc comment); asserting it was never saved through the audit repository
+        // itself proves the "commit together, not independently" design.
+        Assert.False(auditLogRepo.SaveChangesCalled);
+        Assert.True(invoiceRepo.SaveChangesCalled);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusUnchanged_NoAuditLogEntryStaged()
+    {
+        var (service, _, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Received)); // same status as CreateAsync's default
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(auditLogRepo.AuditLogs);
     }
 
     [Fact]
@@ -216,9 +260,25 @@ public class InvoiceServiceTests
 
     private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeSupplierRepository SupplierRepository) CreateService()
     {
+        var (service, invoiceRepository, supplierRepository, _) = CreateServiceWithAudit();
+        return (service, invoiceRepository, supplierRepository);
+    }
+
+    /// <summary>
+    /// Same as <see cref="CreateService"/> but also exposes the
+    /// <see cref="FakeAuditLogRepository"/> backing the real <see cref="AuditService"/>
+    /// InvoiceService is wired to, for tests asserting on WP-013's automatic
+    /// status-change audit logging specifically. Kept as a separate overload rather
+    /// than changing CreateService's return shape, so the other 16+ pre-WP-013 tests
+    /// in this file don't need updating for a dependency they don't care about.
+    /// </summary>
+    private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeSupplierRepository SupplierRepository, FakeAuditLogRepository AuditLogRepository) CreateServiceWithAudit()
+    {
         var invoiceRepository = new FakeInvoiceRepository();
         var supplierRepository = new FakeSupplierRepository();
-        var service = new InvoiceService(invoiceRepository, supplierRepository, NullLogger<InvoiceService>.Instance);
-        return (service, invoiceRepository, supplierRepository);
+        var auditLogRepository = new FakeAuditLogRepository();
+        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var service = new InvoiceService(invoiceRepository, supplierRepository, auditService, NullLogger<InvoiceService>.Instance);
+        return (service, invoiceRepository, supplierRepository, auditLogRepository);
     }
 }

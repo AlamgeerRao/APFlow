@@ -58,7 +58,7 @@ A deployable MVP capable of:
 | WP-010 | Duplicate Invoice Detection | Backend Engineer | Done |
 | WP-011 | Invoice Repository & Query Services | Backend Engineer | Done |
 | WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done |
-| WP-013 | Audit Logging & Activity History | Backend Engineer | Not started |
+| WP-013 | Audit Logging & Activity History | Backend Engineer | Done |
 | WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Not started |
 | WP-015 | Invoice Work Queue | Senior React Engineer | Not started |
 | WP-016 | Invoice Review Screen | Senior React Engineer | Not started |
@@ -75,6 +75,7 @@ A deployable MVP capable of:
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 
 - `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md`
+- `docs/WP-013-Audit-Logging-Decisions.md`
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
 

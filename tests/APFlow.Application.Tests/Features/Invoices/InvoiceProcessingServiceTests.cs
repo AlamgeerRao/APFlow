@@ -1,4 +1,5 @@
 using APFlow.Application.DTOs;
+using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Suppliers;
 using APFlow.Application.Interfaces;
@@ -242,7 +243,9 @@ public class InvoiceProcessingServiceTests
     {
         var invoiceRepository = new FakeInvoiceRepository();
         var supplierRepository = new FakeSupplierRepository();
-        var invoiceService = new InvoiceService(invoiceRepository, supplierRepository, NullLogger<InvoiceService>.Instance);
+        var auditLogRepository = new FakeAuditLogRepository();
+        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var invoiceService = new InvoiceService(invoiceRepository, supplierRepository, auditService, NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
 
         var emailSync = new FakeEmailSyncService();

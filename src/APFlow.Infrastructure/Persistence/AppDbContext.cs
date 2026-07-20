@@ -71,6 +71,13 @@ public class AppDbContext : DbContext
     public DbSet<InvoiceNote> InvoiceNotes => Set<InvoiceNote>();
 
     /// <summary>
+    /// Audit trail entries (WP-013). Tenant-isolated - see <see cref="_currentTenantId"/>.
+    /// No corresponding <c>Update</c>/<c>Remove</c> anywhere in this codebase - see
+    /// <see cref="AuditLog"/>'s doc comment.
+    /// </summary>
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    /// <summary>
     /// Creates a new <see cref="AppDbContext"/>. <paramref name="currentUserService"/>
     /// and <paramref name="logger"/> are optional (default to null) specifically so
     /// this context can be constructed at EF Core design time (migrations tooling)

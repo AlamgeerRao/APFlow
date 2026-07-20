@@ -132,3 +132,75 @@ internal sealed class FakeSupplierRepository : ISupplierRepository
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
 }
+
+/// <summary>
+/// Hand-written fake, same pattern as every Graph/Blob fake elsewhere in this
+/// codebase. Unlike a real AppDbContext, does NOT stamp CreatedBy/CreatedAtUtc on
+/// AddAsync (those are stamped only by AppDbContext.SaveChanges, which never runs
+/// against this fake) - tests relying on this fake should not assert on those
+/// fields; see AuditLogRepositoryTests (APFlow.Infrastructure.Tests) for that.
+/// </summary>
+internal sealed class FakeAuditLogRepository : IAuditLogRepository
+{
+    public List<AuditLog> AuditLogs { get; } = [];
+    public bool SaveChangesCalled { get; private set; }
+
+    public Task<AuditLog?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(AuditLogs.FirstOrDefault(a => a.Id == id));
+
+    public Task<(IReadOnlyList<AuditLog> Items, int TotalCount)> QueryAsync(
+        AuditLogQueryParameters parameters, CancellationToken cancellationToken = default)
+    {
+        IEnumerable<AuditLog> query = AuditLogs;
+
+        if (!string.IsNullOrWhiteSpace(parameters.EntityName))
+        {
+            query = query.Where(a => a.EntityName == parameters.EntityName);
+        }
+
+        if (parameters.EntityId is not null)
+        {
+            query = query.Where(a => a.EntityId == parameters.EntityId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.PerformedByUserId))
+        {
+            query = query.Where(a => a.CreatedBy == parameters.PerformedByUserId);
+        }
+
+        if (parameters.FromUtc is not null)
+        {
+            query = query.Where(a => a.CreatedAtUtc >= parameters.FromUtc);
+        }
+
+        if (parameters.ToUtc is not null)
+        {
+            query = query.Where(a => a.CreatedAtUtc <= parameters.ToUtc);
+        }
+
+        var totalCount = query.Count();
+
+        query = parameters.SortDescending
+            ? query.OrderByDescending(a => a.CreatedAtUtc)
+            : query.OrderBy(a => a.CreatedAtUtc);
+
+        var page = Math.Max(parameters.Page, 1);
+        var pageSize = Math.Clamp(parameters.PageSize, 1, AuditLogQueryParameters.MaxPageSize);
+
+        var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Task.FromResult<(IReadOnlyList<AuditLog> Items, int TotalCount)>((items, totalCount));
+    }
+
+    public Task AddAsync(AuditLog auditLog, CancellationToken cancellationToken = default)
+    {
+        AuditLogs.Add(auditLog);
+        return Task.CompletedTask;
+    }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCalled = true;
+        return Task.FromResult(1);
+    }
+}
