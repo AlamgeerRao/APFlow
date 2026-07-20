@@ -74,6 +74,10 @@ A deployable MVP capable of:
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 
+- `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md`
+
+Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
+
 - `docs/WP-004-Graph-Multitenancy-Decision.md`
 - `docs/WP-004-Health-Check-Severity-Decision.md`
 - `docs/WP-010-Duplicate-Flag-Persistence-Decision.md`

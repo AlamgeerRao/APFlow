@@ -1,9 +1,42 @@
 # WP-004 — Graph Configuration Is Single-Tenant-Shaped: Decision Required
 
-**Status:** OPEN — not a hard gate for the initial customer, but must be resolved
-before a second customer with their own mailbox/tenant is onboarded.
+**Status:** RESOLVED — ruling recorded 2026-07-20. Current single-tenant shape is
+accepted as intentional MVP scope, not a defect. The per-tenant redesign is
+scheduled as a **hard gate before any second customer's mailbox is connected** -
+see `docs/Backlog.md` ("Per-Tenant Graph Configuration").
 **Owner:** Chief Technical Architect.
 **Raised:** WP-004 delivery.
+
+## Ruling (Chief Technical Architect, 2026-07-20)
+
+Confirmed acceptable for GB Skips as sole customer. Building the N-tenant version
+now would be speculative generality against a requirement that doesn't exist yet -
+correctly deferred per Engineering Principles ("simplicity first").
+
+- **Redesign ownership:** Chief Technical Architect owns the design; a Backend
+  Engineer implements it under a dedicated work package. Tracked in
+  `docs/Backlog.md` as **WP-XXX — Per-Tenant Graph Configuration**, status "Not
+  Started, Blocking for Customer 2." This is a hard gate on customer #2
+  onboarding, not a nice-to-have.
+- **Storage shape:** Approved direction is a `TenantGraphConfiguration` table in
+  Azure SQL as originally proposed below, keyed by tenant.
+- **Auth pattern (correction to this doc's original framing):** Managed Identity
+  does **not** solve this problem - it only works within our own Azure tenant and
+  cannot authenticate against a customer's separate M365 tenant. The realistic
+  long-term pattern is a multi-tenant Entra app registration with per-customer
+  admin consent, using either a client secret or certificate per tenant.
+  Certificate-based auth is preferred over client secrets where the customer's IT
+  will support it, per least-privilege/security standards.
+- **Key Vault:** Key Vault can hold arbitrary per-customer secrets; it just needs
+  a naming convention (e.g. `graph-secret-{tenantId}`) rather than a single flat
+  name. No new secrets platform is required, just a per-tenant naming scheme.
+- **Health check:** Agreed it can't remain a single `/health/ready` signal once
+  multi-tenant. The exact shape (per-tenant check vs. removal from the shared
+  endpoint) is deferred to the same follow-up WP - not solved in isolation here.
+
+The original problem statement and proposed direction below are kept as the
+historical record this ruling confirms; treat the "Decision needed" checklist as
+answered by the ruling above, not as still-open.
 
 ## What exists today
 

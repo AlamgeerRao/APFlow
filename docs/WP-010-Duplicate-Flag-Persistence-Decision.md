@@ -1,8 +1,55 @@
 # WP-010 — Duplicate Flag/Reason Persistence: Decision Required
 
-**Status:** OPEN — implemented with a reasoned default; needs explicit sign-off.
+**Status:** RESOLVED — ruling recorded 2026-07-20. Persist, as new `Invoice`
+fields. Ephemeral was the right conservative default to ship, but is not the
+correct end state. Implementation tracked in `docs/Backlog.md`.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-010 delivery.
+
+## Ruling (Chief Technical Architect, 2026-07-20)
+
+**Reasoning:** WP-010's own stated objective - detect duplicates before approval
+- requires the result to survive until an approval step exists to consult it. An
+approval workflow isn't built yet, but building duplicate detection as ephemeral
+now means it silently stops doing its job the moment approval is built, unless
+someone remembers to rewire it. That's a foreseeable gap worth closing now rather
+than later.
+
+**Decisions:**
+
+- **Persist as new `Invoice` fields, not an automatic `InvoiceNote`.** Add
+  `IsPotentialDuplicate` (bool) and `DuplicateCheckReason` (string, nullable)
+  directly to `Invoice`. This is queryable by the dashboard/future approval UI
+  without joining to notes, and it represents system-computed state, not a
+  human-authored note - `InvoiceNote` stays reserved for human/audit commentary,
+  not system output. This is a schema change; approved here explicitly, so it
+  does not conflict with "don't fabricate requirements" - this sign-off is the
+  requirement.
+- **Persistence ownership:** `DuplicateDetectionService` should not call
+  `SaveChangesAsync` itself. Keep it a pure compute service (single
+  responsibility, per Engineering Principles). The calling orchestrator (invoice
+  ingestion pipeline) is responsible for invoking `CheckAsync` and persisting the
+  result via `IInvoiceRepository`. This keeps `DuplicateDetectionService`
+  reusable and testable in isolation, matching Testing Standards.
+- **Wiring:** `CheckAsync` should be invoked automatically as part of the
+  ingestion pipeline (immediately after extraction/before the invoice is first
+  surfaced to a reviewer), so the flag is already present the first time a human
+  sees the invoice. Tracked as a small follow-up task against the ingestion
+  orchestrator (`InvoiceProcessingService`, WP-012) - not a new WP, a completion
+  item on the existing pipeline. See `docs/Backlog.md`.
+
+**On the three non-blocking QA observations below:**
+
+- Currency excluded from matching criteria - confirmed correct, no change. Logged
+  as a backlog candidate; not added speculatively.
+- No status filtering - confirmed correct as-is. A resubmitted rejected invoice
+  should still be flagged. No change needed.
+- `GetAllAsync()` full-table scan - accepted as known MVP tech debt. Tracked in
+  `docs/Backlog.md` as a `GetBySupplierAsync` addition to `IInvoiceRepository`;
+  not worth building ahead of actual volume.
+
+Treat the "Decision needed" checklist below as answered by the ruling above, not
+as still-open.
 
 ## What exists today
 

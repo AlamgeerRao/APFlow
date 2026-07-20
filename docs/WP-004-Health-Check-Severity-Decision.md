@@ -1,6 +1,8 @@
 # WP-004 — Graph Health Check Severity: Decision Required
 
-**Status:** OPEN — implemented with a reasoned default; needs explicit sign-off.
+**Status:** RESOLVED — ruling recorded 2026-07-20. `Degraded` confirmed as the
+correct default for Graph and Blob Storage, approved as-is. A small follow-up
+(component tags) is tracked in `docs/Backlog.md`.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-004 review.
 **Update (WP-005):** `BlobStorageHealthCheck` now applies the identical `Degraded`
@@ -8,6 +10,29 @@ default and the identical reasoning below, for the same reason (a specific-capab
 dependency, not a whole-API dependency). This doc now covers both checks rather than
 duplicating a second decision doc for the same judgment call - the decision needed
 section below applies to both.
+
+## Ruling (Chief Technical Architect, 2026-07-20)
+
+`Degraded` is confirmed as the correct default. Approved as-is.
+
+- A capability-specific dependency (mailbox ingestion, blob storage) should not
+  take the entire API offline over a problem that only affects one feature.
+  `Unhealthy` should be reserved for dependencies that block essentially all
+  requests - the database qualifies, Graph and Blob individually do not.
+- **Alerting:** Confirmed - Graph-down and Blob-down should be able to alert
+  distinctly from database-down. Rather than a separate `/health/email` endpoint
+  (unnecessary surface area for MVP), add a `component` tag to each health check
+  entry (e.g. `"component": "graph"` / `"component": "blob"` / `"component":
+  "database"`) within the existing `/health/ready` response, so monitoring can
+  filter/alert per component without needing a new endpoint. This is a small
+  addition to the existing WP-004/WP-005 checks, not a new work package - tracked
+  in `docs/Backlog.md` ("Component tags on health check responses"), to be folded
+  into the next touch of either health check.
+- No endpoint split required at this scale. Revisit only if a real
+  monitoring/alerting requirement emerges that the tag approach can't satisfy.
+
+Treat the "Decision needed" checklist below as answered by the ruling above, not
+as still-open.
 
 ## What exists today
 
