@@ -42,6 +42,8 @@ public class InvoiceProcessingServiceTests
         Assert.Equal(InvoiceStatus.Extracted, invoice.Status);
         Assert.Equal("invoices/graph-message-1/invoice.pdf", invoice.SourceDocumentBlobName);
         Assert.Equal(MessageId, invoice.SourceEmailMessageId);
+        Assert.False(invoice.IsPotentialDuplicate); // persisted, not just reported - see WP-010's ruling
+        Assert.Null(invoice.DuplicateCheckReason);
 
         Assert.Single(deps.BlobStorage.UploadedBlobNames);
         Assert.Contains(MessageId, deps.EmailSync.MarkedAsProcessedMessageIds);
@@ -137,6 +139,11 @@ public class InvoiceProcessingServiceTests
         Assert.Equal(InvoiceProcessingOutcome.Processed, item.Outcome); // still saved, not blocked
         Assert.True(item.IsPotentialDuplicate);
         Assert.NotNull(item.InvoiceId);
+
+        // Persisted, not just reported in the per-run result - see WP-010's ruling.
+        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
+        Assert.True(invoice.IsPotentialDuplicate);
+        Assert.Equal("All fields matched.", invoice.DuplicateCheckReason);
     }
 
     [Fact]
@@ -156,6 +163,12 @@ public class InvoiceProcessingServiceTests
         Assert.Equal(InvoiceProcessingOutcome.Processed, item.Outcome);
         Assert.Null(item.IsPotentialDuplicate);
         Assert.NotNull(item.InvoiceId);
+
+        // A failed check has no result to persist - the invoice keeps its
+        // just-created defaults rather than being written to at all.
+        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
+        Assert.False(invoice.IsPotentialDuplicate);
+        Assert.Null(invoice.DuplicateCheckReason);
     }
 
     [Fact]
@@ -240,7 +253,7 @@ public class InvoiceProcessingServiceTests
 
         var service = new InvoiceProcessingService(
             emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetection,
-            invoiceService, supplierService, NullLogger<InvoiceProcessingService>.Instance);
+            invoiceService, supplierService, invoiceRepository, NullLogger<InvoiceProcessingService>.Instance);
 
         return (service, new TestDependencies(
             invoiceRepository, supplierRepository, emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetection));

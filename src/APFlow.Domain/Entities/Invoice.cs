@@ -77,6 +77,28 @@ public sealed class Invoice : TenantEntity
     /// </summary>
     public string? SourceDocumentBlobName { get; set; }
 
+    /// <summary>
+    /// Whether a duplicate-detection check (<c>IDuplicateDetectionService</c>, WP-010)
+    /// most recently flagged this invoice as a potential duplicate of another invoice
+    /// visible to the tenant. Computed, not user-editable - set only by whichever
+    /// caller invokes the check and persists its result (currently
+    /// <c>InvoiceProcessingService</c>, WP-012's ingestion orchestrator). Defaults to
+    /// false for an invoice the check has never run against, which reads the same as
+    /// "checked and found not to be a duplicate" - this field does not distinguish
+    /// the two. See docs/WP-010-Duplicate-Flag-Persistence-Decision.md for why this
+    /// is persisted here rather than staying an ephemeral, recompute-on-demand result.
+    /// </summary>
+    public bool IsPotentialDuplicate { get; set; }
+
+    /// <summary>
+    /// A human-readable summary of why <see cref="IsPotentialDuplicate"/> is true -
+    /// which existing invoice(s) it matched and on which fields. Null whenever
+    /// <see cref="IsPotentialDuplicate"/> is false, including "never checked".
+    /// System-computed, same reasoning as <see cref="IsPotentialDuplicate"/> - see
+    /// docs/WP-010-Duplicate-Flag-Persistence-Decision.md.
+    /// </summary>
+    public string? DuplicateCheckReason { get; set; }
+
     /// <summary>Notes/remarks recorded against this invoice.</summary>
     public ICollection<InvoiceNote> Notes { get; set; } = new List<InvoiceNote>();
 }

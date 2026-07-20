@@ -42,6 +42,15 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.SourceDocumentBlobName)
             .HasMaxLength(1024);
 
+        builder.Property(i => i.IsPotentialDuplicate)
+            .HasDefaultValue(false);
+
+        // Free-text summary of DuplicateMatch.Reason(s) - same length ceiling as
+        // InvoiceNoteConfiguration's Content column (FieldLimits.InvoiceNoteContent),
+        // since it's the same kind of free-text explanatory field.
+        builder.Property(i => i.DuplicateCheckReason)
+            .HasMaxLength(4000);
+
         builder.HasIndex(i => new { i.TenantId, i.Status });
         builder.HasIndex(i => new { i.TenantId, i.SupplierId });
 

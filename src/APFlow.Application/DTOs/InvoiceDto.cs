@@ -17,6 +17,8 @@ public sealed record InvoiceDto(
     InvoiceStatus Status,
     string? SourceEmailMessageId,
     string? SourceDocumentBlobName,
+    bool IsPotentialDuplicate,
+    string? DuplicateCheckReason,
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>Request shape for creating an invoice. No Id, no Status (always starts at InvoiceStatus.Received), no audit fields - those are owned by the entity/AppDbContext.</summary>

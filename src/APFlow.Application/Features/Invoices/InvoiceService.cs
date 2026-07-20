@@ -207,5 +207,7 @@ public sealed class InvoiceService : IInvoiceService
         Status: invoice.Status,
         SourceEmailMessageId: invoice.SourceEmailMessageId,
         SourceDocumentBlobName: invoice.SourceDocumentBlobName,
+        IsPotentialDuplicate: invoice.IsPotentialDuplicate,
+        DuplicateCheckReason: invoice.DuplicateCheckReason,
         CreatedAtUtc: invoice.CreatedAtUtc);
 }

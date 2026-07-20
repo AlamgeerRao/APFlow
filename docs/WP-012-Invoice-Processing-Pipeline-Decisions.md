@@ -114,30 +114,33 @@ no data at all rather than data that might need to be found and cleaned up later
       queue strategy (the latter would need a review capability this pipeline does
       not build).
 
-## 5. Duplicate detection stays ephemeral (WP-010's own open question, not resolved here)
+## 5. Duplicate detection now persists its result (updated 2026-07-20 - superseded)
 
-**What exists today:** the pipeline calls `IDuplicateDetectionService.CheckAsync`
-after saving each invoice and includes `IsPotentialDuplicate` in its own
-`InvoiceProcessingItemResult`, and logs a warning if a duplicate is flagged. Nothing
-is persisted to the database beyond what `IDuplicateDetectionService` itself already
-does (i.e. nothing) - no new `Invoice` column, no automatic `InvoiceNote`. A failed
-duplicate check (as opposed to a successful check that finds no duplicates) does
-NOT fail the item - the invoice was already saved successfully by that point, and
-losing an advisory check's answer is a materially smaller problem than losing (or
-retrying and duplicating) a real financial record.
+**Original position (as delivered):** the pipeline called
+`IDuplicateDetectionService.CheckAsync` after saving each invoice and included
+`IsPotentialDuplicate` in its own `InvoiceProcessingItemResult`, logging a warning
+if a duplicate was flagged, but persisted nothing beyond that - no new `Invoice`
+column, no automatic `InvoiceNote`. This was deliberate: resolving
+`docs/WP-010-Duplicate-Flag-Persistence-Decision.md`'s still-open persistence
+question as a side effect of this unrelated work package would have been exactly
+the kind of undirected scope expansion `05_Development_Workflow.md` §9 prohibits.
 
-**Why this wasn't resolved here:** `docs/WP-010-Duplicate-Flag-Persistence-Decision.md`
-already raises this exact question and is still marked OPEN. WP-012's task list
-says "Duplicate Detection" as an orchestration step (call the check, use the
-result), not "resolve WP-010's persistence question" - resolving it here, as a side
-effect of an unrelated work package, would be exactly the kind of undirected scope
-expansion `05_Development_Workflow.md` §9 prohibits ("Never implement future work").
-If/when WP-010 is resolved, this pipeline's `ProcessAttachmentAsync` is the natural
-place to add the persistence call.
+**What exists today:** the Chief Technical Architect resolved
+`WP-010-Duplicate-Flag-Persistence-Decision.md` on 2026-07-20 (ruling: persist, as
+new `Invoice` fields, orchestrator-owned write) and it was implemented the same
+day - see that document's own "## Implementation" section for the full detail.
+This pipeline's `ProcessAttachmentAsync` now calls a new private
+`PersistDuplicateCheckResultAsync` immediately after a successful `CheckAsync`,
+writing `Invoice.IsPotentialDuplicate`/`DuplicateCheckReason` via a new
+`IInvoiceRepository` dependency this class gained specifically for that purpose
+(`DuplicateDetectionService` itself still has no `SaveChangesAsync` access - the
+ruling was explicit that it must stay a pure compute service). A failed duplicate
+check still does not fail the item and still leaves the invoice's persisted flag
+at its prior value - that part of the original design is unchanged.
 
-**Decision needed:** none beyond WP-010's own still-open items - flagged here only
-so the connection between the two documents is explicit and this pipeline isn't
-mistaken for having quietly resolved it.
+**Decision needed:** none - fully resolved and implemented; this item is kept
+here (rather than deleted) as the historical record of why the pipeline's shape
+changed after initial delivery.
 
 ## 6. Idempotency and supplier-matching both do full in-memory scans
 

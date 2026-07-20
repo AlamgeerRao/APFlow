@@ -1,8 +1,9 @@
 # WP-010 — Duplicate Flag/Reason Persistence: Decision Required
 
-**Status:** RESOLVED — ruling recorded 2026-07-20. Persist, as new `Invoice`
-fields. Ephemeral was the right conservative default to ship, but is not the
-correct end state. Implementation tracked in `docs/Backlog.md`.
+**Status:** IMPLEMENTED — ruling recorded 2026-07-20, implemented the same day.
+`Invoice.IsPotentialDuplicate`/`DuplicateCheckReason` are persisted fields;
+`InvoiceProcessingService` (WP-012) computes and persists them automatically for
+every attachment it processes. See "## Implementation" below.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-010 delivery.
 
@@ -50,6 +51,37 @@ than later.
 
 Treat the "Decision needed" checklist below as answered by the ruling above, not
 as still-open.
+
+## Implementation (2026-07-20)
+
+The ruling above is now implemented, same day:
+
+- `Invoice.IsPotentialDuplicate` (bool, `HasDefaultValue(false)`) and
+  `Invoice.DuplicateCheckReason` (string?, `HasMaxLength(4000)`) added directly to
+  the entity and `InvoiceConfiguration` - not an `InvoiceNote`, per the ruling.
+- `DuplicateDetectionService` is unchanged - still a pure compute service, no
+  `SaveChangesAsync` access, fully testable in isolation exactly as before.
+- `InvoiceProcessingService` (WP-012) gained a new `IInvoiceRepository`
+  dependency (alongside its existing `IInvoiceService` one) used for exactly one
+  thing: `PersistDuplicateCheckResultAsync` fetches the just-saved invoice,
+  writes `IsPotentialDuplicate`/`DuplicateCheckReason` from a successful
+  `CheckAsync` result, and calls `Update`/`SaveChangesAsync` - the orchestrator
+  owns the write, per the ruling. Multiple `DuplicateMatch.Reason` strings are
+  joined into one `DuplicateCheckReason` value.
+- Wiring is automatic: `CheckAsync` already ran immediately after every
+  successful invoice save in the pipeline (this was true before this ruling
+  too); what changed is that a successful result is now persisted rather than
+  only surfaced in the per-run `InvoiceProcessingItemResult`/logs. A failed
+  check still does not fail the item and leaves the invoice's persisted flag at
+  its prior value (false/null for a newly created invoice).
+- Tests: `InvoiceProcessingServiceTests` asserts the persisted entity's
+  `IsPotentialDuplicate`/`DuplicateCheckReason` directly (both the flagged and
+  the check-failed cases), in addition to the pre-existing assertions on the
+  per-run result's own `IsPotentialDuplicate` field.
+
+This closes the `docs/Backlog.md` row for this item. The three QA observations
+above (Currency, Status filtering, `GetAllAsync` full scan) remain backlog-only -
+none were in scope for this change.
 
 ## What exists today
 

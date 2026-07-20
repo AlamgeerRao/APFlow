@@ -46,9 +46,11 @@ public enum InvoiceProcessingOutcome
 /// or when the duplicate check itself failed - a failed duplicate check does not
 /// fail the item overall (the invoice is still saved); see
 /// docs/WP-012-Invoice-Processing-Pipeline-Decisions.md. This flag is advisory only,
-/// exactly as WP-010 defined it - nothing about this pipeline persists it or acts on
-/// it (no automatic status change, no rejection); "Approval" is explicit WP-012
-/// out-of-scope.
+/// exactly as WP-010 defined it - it never triggers an automatic status change or
+/// rejection ("Approval" is explicit WP-012 out-of-scope). Unlike this per-run report
+/// field, the underlying result IS now persisted directly onto the invoice (see
+/// <see cref="APFlow.Domain.Entities.Invoice.IsPotentialDuplicate"/>) per WP-010's
+/// persistence ruling in docs/WP-010-Duplicate-Flag-Persistence-Decision.md.
 /// </param>
 /// <param name="ErrorCode">The failing step's <c>Error.Code</c>, if <see cref="Outcome"/> is <see cref="InvoiceProcessingOutcome.Failed"/>.</param>
 /// <param name="ErrorMessage">The failing step's <c>Error.Message</c>, if <see cref="Outcome"/> is <see cref="InvoiceProcessingOutcome.Failed"/>.</param>
