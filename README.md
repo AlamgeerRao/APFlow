@@ -57,7 +57,7 @@ A deployable MVP capable of:
 | WP-009 | Invoice Domain Model & Persistence | Backend Engineer | Done |
 | WP-010 | Duplicate Invoice Detection | Backend Engineer | Done |
 | WP-011 | Invoice Repository & Query Services | Backend Engineer | Done |
-| WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Not started |
+| WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done |
 | WP-013 | Audit Logging & Activity History | Backend Engineer | Not started |
 | WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Not started |
 | WP-015 | Invoice Work Queue | Senior React Engineer | Not started |
