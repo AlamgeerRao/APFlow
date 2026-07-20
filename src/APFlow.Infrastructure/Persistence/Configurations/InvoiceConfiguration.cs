@@ -37,6 +37,11 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.SourceEmailMessageId)
             .HasMaxLength(512); // Graph message ids are long opaque strings.
 
+        // Matches BlobStorageService.MaxPhysicalBlobNameLength - Azure's own blob
+        // name length ceiling - since this stores a full logical blob name.
+        builder.Property(i => i.SourceDocumentBlobName)
+            .HasMaxLength(1024);
+
         builder.HasIndex(i => new { i.TenantId, i.Status });
         builder.HasIndex(i => new { i.TenantId, i.SupplierId });
 

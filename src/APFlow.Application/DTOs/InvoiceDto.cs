@@ -16,6 +16,7 @@ public sealed record InvoiceDto(
     decimal? GrossTotal,
     InvoiceStatus Status,
     string? SourceEmailMessageId,
+    string? SourceDocumentBlobName,
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>Request shape for creating an invoice. No Id, no Status (always starts at InvoiceStatus.Received), no audit fields - those are owned by the entity/AppDbContext.</summary>
@@ -28,7 +29,8 @@ public sealed record CreateInvoiceRequest(
     decimal? NetAmount,
     decimal? Vat,
     decimal? GrossTotal,
-    string? SourceEmailMessageId);
+    string? SourceEmailMessageId,
+    string? SourceDocumentBlobName = null);
 
 /// <summary>
 /// Request shape for updating an invoice's editable fields, including

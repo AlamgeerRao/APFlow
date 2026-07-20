@@ -11,11 +11,15 @@ namespace APFlow.Domain.Entities;
 /// confidence per field would meaningfully grow this entity's shape around a
 /// specific future consumption pattern (e.g. a review UI flagging low-confidence
 /// fields) that hasn't been designed yet. Add if/when that's a real requirement.
-/// Deliberately excludes any Blob Storage reference (e.g. a source PDF URI):
-/// WP-005 was explicit that Blob Storage is "not connected to invoice processing",
-/// and WP-009's own task list doesn't call for it either - inventing a storage
-/// linkage now would presume a strategy (one blob per invoice? per attachment?)
-/// nobody has decided.
+/// <see cref="SourceDocumentBlobName"/> is the one exception to the "no Blob Storage
+/// linkage" stance WP-009 originally took: WP-009 excluded it because nothing yet
+/// called for it. WP-012 (Invoice Processing Pipeline) now does - the pipeline
+/// stores each extracted PDF in Blob Storage as an explicit orchestration step, and
+/// needs a durable reference back to it (both for later retrieval and, together
+/// with the source email, as this entity's idempotency key - see
+/// docs/WP-012-Invoice-Processing-Pipeline-Decisions.md). No other storage-strategy
+/// assumptions (per-attachment vs per-invoice blobs, retention, etc.) are implied
+/// beyond what that document states.
 /// No behavior methods (e.g. Approve()/Reject()) - "Approval workflow" is explicit
 /// WP-009 out-of-scope. <see cref="Status"/> is a plain mutable property; a future
 /// work package is responsible for enforcing which transitions are valid.
@@ -59,6 +63,19 @@ public sealed class Invoice : TenantEntity
     /// (e.g. manual entry, once that exists).
     /// </summary>
     public string? SourceEmailMessageId { get; set; }
+
+    /// <summary>
+    /// The logical Blob Storage name (see <c>IBlobStorageService</c>) of the source
+    /// PDF this invoice was extracted from, if processed via the WP-012 pipeline.
+    /// Traceability only, same shape and reasoning as <see cref="SourceEmailMessageId"/>
+    /// (not a foreign key, not validated against Blob Storage) - with one added
+    /// role: WP-012's pipeline also uses this as its idempotency key (a given
+    /// email+attachment combination maps to a deterministic logical blob name, so a
+    /// re-run that finds an existing invoice with the same value skips reprocessing
+    /// it rather than creating a duplicate). Null for invoices created by other
+    /// means (e.g. manual entry, once that exists).
+    /// </summary>
+    public string? SourceDocumentBlobName { get; set; }
 
     /// <summary>Notes/remarks recorded against this invoice.</summary>
     public ICollection<InvoiceNote> Notes { get; set; } = new List<InvoiceNote>();

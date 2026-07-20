@@ -71,6 +71,7 @@ public sealed class InvoiceService : IInvoiceService
             Vat = request.Vat,
             GrossTotal = request.GrossTotal,
             SourceEmailMessageId = request.SourceEmailMessageId,
+            SourceDocumentBlobName = request.SourceDocumentBlobName,
         };
 
         await _invoiceRepository.AddAsync(invoice, cancellationToken);
@@ -205,5 +206,6 @@ public sealed class InvoiceService : IInvoiceService
         GrossTotal: invoice.GrossTotal,
         Status: invoice.Status,
         SourceEmailMessageId: invoice.SourceEmailMessageId,
+        SourceDocumentBlobName: invoice.SourceDocumentBlobName,
         CreatedAtUtc: invoice.CreatedAtUtc);
 }
