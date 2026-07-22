@@ -5,22 +5,26 @@ namespace APFlow.Api.Extensions;
 
 /// <summary>
 /// Registers role-based authorization policies, one per role defined in
-/// <see cref="Roles"/>, plus a fallback policy that requires authentication on every
-/// endpoint unless explicitly marked <c>[AllowAnonymous]</c> (secure by default).
+/// <see cref="Roles"/> (WP-046: docs/06_Domain_Reference_Data.md §1 / SA-007 E-05),
+/// plus a fallback policy that requires authentication on every endpoint unless
+/// explicitly marked <c>[AllowAnonymous]</c> (secure by default).
 /// </summary>
 public static class AuthorizationExtensions
 {
-    /// <summary>Policy name requiring the <see cref="Roles.Administrator"/> role.</summary>
-    public const string RequireAdministrator = "RequireAdministrator";
+    /// <summary>Policy name requiring the <see cref="Roles.PlatformAdmin"/> role.</summary>
+    public const string RequirePlatformAdmin = "RequirePlatformAdmin";
 
-    /// <summary>Policy name requiring the <see cref="Roles.ApManager"/> role.</summary>
-    public const string RequireApManager = "RequireApManager";
+    /// <summary>Policy name requiring the <see cref="Roles.ApReviewer"/> role.</summary>
+    public const string RequireApReviewer = "RequireApReviewer";
 
-    /// <summary>Policy name requiring the <see cref="Roles.ApClerk"/> role.</summary>
-    public const string RequireApClerk = "RequireApClerk";
+    /// <summary>Policy name requiring the <see cref="Roles.FinanceManager"/> role.</summary>
+    public const string RequireFinanceManager = "RequireFinanceManager";
 
-    /// <summary>Policy name requiring the <see cref="Roles.Finance"/> role.</summary>
-    public const string RequireFinance = "RequireFinance";
+    /// <summary>Policy name requiring the <see cref="Roles.CreditController"/> role.</summary>
+    public const string RequireCreditController = "RequireCreditController";
+
+    /// <summary>Policy name requiring the <see cref="Roles.AccountsAdmin"/> role.</summary>
+    public const string RequireAccountsAdmin = "RequireAccountsAdmin";
 
     /// <summary>Policy name requiring the <see cref="Roles.ReadOnly"/> role.</summary>
     public const string RequireReadOnly = "RequireReadOnly";
@@ -29,10 +33,11 @@ public static class AuthorizationExtensions
     public static IServiceCollection AddApiAuthorization(this IServiceCollection services)
     {
         services.AddAuthorizationBuilder()
-            .AddPolicy(RequireAdministrator, policy => policy.RequireRole(Roles.Administrator))
-            .AddPolicy(RequireApManager, policy => policy.RequireRole(Roles.ApManager))
-            .AddPolicy(RequireApClerk, policy => policy.RequireRole(Roles.ApClerk))
-            .AddPolicy(RequireFinance, policy => policy.RequireRole(Roles.Finance))
+            .AddPolicy(RequirePlatformAdmin, policy => policy.RequireRole(Roles.PlatformAdmin))
+            .AddPolicy(RequireApReviewer, policy => policy.RequireRole(Roles.ApReviewer))
+            .AddPolicy(RequireFinanceManager, policy => policy.RequireRole(Roles.FinanceManager))
+            .AddPolicy(RequireCreditController, policy => policy.RequireRole(Roles.CreditController))
+            .AddPolicy(RequireAccountsAdmin, policy => policy.RequireRole(Roles.AccountsAdmin))
             .AddPolicy(RequireReadOnly, policy => policy.RequireRole(Roles.ReadOnly))
             // Secure by default: every endpoint requires an authenticated caller
             // unless it explicitly opts out with [AllowAnonymous] (e.g. health checks).

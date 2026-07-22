@@ -11,17 +11,29 @@ go-live.
 
 ## Role claim values
 
+**Updated by WP-046** (Remediate Role Catalogue) to reference the corrected role
+catalogue - see docs/06_Domain_Reference_Data.md §1 (SA-007 E-05) and
+docs/WP-046-Role-Catalogue-Remediation.md. The values below replace the original
+WP-002 best-effort guesses (`Administrator`/`AP Manager`/`AP Clerk`/`Finance`/`ReadOnly`),
+which are no longer used anywhere in this codebase.
+
 - [ ] Confirm the **Value** field configured for each App Role in the Entra App
       Registration matches exactly, character-for-character, the constants in
       `src/APFlow.Domain/Common/Constants/Roles.cs`:
-      - `Administrator` → currently `"Administrator"`
-      - `AP Manager` → currently `"AP Manager"` (contains a space - Entra App Role
-        values conventionally avoid spaces; the real Value may be `"ApManager"` or
-        similar. **If it differs, `[Authorize(Policy = RequireApManager)]` will fail
-        silently with a 403 for every AP Manager - there is no error at startup.**)
-      - `AP Clerk` → currently `"AP Clerk"` (same risk as above)
-      - `Finance` → currently `"Finance"`
-      - `ReadOnly` → currently `"ReadOnly"`
+      - Platform Administrator → currently `"PLATFORM_ADMIN"`
+      - AP Reviewer → currently `"AP_REVIEWER"`
+      - Finance Manager / Decision-Maker → currently `"FINANCE_MANAGER"`
+      - Credit Controller → currently `"CREDIT_CONTROLLER"`
+      - Accounts Administrator → currently `"ACCOUNTS_ADMIN"`
+      - Read-Only → currently `"READ_ONLY"`
+      These now use SA-007 E-05's own "Role Code" column (SNAKE_CASE, no spaces),
+      which already matches Entra's own convention that App Role "Value" fields
+      avoid spaces - the specific risk this checklist originally flagged against
+      the old `"AP Manager"`/`"AP Clerk"` values (a space-containing Value silently
+      causing every `[Authorize(Policy = ...)]` check to 403) should no longer
+      apply, but still verify character-for-character against the real
+      Registration - this checklist's core purpose (nothing here has been tested
+      against a real Entra tenant) is otherwise unchanged by WP-046.
 - [ ] If any value differs, update `Roles.cs` to match the App Registration exactly -
       do not change the App Registration to match the code.
 

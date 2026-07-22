@@ -41,7 +41,7 @@ public class CurrentUserServiceTests
                 new Claim("oid", "user-123"),
                 new Claim("tid", "tenant-456"),
                 new Claim("preferred_username", "alice@example.com"),
-                new Claim("roles", Roles.ApManager),
+                new Claim("roles", Roles.ApReviewer),
                 new Claim("roles", Roles.ReadOnly),
             ],
             authenticationType: "Bearer",
@@ -56,7 +56,7 @@ public class CurrentUserServiceTests
         Assert.Equal("tenant-456", service.TenantId);
         Assert.Equal("alice@example.com", service.Email);
         Assert.Equal(2, service.Roles.Count);
-        Assert.Contains(Roles.ApManager, service.Roles);
+        Assert.Contains(Roles.ApReviewer, service.Roles);
         Assert.Contains(Roles.ReadOnly, service.Roles);
     }
 
@@ -64,7 +64,7 @@ public class CurrentUserServiceTests
     public void IsInRole_MatchingRole_ReturnsTrue()
     {
         var identity = new ClaimsIdentity(
-            [new Claim("roles", Roles.Administrator)],
+            [new Claim("roles", Roles.PlatformAdmin)],
             authenticationType: "Bearer",
             nameType: ClaimTypes.Name,
             roleType: "roles");
@@ -72,8 +72,8 @@ public class CurrentUserServiceTests
         var context = new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
         var service = new CurrentUserService(new HttpContextAccessor { HttpContext = context });
 
-        Assert.True(service.IsInRole(Roles.Administrator));
-        Assert.False(service.IsInRole(Roles.Finance));
+        Assert.True(service.IsInRole(Roles.PlatformAdmin));
+        Assert.False(service.IsInRole(Roles.FinanceManager));
     }
 
     [Fact]

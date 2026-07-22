@@ -10,10 +10,11 @@ namespace APFlow.Api.Tests.Extensions;
 public class AuthorizationExtensionsTests
 {
     [Theory]
-    [InlineData(AuthorizationExtensions.RequireAdministrator, Roles.Administrator)]
-    [InlineData(AuthorizationExtensions.RequireApManager, Roles.ApManager)]
-    [InlineData(AuthorizationExtensions.RequireApClerk, Roles.ApClerk)]
-    [InlineData(AuthorizationExtensions.RequireFinance, Roles.Finance)]
+    [InlineData(AuthorizationExtensions.RequirePlatformAdmin, Roles.PlatformAdmin)]
+    [InlineData(AuthorizationExtensions.RequireApReviewer, Roles.ApReviewer)]
+    [InlineData(AuthorizationExtensions.RequireFinanceManager, Roles.FinanceManager)]
+    [InlineData(AuthorizationExtensions.RequireCreditController, Roles.CreditController)]
+    [InlineData(AuthorizationExtensions.RequireAccountsAdmin, Roles.AccountsAdmin)]
     [InlineData(AuthorizationExtensions.RequireReadOnly, Roles.ReadOnly)]
     public async Task NamedPolicy_RequiresExpectedRole(string policyName, string expectedRole)
     {
