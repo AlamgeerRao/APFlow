@@ -51,4 +51,24 @@ public interface IInvoiceRepository
 
     /// <summary>Persists all pending changes made via this repository.</summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the invoice with the given id, sets its
+    /// <see cref="Invoice.IsPotentialDuplicate"/>/<see cref="Invoice.DuplicateCheckReason"/>
+    /// fields, and persists the change immediately - this method calls
+    /// <see cref="SaveChangesAsync"/> itself, unlike every other mutating method on
+    /// this interface (<see cref="AddAsync"/>/<see cref="Update"/>/<see cref="Remove"/>
+    /// all stage only). See docs/WP-048-Persist-Duplicate-Detection-Result.md for
+    /// why: unlike those methods, which participate in whatever save the caller was
+    /// already about to make as part of the same unit of work, a duplicate-check
+    /// result is always computed and persisted as its own, separate step, after the
+    /// invoice it describes has already been created/updated and committed by an
+    /// earlier, unrelated call - there is nothing in-flight to batch it with.
+    /// Returns false (and persists nothing) if no invoice with the given id exists.
+    /// </summary>
+    Task<bool> PersistDuplicateCheckResultAsync(
+        Guid invoiceId,
+        bool isPotentialDuplicate,
+        string? duplicateCheckReason,
+        CancellationToken cancellationToken = default);
 }

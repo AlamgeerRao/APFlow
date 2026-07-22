@@ -126,8 +126,8 @@ public class InvoiceProcessingServiceTests
         deps.SupplierRepository.Suppliers.Add(supplier);
         var existingInvoiceId = Guid.NewGuid();
 
-        deps.DuplicateDetection.ResultFactory = id => Result.Success(new DuplicateCheckResult(
-            id, true, [new DuplicateMatch(existingInvoiceId, "INV-1", ["SupplierId", "SupplierInvoiceNumber", "InvoiceDate", "GrossTotal"], "All fields matched.")]));
+        deps.DuplicateDetection.ResultFactory = (candidate, _) => new DuplicateCheckResult(
+            candidate.Id, true, [new DuplicateMatch(existingInvoiceId, "INV-1", ["Supplier", "InvoiceNumber"], "Matches existing invoice on Supplier and Invoice Number.")]);
 
         deps.EmailSync.UnreadEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
@@ -141,35 +141,11 @@ public class InvoiceProcessingServiceTests
         Assert.True(item.IsPotentialDuplicate);
         Assert.NotNull(item.InvoiceId);
 
-        // Persisted, not just reported in the per-run result - see WP-010's ruling.
+        // Persisted, not just reported in the per-run result - see WP-010's ruling,
+        // now via IInvoiceRepository.PersistDuplicateCheckResultAsync (WP-048).
         var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
         Assert.True(invoice.IsPotentialDuplicate);
-        Assert.Equal("All fields matched.", invoice.DuplicateCheckReason);
-    }
-
-    [Fact]
-    public async Task ProcessUnreadEmailsAsync_DuplicateCheckFails_ItemStillProcessed_FlagIsNull()
-    {
-        var (service, deps) = CreateService();
-        deps.DuplicateDetection.ResultFactory = _ => Result.Failure<DuplicateCheckResult>(new Error("Invoice.NotFound", "not found"));
-
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
-        deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
-        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
-
-        var result = await service.ProcessUnreadEmailsAsync();
-
-        Assert.True(result.IsSuccess);
-        var item = Assert.Single(result.Value.Items);
-        Assert.Equal(InvoiceProcessingOutcome.Processed, item.Outcome);
-        Assert.Null(item.IsPotentialDuplicate);
-        Assert.NotNull(item.InvoiceId);
-
-        // A failed check has no result to persist - the invoice keeps its
-        // just-created defaults rather than being written to at all.
-        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
-        Assert.False(invoice.IsPotentialDuplicate);
-        Assert.Null(invoice.DuplicateCheckReason);
+        Assert.Equal("Matches existing invoice on Supplier and Invoice Number.", invoice.DuplicateCheckReason);
     }
 
     [Fact]

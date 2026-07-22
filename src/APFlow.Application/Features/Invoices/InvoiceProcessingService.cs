@@ -14,11 +14,12 @@ namespace APFlow.Application.Features.Invoices;
 /// docs/WP-012-Invoice-Processing-Pipeline-Decisions.md for the reasoning behind
 /// the choices this class makes beyond simply chaining its six collaborators.
 /// Depends on both <see cref="IInvoiceService"/> (create/advance-status) and
-/// <see cref="IInvoiceRepository"/> (persisting a duplicate-check result directly)
-/// deliberately - see <see cref="PersistDuplicateCheckResultAsync"/> and
-/// docs/WP-010-Duplicate-Flag-Persistence-Decision.md's ruling that
-/// <c>DuplicateDetectionService</c> itself must stay a pure compute service with no
-/// <c>SaveChangesAsync</c> access, so this orchestrator owns that write instead.
+/// <see cref="IInvoiceRepository"/> (fetching the comparison set for duplicate
+/// detection, and persisting its result) deliberately - see
+/// <see cref="ProcessAttachmentAsync"/> and docs/WP-048-Persist-Duplicate-Detection-Result.md:
+/// WP-048 made <c>DuplicateDetectionService</c> a pure, synchronous compute service
+/// with zero persistence dependency of its own, so this orchestrator now owns both
+/// fetching the data it needs and persisting what it returns.
 /// </summary>
 public sealed class InvoiceProcessingService : IInvoiceProcessingService
 {
@@ -284,64 +285,47 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         // saved successfully. Duplicate detection remains advisory-only (WP-010): it
         // never blocks or auto-rejects an invoice. Per WP-010's persistence ruling
         // (docs/WP-010-Duplicate-Flag-Persistence-Decision.md), a successful check's
-        // result is now persisted directly onto the invoice - see
-        // PersistDuplicateCheckResultAsync - rather than staying ephemeral.
+        // result is persisted directly onto the invoice via
+        // IInvoiceRepository.PersistDuplicateCheckResultAsync (WP-048) rather than
+        // staying ephemeral.
+        // WP-048 made IDuplicateDetectionService a pure compute service - it no
+        // longer fetches anything itself, so this orchestrator fetches both the
+        // candidate and the comparison set (one GetAllAsync call serves both,
+        // since the just-saved invoice is already included in it).
         bool? isPotentialDuplicate = null;
-        var duplicateResult = await _duplicateDetectionService.CheckAsync(invoice.Id, cancellationToken);
-        if (duplicateResult.IsSuccess)
+        var allInvoices = await _invoiceRepository.GetAllAsync(cancellationToken);
+        var candidateEntity = allInvoices.FirstOrDefault(i => i.Id == invoice.Id);
+
+        if (candidateEntity is null)
         {
-            isPotentialDuplicate = duplicateResult.Value.IsPotentialDuplicate;
+            _logger.LogWarning(
+                "Could not run duplicate check for invoice {InvoiceId}: invoice not found immediately after being saved.",
+                invoice.Id);
+        }
+        else
+        {
+            var duplicateCheckResult = _duplicateDetectionService.Check(candidateEntity, allInvoices);
+            isPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
+
             if (isPotentialDuplicate == true)
             {
                 _logger.LogWarning(
                     "Invoice {InvoiceId} flagged as a potential duplicate of {MatchCount} other invoice(s).",
-                    invoice.Id, duplicateResult.Value.Matches.Count);
+                    invoice.Id, duplicateCheckResult.Matches.Count);
             }
 
-            await PersistDuplicateCheckResultAsync(invoice.Id, duplicateResult.Value, cancellationToken);
-        }
-        else
-        {
-            _logger.LogWarning(
-                "Duplicate check failed for invoice {InvoiceId}: {ErrorCode} - {ErrorMessage}. The invoice was still " +
-                "saved successfully; its persisted duplicate flag is left at its prior value (false/null for a newly " +
-                "created invoice, since there is no successful check result to persist).",
-                invoice.Id, duplicateResult.Error.Code, duplicateResult.Error.Message);
+            var persisted = await _invoiceRepository.PersistDuplicateCheckResultAsync(
+                invoice.Id, duplicateCheckResult.IsPotentialDuplicate, BuildDuplicateCheckReason(duplicateCheckResult), cancellationToken);
+
+            if (!persisted)
+            {
+                _logger.LogWarning(
+                    "Could not persist duplicate-check result for invoice {InvoiceId}: invoice not found.", invoice.Id);
+            }
         }
 
         return new InvoiceProcessingItemResult(
             email.MessageId, attachment.FileName, InvoiceProcessingOutcome.Processed, invoice.Id, isPotentialDuplicate, null, null);
-    }
-
-    /// <summary>
-    /// Persists a successful duplicate check's result directly onto the invoice, via
-    /// <see cref="IInvoiceRepository"/> rather than <see cref="IInvoiceService"/> -
-    /// per WP-010's ruling that <c>DuplicateDetectionService</c> stays a pure compute
-    /// service with no <c>SaveChangesAsync</c> access, so this orchestrator owns the
-    /// write instead. A missing invoice here (its id was used to save it moments
-    /// earlier in the same method) is logged and skipped rather than treated as
-    /// fatal - the invoice itself is already safely saved regardless of whether this
-    /// advisory flag can be attached to it. Consistent with every other repository
-    /// call in this codebase (e.g. <c>InvoiceService.CreateAsync</c>/<c>UpdateAsync</c>'s
-    /// own repository calls), an actual exception here (e.g. a database outage) is
-    /// deliberately not caught and propagates rather than being silently swallowed.
-    /// </summary>
-    private async Task PersistDuplicateCheckResultAsync(
-        Guid invoiceId, DuplicateCheckResult duplicateCheckResult, CancellationToken cancellationToken)
-    {
-        var invoice = await _invoiceRepository.GetByIdAsync(invoiceId, cancellationToken);
-        if (invoice is null)
-        {
-            _logger.LogWarning(
-                "Could not persist duplicate-check result for invoice {InvoiceId}: invoice not found.", invoiceId);
-            return;
-        }
-
-        invoice.IsPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
-        invoice.DuplicateCheckReason = BuildDuplicateCheckReason(duplicateCheckResult);
-
-        _invoiceRepository.Update(invoice);
-        await _invoiceRepository.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

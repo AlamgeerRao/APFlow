@@ -1,6 +1,7 @@
 using APFlow.Application.DTOs;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common;
+using APFlow.Domain.Entities;
 
 namespace APFlow.Application.Tests.Features.Invoices;
 
@@ -122,15 +123,14 @@ internal sealed class FakeDocumentAnalysisService : IDocumentAnalysisService
 /// <summary>
 /// Hand-written fake, same pattern as every Graph/Blob fake elsewhere in this
 /// codebase. Defaults to "no duplicates found" so tests that don't care about
-/// duplicate detection don't need to configure it explicitly.
+/// duplicate detection don't need to configure it explicitly. WP-048 made the real
+/// service synchronous and failure-proof (a pure compute function), so this fake
+/// mirrors that shape rather than the old async/Result-wrapped one.
 /// </summary>
 internal sealed class FakeDuplicateDetectionService : IDuplicateDetectionService
 {
-    public Func<Guid, Result<DuplicateCheckResult>>? ResultFactory { get; set; }
+    public Func<Invoice, IReadOnlyList<Invoice>, DuplicateCheckResult>? ResultFactory { get; set; }
 
-    public Task<Result<DuplicateCheckResult>> CheckAsync(Guid invoiceId, CancellationToken cancellationToken = default)
-    {
-        var result = ResultFactory?.Invoke(invoiceId) ?? Result.Success(new DuplicateCheckResult(invoiceId, false, []));
-        return Task.FromResult(result);
-    }
+    public DuplicateCheckResult Check(Invoice candidate, IReadOnlyList<Invoice> otherInvoices) =>
+        ResultFactory?.Invoke(candidate, otherInvoices) ?? new DuplicateCheckResult(candidate.Id, false, []);
 }

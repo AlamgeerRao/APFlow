@@ -105,6 +105,21 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
         SaveChangesCalled = true;
         return Task.FromResult(1);
     }
+
+    public Task<bool> PersistDuplicateCheckResultAsync(
+        Guid invoiceId, bool isPotentialDuplicate, string? duplicateCheckReason, CancellationToken cancellationToken = default)
+    {
+        var invoice = Invoices.FirstOrDefault(i => i.Id == invoiceId);
+        if (invoice is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        invoice.IsPotentialDuplicate = isPotentialDuplicate;
+        invoice.DuplicateCheckReason = duplicateCheckReason;
+        SaveChangesCalled = true;
+        return Task.FromResult(true);
+    }
 }
 
 /// <summary>Hand-written fake, same pattern as every Graph/Blob fake elsewhere in this codebase.</summary>

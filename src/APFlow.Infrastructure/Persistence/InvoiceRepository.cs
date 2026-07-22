@@ -122,4 +122,21 @@ public sealed class InvoiceRepository : IInvoiceRepository
     /// <inheritdoc/>
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
         _context.SaveChangesAsync(cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<bool> PersistDuplicateCheckResultAsync(
+        Guid invoiceId, bool isPotentialDuplicate, string? duplicateCheckReason, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return false;
+        }
+
+        invoice.IsPotentialDuplicate = isPotentialDuplicate;
+        invoice.DuplicateCheckReason = duplicateCheckReason;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }

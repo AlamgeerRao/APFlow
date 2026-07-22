@@ -1,16 +1,16 @@
 using APFlow.Application.DTOs;
 using APFlow.Application.Interfaces;
-using APFlow.Domain.Common;
 using APFlow.Domain.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace APFlow.Application.Features.Invoices;
 
 /// <summary>
-/// Default implementation of <see cref="IDuplicateDetectionService"/>. Depends only
-/// on <see cref="IInvoiceRepository"/> (a plain, EF-Core-free interface), so this
-/// class is fully unit-testable with a fake repository - no database, no EF Core
-/// provider required.
+/// Default implementation of <see cref="IDuplicateDetectionService"/>. A pure
+/// compute service (WP-048): depends only on <see cref="ILogger{TCategoryName}"/>
+/// for diagnostics - no <see cref="APFlow.Application.Interfaces.IInvoiceRepository"/>,
+/// no DbContext, no persistence dependency of any kind. Fully unit-testable with
+/// plain in-memory <see cref="Invoice"/> instances - no fake repository required.
 ///
 /// <para>
 /// Matching rule (WP-047, correcting WP-010's original four-field rule per the
@@ -25,11 +25,9 @@ namespace APFlow.Application.Features.Invoices;
 ///   with different casing/whitespace across separate WP-008 analysis runs.</description></item>
 /// </list>
 /// <para>
-/// Invoice Date and Gross Amount are deliberately NOT part of this comparison.
-/// WP-010's original four-field rule (Supplier + Invoice Number + Invoice Date +
-/// Gross Amount, all required) has been superseded - the confirmed rule is Supplier
-/// + Invoice Number alone. No date-window or amount-based fallback/OR-branch exists
-/// either - explicitly out of scope for WP-047, and intentionally absent here.
+/// Invoice Date and Gross Amount are deliberately NOT part of this comparison - see
+/// docs/WP-047-Duplicate-Matching-Reconciliation.md. No date-window or amount-based
+/// fallback/OR-branch exists either.
 /// </para>
 /// <para>
 /// If either invoice being compared is missing Invoice Number, a meaningful
@@ -42,49 +40,41 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
 {
     private const int RequiredMatchedFieldCount = 2;
 
-    private readonly IInvoiceRepository _invoiceRepository;
     private readonly ILogger<DuplicateDetectionService> _logger;
 
     /// <summary>Creates a new <see cref="DuplicateDetectionService"/>.</summary>
-    public DuplicateDetectionService(IInvoiceRepository invoiceRepository, ILogger<DuplicateDetectionService> logger)
+    public DuplicateDetectionService(ILogger<DuplicateDetectionService> logger)
     {
-        _invoiceRepository = invoiceRepository;
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public async Task<Result<DuplicateCheckResult>> CheckAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    public DuplicateCheckResult Check(Invoice candidate, IReadOnlyList<Invoice> otherInvoices)
     {
-        var candidate = await _invoiceRepository.GetByIdAsync(invoiceId, cancellationToken);
-        if (candidate is null)
-        {
-            return Result.Failure<DuplicateCheckResult>(
-                new Error("DuplicateDetection.InvoiceNotFound", $"Invoice '{invoiceId}' was not found."));
-        }
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(otherInvoices);
 
         if (!HasComparableFields(candidate))
         {
             _logger.LogInformation(
                 "Skipped duplicate check for invoice {InvoiceId}: SupplierInvoiceNumber is missing.",
-                invoiceId);
+                candidate.Id);
 
-            return Result.Success(new DuplicateCheckResult(invoiceId, false, Array.Empty<DuplicateMatch>()));
+            return new DuplicateCheckResult(candidate.Id, false, Array.Empty<DuplicateMatch>());
         }
 
-        var allInvoices = await _invoiceRepository.GetAllAsync(cancellationToken);
-
-        var matches = allInvoices
+        var matches = otherInvoices
             .Where(other => other.Id != candidate.Id)
             .Select(other => TryMatch(candidate, other))
             .Where(match => match is not null)
             .Select(match => match!)
             .ToList();
 
-        var result = new DuplicateCheckResult(invoiceId, matches.Count > 0, matches);
+        var result = new DuplicateCheckResult(candidate.Id, matches.Count > 0, matches);
 
         LogOutcome(candidate, result);
 
-        return Result.Success(result);
+        return result;
     }
 
     private void LogOutcome(Invoice candidate, DuplicateCheckResult result)

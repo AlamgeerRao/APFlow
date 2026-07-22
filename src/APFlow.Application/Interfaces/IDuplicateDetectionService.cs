@@ -1,28 +1,36 @@
 using APFlow.Application.DTOs;
-using APFlow.Domain.Common;
+using APFlow.Domain.Entities;
 
 namespace APFlow.Application.Interfaces;
 
 /// <summary>
 /// Detects potential duplicate supplier invoices before approval, by comparing
-/// Supplier and Invoice Number against every other invoice visible to the current
-/// tenant (WP-047 - corrects WP-010's original four-field rule per the Product
-/// Owner's confirmed requirement; see
-/// docs/WP-047-Duplicate-Matching-Reconciliation.md).
-/// WP-010 scope only: detection and reporting. This service never modifies an
-/// invoice, never rejects it, and is not wired into any approval workflow, UI, or
-/// supplier communication - all explicit WP-010 out-of-scope items. Callers decide
-/// what to do with a flagged result.
+/// Supplier and Invoice Number (WP-047's confirmed two-field rule) between one
+/// candidate invoice and a set of other invoices to compare it against.
+/// A pure compute service (WP-048): takes plain <see cref="Invoice"/> data in and
+/// returns a plain <see cref="DuplicateCheckResult"/> out, with NO repository,
+/// DbContext, or any other I/O dependency at all - not even a read-only one. The
+/// caller (see WP-012's <c>InvoiceProcessingService</c>) owns fetching both the
+/// candidate and the comparison set (typically via <see cref="IInvoiceRepository"/>),
+/// and owns persisting the result if it chooses to (see
+/// <see cref="IInvoiceRepository.PersistDuplicateCheckResultAsync"/> and
+/// docs/WP-048-Persist-Duplicate-Detection-Result.md). This is a deliberate,
+/// literal reading of "no IInvoiceRepository dependency" - WP-010's original
+/// ruling only required no <c>SaveChangesAsync</c> access, but WP-048 asks for
+/// zero persistence dependency of any kind, which is only achievable by having the
+/// caller supply data rather than this service fetching it.
 /// </summary>
 public interface IDuplicateDetectionService
 {
     /// <summary>
-    /// Checks the given invoice for potential duplicates among every other invoice
-    /// visible to the current tenant (tenant isolation is enforced by
-    /// <see cref="IInvoiceRepository"/>'s underlying query filter, not by this
-    /// service). Returns a failure only if the invoice itself cannot be found; an
-    /// invoice with no duplicates is still a *successful* result with
-    /// <see cref="DuplicateCheckResult.IsPotentialDuplicate"/> set to false.
+    /// Checks <paramref name="candidate"/> for potential duplicates among
+    /// <paramref name="otherInvoices"/> (<paramref name="candidate"/> itself does
+    /// not need to be excluded from <paramref name="otherInvoices"/> - it is
+    /// skipped automatically by id if present). Synchronous and side-effect-free:
+    /// no I/O, and no failure mode - given a non-null <paramref name="candidate"/>,
+    /// this always produces a result (an invoice with no duplicates is still a
+    /// successful result with <see cref="DuplicateCheckResult.IsPotentialDuplicate"/>
+    /// false).
     /// </summary>
-    Task<Result<DuplicateCheckResult>> CheckAsync(Guid invoiceId, CancellationToken cancellationToken = default);
+    DuplicateCheckResult Check(Invoice candidate, IReadOnlyList<Invoice> otherInvoices);
 }
