@@ -10,7 +10,7 @@ against the work package's original wording.
 
 - `src/APFlow.Domain/Common/Constants/Roles.cs` — replaced the five WP-002
   placeholder roles (`Administrator`/`AP Manager`/`AP Clerk`/`Finance`/`ReadOnly`)
-  with the six canonical roles from `docs/06_Domain_Reference_Data.md` §1 (SA-007
+  with the six canonical roles from `docs/AI/06_Domain_Reference_Data.md` §1 (SA-007
   E-05): `PlatformAdmin`/`ApReviewer`/`FinanceManager`/`CreditController`/`AccountsAdmin`/`ReadOnly`.
 - `src/APFlow.Api/Extensions/AuthorizationExtensions.cs` — replaced the five
   `Require*` policies with six, one per corrected role.

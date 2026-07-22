@@ -12,7 +12,7 @@ go-live.
 ## Role claim values
 
 **Updated by WP-046** (Remediate Role Catalogue) to reference the corrected role
-catalogue - see docs/06_Domain_Reference_Data.md §1 (SA-007 E-05) and
+catalogue - see docs/AI/06_Domain_Reference_Data.md §1 (SA-007 E-05) and
 docs/WP-046-Role-Catalogue-Remediation.md. The values below replace the original
 WP-002 best-effort guesses (`Administrator`/`AP Manager`/`AP Clerk`/`Finance`/`ReadOnly`),
 which are no longer used anywhere in this codebase.

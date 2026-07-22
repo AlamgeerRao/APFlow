@@ -5,7 +5,7 @@ namespace APFlow.Api.Extensions;
 
 /// <summary>
 /// Registers role-based authorization policies, one per role defined in
-/// <see cref="Roles"/> (WP-046: docs/06_Domain_Reference_Data.md §1 / SA-007 E-05),
+/// <see cref="Roles"/> (WP-046: docs/AI/06_Domain_Reference_Data.md §1 / SA-007 E-05),
 /// plus a fallback policy that requires authentication on every endpoint unless
 /// explicitly marked <c>[AllowAnonymous]</c> (secure by default).
 /// </summary>

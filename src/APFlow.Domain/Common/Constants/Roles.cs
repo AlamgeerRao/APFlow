@@ -2,7 +2,7 @@ namespace APFlow.Domain.Common.Constants;
 
 /// <summary>
 /// The fixed set of application roles used for role-based authorization, per the
-/// canonical Role Catalogue in docs/06_Domain_Reference_Data.md §1 (SA-007 E-05) -
+/// canonical Role Catalogue in docs/AI/06_Domain_Reference_Data.md §1 (SA-007 E-05) -
 /// the single source of truth for these values, not WP-002's original best-effort
 /// guess. Do not add, rename, or remove entries without explicit Architect
 /// sign-off (see that document's AI Agent Rules).
