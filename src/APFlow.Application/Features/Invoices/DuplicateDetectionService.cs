@@ -13,31 +13,34 @@ namespace APFlow.Application.Features.Invoices;
 /// provider required.
 ///
 /// <para>
-/// Matching rule: per WP-010's task list, an invoice is flagged as a potential
-/// duplicate of another invoice when ALL FOUR of the following match:
+/// Matching rule (WP-047, correcting WP-010's original four-field rule per the
+/// Product Owner's confirmed client requirement - see
+/// docs/WP-047-Duplicate-Matching-Reconciliation.md): an invoice is flagged as a
+/// potential duplicate of another invoice when BOTH of the following match:
 /// </para>
 /// <list type="bullet">
 ///   <item><description><b>Supplier</b> - <see cref="Invoice.SupplierId"/> is equal.</description></item>
 ///   <item><description><b>Invoice Number</b> - <see cref="Invoice.SupplierInvoiceNumber"/> is equal,
 ///   compared trimmed and case-insensitively, since the same number may be extracted
 ///   with different casing/whitespace across separate WP-008 analysis runs.</description></item>
-///   <item><description><b>Invoice Date</b> - <see cref="Invoice.InvoiceDate"/> is equal.</description></item>
-///   <item><description><b>Gross Amount</b> - <see cref="Invoice.GrossTotal"/> is equal, using
-///   exact decimal comparison. No fuzzy/tolerance matching is applied: no tolerance
-///   was specified, and guessing one risks either hiding real duplicates or flagging
-///   unrelated invoices.</description></item>
 /// </list>
 /// <para>
-/// If either invoice being compared is missing any of the three nullable comparison
-/// fields (Invoice Number, Invoice Date, Gross Amount), a meaningful comparison
-/// cannot be made - two invoices that are both missing, say, an invoice number are
-/// not thereby duplicates of each other - so that pair is skipped rather than risking
-/// a false positive.
+/// Invoice Date and Gross Amount are deliberately NOT part of this comparison.
+/// WP-010's original four-field rule (Supplier + Invoice Number + Invoice Date +
+/// Gross Amount, all required) has been superseded - the confirmed rule is Supplier
+/// + Invoice Number alone. No date-window or amount-based fallback/OR-branch exists
+/// either - explicitly out of scope for WP-047, and intentionally absent here.
+/// </para>
+/// <para>
+/// If either invoice being compared is missing Invoice Number, a meaningful
+/// comparison cannot be made - two invoices both missing an invoice number are not
+/// thereby duplicates of each other - so that pair is skipped rather than risking a
+/// false positive.
 /// </para>
 /// </summary>
 public sealed class DuplicateDetectionService : IDuplicateDetectionService
 {
-    private const int RequiredMatchedFieldCount = 4;
+    private const int RequiredMatchedFieldCount = 2;
 
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly ILogger<DuplicateDetectionService> _logger;
@@ -62,8 +65,7 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
         if (!HasComparableFields(candidate))
         {
             _logger.LogInformation(
-                "Skipped duplicate check for invoice {InvoiceId}: one or more comparison fields " +
-                "(SupplierInvoiceNumber, InvoiceDate, GrossTotal) is missing.",
+                "Skipped duplicate check for invoice {InvoiceId}: SupplierInvoiceNumber is missing.",
                 invoiceId);
 
             return Result.Success(new DuplicateCheckResult(invoiceId, false, Array.Empty<DuplicateMatch>()));
@@ -91,13 +93,10 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
         {
             _logger.LogWarning(
                 "Potential duplicate detected for invoice {InvoiceId} (Supplier {SupplierId}, " +
-                "Number {SupplierInvoiceNumber}, Date {InvoiceDate}, Gross {GrossTotal}): matches " +
-                "{MatchCount} existing invoice(s): {MatchedInvoiceIds}.",
+                "Number {SupplierInvoiceNumber}): matches {MatchCount} existing invoice(s): {MatchedInvoiceIds}.",
                 candidate.Id,
                 candidate.SupplierId,
                 candidate.SupplierInvoiceNumber,
-                candidate.InvoiceDate,
-                candidate.GrossTotal,
                 result.Matches.Count,
                 string.Join(", ", result.Matches.Select(m => m.MatchedInvoiceId)));
         }
@@ -108,9 +107,7 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
     }
 
     private static bool HasComparableFields(Invoice invoice) =>
-        !string.IsNullOrWhiteSpace(invoice.SupplierInvoiceNumber)
-        && invoice.InvoiceDate is not null
-        && invoice.GrossTotal is not null;
+        !string.IsNullOrWhiteSpace(invoice.SupplierInvoiceNumber);
 
     private static DuplicateMatch? TryMatch(Invoice candidate, Invoice other)
     {
@@ -131,25 +128,12 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
             matchedFields.Add("InvoiceNumber");
         }
 
-        if (candidate.InvoiceDate == other.InvoiceDate)
-        {
-            matchedFields.Add("InvoiceDate");
-        }
-
-        if (candidate.GrossTotal == other.GrossTotal)
-        {
-            matchedFields.Add("GrossAmount");
-        }
-
         if (matchedFields.Count != RequiredMatchedFieldCount)
         {
             return null;
         }
 
-        var reason =
-            $"Matches existing invoice {other.Id} on Supplier, Invoice Number " +
-            $"('{other.SupplierInvoiceNumber}'), Invoice Date ({other.InvoiceDate}), " +
-            $"and Gross Amount ({other.GrossTotal}).";
+        var reason = $"Matches existing invoice {other.Id} on Supplier and Invoice Number ('{other.SupplierInvoiceNumber}').";
 
         return new DuplicateMatch(other.Id, other.SupplierInvoiceNumber, matchedFields, reason);
     }

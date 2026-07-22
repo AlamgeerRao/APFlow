@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceQueryService, InvoiceQueryService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IDuplicateDetectionService, DuplicateDetectionService>();
+        services.AddScoped<IDuplicateOverrideAuthorizationService, DuplicateOverrideAuthorizationService>();
         services.AddScoped<IInvoiceProcessingService, InvoiceProcessingService>();
 
         // Further feature registrations, validators, and mapping profiles are added

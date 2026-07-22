@@ -34,7 +34,7 @@ public class DuplicateDetectionServiceTests
     }
 
     [Fact]
-    public async Task CheckAsync_AllFourFieldsMatch_FlagsAsPotentialDuplicate_WithReasonRecorded()
+    public async Task CheckAsync_SupplierAndInvoiceNumberMatch_FlagsAsPotentialDuplicate_WithReasonRecorded()
     {
         var (service, repository) = CreateService();
         var supplierId = Guid.NewGuid();
@@ -49,9 +49,46 @@ public class DuplicateDetectionServiceTests
         Assert.True(result.Value.IsPotentialDuplicate);
         var match = Assert.Single(result.Value.Matches);
         Assert.Equal(existing.Id, match.MatchedInvoiceId);
-        Assert.Equal(new[] { "Supplier", "InvoiceNumber", "InvoiceDate", "GrossAmount" }, match.MatchedFields);
+        Assert.Equal(new[] { "Supplier", "InvoiceNumber" }, match.MatchedFields);
         Assert.Contains(existing.Id.ToString(), match.Reason);
         Assert.False(string.IsNullOrWhiteSpace(match.Reason));
+    }
+
+    [Fact]
+    public async Task CheckAsync_SameSupplierAndInvoiceNumber_DifferentInvoiceDate_StillFlagged()
+    {
+        // WP-047: Invoice Date is no longer part of the matching criteria - proves
+        // the removed four-field rule's date component genuinely has no effect.
+        var (service, repository) = CreateService();
+        var supplierId = Guid.NewGuid();
+        var existing = ExistingInvoice(supplierId, "INV-100", new DateOnly(2026, 1, 15), 1200m);
+        var candidate = ExistingInvoice(supplierId, "INV-100", new DateOnly(2026, 6, 30), 1200m);
+        repository.Invoices.Add(existing);
+        repository.Invoices.Add(candidate);
+
+        var result = await service.CheckAsync(candidate.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.IsPotentialDuplicate);
+    }
+
+    [Fact]
+    public async Task CheckAsync_SameSupplierAndInvoiceNumber_DifferentGrossAmount_StillFlagged()
+    {
+        // WP-047: Gross Amount is no longer part of the matching criteria - proves
+        // the removed four-field rule's amount component genuinely has no effect.
+        var (service, repository) = CreateService();
+        var supplierId = Guid.NewGuid();
+        var date = new DateOnly(2026, 1, 15);
+        var existing = ExistingInvoice(supplierId, "INV-100", date, 1200m);
+        var candidate = ExistingInvoice(supplierId, "INV-100", date, 999.99m);
+        repository.Invoices.Add(existing);
+        repository.Invoices.Add(candidate);
+
+        var result = await service.CheckAsync(candidate.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.IsPotentialDuplicate);
     }
 
     [Fact]
@@ -78,39 +115,6 @@ public class DuplicateDetectionServiceTests
         var date = new DateOnly(2026, 1, 15);
         var existing = ExistingInvoice(supplierId, "INV-100", date, 1200m);
         var candidate = ExistingInvoice(supplierId, "INV-200", date, 1200m);
-        repository.Invoices.Add(existing);
-        repository.Invoices.Add(candidate);
-
-        var result = await service.CheckAsync(candidate.Id);
-
-        Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsPotentialDuplicate);
-    }
-
-    [Fact]
-    public async Task CheckAsync_DifferentInvoiceDate_NotFlagged()
-    {
-        var (service, repository) = CreateService();
-        var supplierId = Guid.NewGuid();
-        var existing = ExistingInvoice(supplierId, "INV-100", new DateOnly(2026, 1, 15), 1200m);
-        var candidate = ExistingInvoice(supplierId, "INV-100", new DateOnly(2026, 2, 15), 1200m);
-        repository.Invoices.Add(existing);
-        repository.Invoices.Add(candidate);
-
-        var result = await service.CheckAsync(candidate.Id);
-
-        Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsPotentialDuplicate);
-    }
-
-    [Fact]
-    public async Task CheckAsync_DifferentGrossAmount_NotFlagged()
-    {
-        var (service, repository) = CreateService();
-        var supplierId = Guid.NewGuid();
-        var date = new DateOnly(2026, 1, 15);
-        var existing = ExistingInvoice(supplierId, "INV-100", date, 1200m);
-        var candidate = ExistingInvoice(supplierId, "INV-100", date, 1300m);
         repository.Invoices.Add(existing);
         repository.Invoices.Add(candidate);
 
@@ -170,38 +174,21 @@ public class DuplicateDetectionServiceTests
     }
 
     [Fact]
-    public async Task CheckAsync_CandidateMissingInvoiceDate_SkipsCheck_ReturnsNotDuplicate()
+    public async Task CheckAsync_CandidateMissingInvoiceDateAndGrossTotal_StillCompared()
     {
+        // WP-047: only SupplierInvoiceNumber gates whether a comparison can be made
+        // at all now - InvoiceDate/GrossTotal being absent no longer skips the check.
         var (service, repository) = CreateService();
         var supplierId = Guid.NewGuid();
         var existing = ExistingInvoice(supplierId, "INV-100", new DateOnly(2026, 1, 15), 1200m);
-        var candidate = ExistingInvoice(supplierId, "INV-100", null, 1200m);
+        var candidate = ExistingInvoice(supplierId, "INV-100", invoiceDate: null, grossTotal: null);
         repository.Invoices.Add(existing);
         repository.Invoices.Add(candidate);
 
         var result = await service.CheckAsync(candidate.Id);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsPotentialDuplicate);
-        Assert.Empty(result.Value.Matches);
-    }
-
-    [Fact]
-    public async Task CheckAsync_CandidateMissingGrossTotal_SkipsCheck_ReturnsNotDuplicate()
-    {
-        var (service, repository) = CreateService();
-        var supplierId = Guid.NewGuid();
-        var date = new DateOnly(2026, 1, 15);
-        var existing = ExistingInvoice(supplierId, "INV-100", date, 1200m);
-        var candidate = ExistingInvoice(supplierId, "INV-100", date, null);
-        repository.Invoices.Add(existing);
-        repository.Invoices.Add(candidate);
-
-        var result = await service.CheckAsync(candidate.Id);
-
-        Assert.True(result.IsSuccess);
-        Assert.False(result.Value.IsPotentialDuplicate);
-        Assert.Empty(result.Value.Matches);
+        Assert.True(result.Value.IsPotentialDuplicate);
     }
 
     [Fact]

@@ -5,8 +5,10 @@ namespace APFlow.Application.Interfaces;
 
 /// <summary>
 /// Detects potential duplicate supplier invoices before approval, by comparing
-/// Supplier, Invoice Number, Invoice Date, and Gross Amount against every other
-/// invoice visible to the current tenant.
+/// Supplier and Invoice Number against every other invoice visible to the current
+/// tenant (WP-047 - corrects WP-010's original four-field rule per the Product
+/// Owner's confirmed requirement; see
+/// docs/WP-047-Duplicate-Matching-Reconciliation.md).
 /// WP-010 scope only: detection and reporting. This service never modifies an
 /// invoice, never rejects it, and is not wired into any approval workflow, UI, or
 /// supplier communication - all explicit WP-010 out-of-scope items. Callers decide
