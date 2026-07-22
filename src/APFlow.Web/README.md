@@ -29,3 +29,4 @@ src/
 ## Status
 
 - **WP-014 (Dashboard Shell & Navigation):** implemented. See `docs/WP-014-Dashboard-Shell-Decisions.md` for open decisions pending Architect/WP-050 sign-off.
+- **WP-015 (Invoice Work Queue):** implemented. See `docs/WP-015-Invoice-Queue-Decisions.md` for open decisions pending Architect/WP-011 sign-off.
