@@ -10,6 +10,16 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
     public List<Invoice> Invoices { get; } = [];
     public bool SaveChangesCalled { get; private set; }
 
+    /// <summary>
+    /// When set, <see cref="SaveChangesAsync"/> throws whatever this factory returns
+    /// (or succeeds normally if it returns null) - simulates a transient database
+    /// error for WP-049's "duplicate-check failure must not fail the whole batch"
+    /// test. A factory (not a static exception) so a test can make only the FIRST
+    /// call fail and subsequent calls succeed, proving one item's failure doesn't
+    /// prevent later items in the same batch from being processed.
+    /// </summary>
+    public Func<Exception?>? SaveChangesExceptionFactory { get; set; }
+
     public Task<Invoice?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Invoices.FirstOrDefault(i => i.Id == id));
 
@@ -102,6 +112,12 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var exception = SaveChangesExceptionFactory?.Invoke();
+        if (exception is not null)
+        {
+            throw exception;
+        }
+
         SaveChangesCalled = true;
         return Task.FromResult(1);
     }

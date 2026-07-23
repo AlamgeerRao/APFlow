@@ -215,6 +215,57 @@ public class InvoiceProcessingServiceTests
         Assert.DoesNotContain(MessageId, deps.EmailSync.MarkedAsProcessedMessageIds);
     }
 
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_AtomicSaveThrows_ItemFailed_BatchStillSucceeds()
+    {
+        // WP-049 task 3: a failure in the duplicate-check/save step (e.g. a
+        // transient database error) must not fail the whole ingestion batch.
+        var (service, deps) = CreateService();
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+        deps.InvoiceRepository.SaveChangesExceptionFactory = () => new InvalidOperationException("transient database error");
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess); // the batch-level call itself did not throw/fail
+        var item = Assert.Single(result.Value.Items);
+        Assert.Equal(InvoiceProcessingOutcome.Failed, item.Outcome);
+        Assert.Equal("InvoiceProcessing.SaveFailed", item.ErrorCode);
+        Assert.DoesNotContain(MessageId, deps.EmailSync.MarkedAsProcessedMessageIds); // left unread for retry
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_FirstEmailSaveFails_SecondEmailStillProcessedSuccessfully()
+    {
+        // Stronger proof of "doesn't fail the whole batch": a SEPARATE, unrelated
+        // email in the same run succeeds despite an earlier one failing.
+        var (service, deps) = CreateService();
+        const string firstMessageId = "graph-message-first";
+        const string secondMessageId = "graph-message-second";
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice 1", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow));
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Invoice 2", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow));
+        deps.PdfExtraction.AttachmentsByMessageId[firstMessageId] = [NewAttachment("first.pdf")];
+        deps.PdfExtraction.AttachmentsByMessageId[secondMessageId] = [NewAttachment("second.pdf")];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+
+        var callCount = 0;
+        deps.InvoiceRepository.SaveChangesExceptionFactory = () =>
+        {
+            callCount++;
+            return callCount == 1 ? new InvalidOperationException("transient database error") : null;
+        };
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Contains(result.Value.Items, i => i.MessageId == firstMessageId && i.Outcome == InvoiceProcessingOutcome.Failed);
+        Assert.Contains(result.Value.Items, i => i.MessageId == secondMessageId && i.Outcome == InvoiceProcessingOutcome.Processed);
+        Assert.DoesNotContain(firstMessageId, deps.EmailSync.MarkedAsProcessedMessageIds);
+        Assert.Contains(secondMessageId, deps.EmailSync.MarkedAsProcessedMessageIds);
+    }
+
     private static (InvoiceProcessingService Service, TestDependencies Dependencies) CreateService()
     {
         var invoiceRepository = new FakeInvoiceRepository();

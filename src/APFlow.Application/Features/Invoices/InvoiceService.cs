@@ -55,7 +55,7 @@ public sealed class InvoiceService : IInvoiceService
     /// <inheritdoc />
     public async Task<Result<InvoiceDto>> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken = default)
     {
-        var validationError = ValidateFields(request.SupplierInvoiceNumber, request.Currency);
+        var validationError = InvoiceFieldValidation.Validate(request.SupplierInvoiceNumber, request.Currency);
         if (validationError is not null)
         {
             return Result.Failure<InvoiceDto>(validationError);
@@ -94,7 +94,7 @@ public sealed class InvoiceService : IInvoiceService
     /// <inheritdoc />
     public async Task<Result<InvoiceDto>> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken cancellationToken = default)
     {
-        var validationError = ValidateFields(request.SupplierInvoiceNumber, request.Currency);
+        var validationError = InvoiceFieldValidation.Validate(request.SupplierInvoiceNumber, request.Currency);
         if (validationError is not null)
         {
             return Result.Failure<InvoiceDto>(validationError);
@@ -207,32 +207,6 @@ public sealed class InvoiceService : IInvoiceService
         _logger.LogInformation("Added note to invoice {InvoiceId}.", invoiceId);
 
         return Result.Success();
-    }
-
-    /// <summary>
-    /// Validates field lengths against <see cref="FieldLimits"/> before anything
-    /// touches the repository, so a value that would fail at the database as an
-    /// opaque DbUpdateException instead comes back as a clean Result.Failure with a
-    /// specific error code. Mirrors InvoiceConfiguration's constraints - see
-    /// FieldLimits' doc comment for why these are duplicated rather than shared.
-    /// </summary>
-    private static Error? ValidateFields(string? supplierInvoiceNumber, string? currency)
-    {
-        if (supplierInvoiceNumber is { Length: > FieldLimits.InvoiceSupplierInvoiceNumber })
-        {
-            return new Error(
-                "Invoice.InvalidSupplierInvoiceNumber",
-                $"Supplier invoice number must not exceed {FieldLimits.InvoiceSupplierInvoiceNumber} characters.");
-        }
-
-        if (currency is { Length: > 0 } && currency.Length != FieldLimits.InvoiceCurrency)
-        {
-            return new Error(
-                "Invoice.InvalidCurrency",
-                $"Currency must be a {FieldLimits.InvoiceCurrency}-character ISO 4217 code (e.g. \"GBP\").");
-        }
-
-        return null;
     }
 
     private static InvoiceDto ToDto(Invoice invoice) => new(

@@ -1,6 +1,7 @@
 using APFlow.Application.DTOs;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common;
+using APFlow.Domain.Entities;
 using APFlow.Domain.Enums;
 using Microsoft.Extensions.Logging;
 
@@ -13,13 +14,19 @@ namespace APFlow.Application.Features.Invoices;
 /// no database, no Graph/Blob/Document Intelligence SDK required. See
 /// docs/WP-012-Invoice-Processing-Pipeline-Decisions.md for the reasoning behind
 /// the choices this class makes beyond simply chaining its six collaborators.
-/// Depends on both <see cref="IInvoiceService"/> (create/advance-status) and
-/// <see cref="IInvoiceRepository"/> (fetching the comparison set for duplicate
-/// detection, and persisting its result) deliberately - see
-/// <see cref="ProcessAttachmentAsync"/> and docs/WP-048-Persist-Duplicate-Detection-Result.md:
-/// WP-048 made <c>DuplicateDetectionService</c> a pure, synchronous compute service
-/// with zero persistence dependency of its own, so this orchestrator now owns both
-/// fetching the data it needs and persisting what it returns.
+/// Depends on both <see cref="IInvoiceService"/> (idempotency lookups only - see
+/// <see cref="ProcessAttachmentAsync"/>) and <see cref="IInvoiceRepository"/>
+/// (constructing, duplicate-checking, and saving a new invoice as one atomic unit
+/// of work) deliberately - see docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md:
+/// WP-049 requires that an invoice is never visible in a database state where
+/// duplicate-checking hasn't yet run, which rules out
+/// <see cref="IInvoiceService.CreateAsync"/> (commits independently, before a
+/// check could run) and <c>IInvoiceRepository.PersistDuplicateCheckResultAsync</c>
+/// (WP-048; designed to update an invoice that already exists - not usable here,
+/// since at the point the check needs to run, the invoice does not exist in the
+/// database yet). This orchestrator constructs the <see cref="Invoice"/> directly,
+/// runs the (WP-048, pure/synchronous) duplicate check against it in memory, sets
+/// the result directly on the same not-yet-saved entity, and saves once.
 /// </summary>
 public sealed class InvoiceProcessingService : IInvoiceProcessingService
 {
@@ -225,107 +232,112 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
             return Failed(email.MessageId, attachment.FileName, supplierIdResult.Error);
         }
 
-        var createResult = await _invoiceService.CreateAsync(
-            new CreateInvoiceRequest(
-                SupplierId: supplierIdResult.Value,
-                SupplierInvoiceNumber: extraction.SupplierInvoiceNumber.Value,
-                InvoiceDate: extraction.InvoiceDate.Value,
-                DueDate: extraction.DueDate.Value,
-                Currency: extraction.Currency,
-                NetAmount: extraction.NetAmount.Value,
-                Vat: extraction.Vat.Value,
-                GrossTotal: extraction.GrossTotal.Value,
-                SourceEmailMessageId: email.MessageId,
-                SourceDocumentBlobName: blobName),
-            cancellationToken);
-
-        if (createResult.IsFailure)
+        var validationError = InvoiceFieldValidation.Validate(extraction.SupplierInvoiceNumber.Value, extraction.Currency);
+        if (validationError is not null)
         {
-            return Failed(email.MessageId, attachment.FileName, createResult.Error);
+            return Failed(email.MessageId, attachment.FileName, validationError);
         }
 
-        // CreateAsync always starts a new invoice at Received (see CreateInvoiceRequest's
-        // doc comment) - a stable invariant kept for other, non-pipeline callers (e.g. a
-        // future manual-entry path). By this point in the pipeline, PDF extraction and
-        // Document Intelligence analysis are both already complete, which is exactly what
-        // InvoiceStatus.Extracted documents ("PDF attachment extracted and analyzed;
-        // structured data is available") - so this pipeline advances the status itself,
-        // via the same Update path any other caller would use, rather than special-casing
-        // CreateAsync's default for this one caller.
-        var invoice = createResult.Value;
-        var advanceStatusResult = await _invoiceService.UpdateAsync(
-            invoice.Id,
-            new UpdateInvoiceRequest(
-                invoice.SupplierInvoiceNumber,
-                invoice.InvoiceDate,
-                invoice.DueDate,
-                invoice.Currency,
-                invoice.NetAmount,
-                invoice.Vat,
-                invoice.GrossTotal,
-                InvoiceStatus.Extracted),
-            cancellationToken);
-
-        if (advanceStatusResult.IsSuccess)
-        {
-            invoice = advanceStatusResult.Value;
-        }
-        else
-        {
-            _logger.LogWarning(
-                "Invoice {InvoiceId} was saved but its status could not be advanced to Extracted: {ErrorCode} - {ErrorMessage}. It remains Received.",
-                invoice.Id, advanceStatusResult.Error.Code, advanceStatusResult.Error.Message);
-        }
-
-        _logger.LogInformation(
-            "Saved invoice {InvoiceId} (status {Status}) from email {MessageId}, attachment {FileName}.",
-            invoice.Id, invoice.Status, email.MessageId, attachment.FileName);
-
-        // A failed duplicate check does not fail this item - the invoice was already
-        // saved successfully. Duplicate detection remains advisory-only (WP-010): it
-        // never blocks or auto-rejects an invoice. Per WP-010's persistence ruling
-        // (docs/WP-010-Duplicate-Flag-Persistence-Decision.md), a successful check's
-        // result is persisted directly onto the invoice via
-        // IInvoiceRepository.PersistDuplicateCheckResultAsync (WP-048) rather than
-        // staying ephemeral.
-        // WP-048 made IDuplicateDetectionService a pure compute service - it no
-        // longer fetches anything itself, so this orchestrator fetches both the
-        // candidate and the comparison set (one GetAllAsync call serves both,
-        // since the just-saved invoice is already included in it).
+        // WP-049: duplicate detection must run, and its result must be persisted,
+        // in the SAME unit of work as the invoice's initial save - an invoice must
+        // never be visible with a stale/default duplicate flag before a real check
+        // has run. This rules out the WP-012/WP-048 approach of creating the
+        // invoice (its own commit) and persisting the duplicate-check result
+        // separately afterwards (a second commit) - there was always a real, if
+        // brief, window where the invoice existed with a default (not yet
+        // meaningful) IsPotentialDuplicate=false. Instead, the invoice is
+        // constructed and staged here directly via IInvoiceRepository (not
+        // IInvoiceService.CreateAsync/UpdateAsync, both of which commit
+        // independently) - validated via InvoiceFieldValidation (the same
+        // validation IInvoiceService.CreateAsync uses, shared rather than
+        // duplicated) - and created already at InvoiceStatus.Extracted (PDF
+        // extraction and Document Intelligence analysis are both complete by this
+        // point - see InvoiceStatus.Extracted's own doc comment), rather than the
+        // previous two-step "create at Received, then separately advance to
+        // Extracted": that two-step dance required its own separate commit,
+        // incompatible with atomicity here.
+        // One side effect, called out deliberately rather than left to be
+        // discovered: there is no longer a Received -> Extracted status-change
+        // event for WP-013's audit log to record for newly-ingested invoices,
+        // because the invoice is never actually persisted at Received in the
+        // first place - it is created directly at its final initial status.
+        // WP-013's audit logging is untouched and still fires normally for any
+        // LATER status change (e.g. a future approval/rejection step), since those
+        // still go through IInvoiceService.UpdateAsync.
+        Invoice? savedInvoice = null;
         bool? isPotentialDuplicate = null;
-        var allInvoices = await _invoiceRepository.GetAllAsync(cancellationToken);
-        var candidateEntity = allInvoices.FirstOrDefault(i => i.Id == invoice.Id);
+        Error? saveError = null;
 
-        if (candidateEntity is null)
+        try
         {
-            _logger.LogWarning(
-                "Could not run duplicate check for invoice {InvoiceId}: invoice not found immediately after being saved.",
-                invoice.Id);
-        }
-        else
-        {
-            var duplicateCheckResult = _duplicateDetectionService.Check(candidateEntity, allInvoices);
+            var otherInvoices = await _invoiceRepository.GetAllAsync(cancellationToken);
+
+            var candidate = new Invoice
+            {
+                SupplierId = supplierIdResult.Value,
+                SupplierInvoiceNumber = extraction.SupplierInvoiceNumber.Value,
+                InvoiceDate = extraction.InvoiceDate.Value,
+                DueDate = extraction.DueDate.Value,
+                Currency = extraction.Currency,
+                NetAmount = extraction.NetAmount.Value,
+                Vat = extraction.Vat.Value,
+                GrossTotal = extraction.GrossTotal.Value,
+                Status = InvoiceStatus.Extracted,
+                SourceEmailMessageId = email.MessageId,
+                SourceDocumentBlobName = blobName,
+            };
+
+            var duplicateCheckResult = _duplicateDetectionService.Check(candidate, otherInvoices);
+            candidate.IsPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
+            candidate.DuplicateCheckReason = BuildDuplicateCheckReason(duplicateCheckResult);
+
+            await _invoiceRepository.AddAsync(candidate, cancellationToken);
+            await _invoiceRepository.SaveChangesAsync(cancellationToken);
+
+            savedInvoice = candidate;
             isPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
 
             if (isPotentialDuplicate == true)
             {
                 _logger.LogWarning(
-                    "Invoice {InvoiceId} flagged as a potential duplicate of {MatchCount} other invoice(s).",
-                    invoice.Id, duplicateCheckResult.Matches.Count);
-            }
-
-            var persisted = await _invoiceRepository.PersistDuplicateCheckResultAsync(
-                invoice.Id, duplicateCheckResult.IsPotentialDuplicate, BuildDuplicateCheckReason(duplicateCheckResult), cancellationToken);
-
-            if (!persisted)
-            {
-                _logger.LogWarning(
-                    "Could not persist duplicate-check result for invoice {InvoiceId}: invoice not found.", invoice.Id);
+                    "Invoice {InvoiceId} flagged as a potential duplicate of {MatchCount} other invoice(s) at ingestion.",
+                    candidate.Id, duplicateCheckResult.Matches.Count);
             }
         }
+        catch (Exception ex)
+        {
+            // WP-049 task 3: a failure in this step (fetching the comparison set, or
+            // the atomic save itself - e.g. a transient database error) must not
+            // fail the whole ingestion batch. This is the one place in this method
+            // that catches a general exception rather than checking a Result:
+            // IDuplicateDetectionService.Check cannot fail (WP-048 made it a pure,
+            // non-throwing compute function), and IInvoiceRepository's methods
+            // propagate exceptions rather than returning a Result (the established
+            // convention elsewhere in this file - see the retry-policy comment
+            // above on AppDbContext's EnableRetryOnFailure) - there is no Result to
+            // check here, so a try/catch is the only way to isolate this item's
+            // failure from the rest of the batch, per this task's explicit
+            // requirement. Consistent with every other failure path in this
+            // method, the source email is left unmarked, so this attachment is
+            // retried on the next run.
+            _logger.LogWarning(
+                ex,
+                "Failed to save invoice with duplicate-check result for email {MessageId}, attachment {FileName}: {ExceptionMessage}",
+                email.MessageId, attachment.FileName, ex.Message);
+            saveError = new Error("InvoiceProcessing.SaveFailed", ex.Message);
+        }
+
+        if (saveError is not null)
+        {
+            return Failed(email.MessageId, attachment.FileName, saveError);
+        }
+
+        _logger.LogInformation(
+            "Saved invoice {InvoiceId} (status {Status}) from email {MessageId}, attachment {FileName}. IsPotentialDuplicate={IsPotentialDuplicate}.",
+            savedInvoice!.Id, savedInvoice.Status, email.MessageId, attachment.FileName, isPotentialDuplicate);
 
         return new InvoiceProcessingItemResult(
-            email.MessageId, attachment.FileName, InvoiceProcessingOutcome.Processed, invoice.Id, isPotentialDuplicate, null, null);
+            email.MessageId, attachment.FileName, InvoiceProcessingOutcome.Processed, savedInvoice.Id, isPotentialDuplicate, null, null);
     }
 
     /// <summary>

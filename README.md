@@ -74,7 +74,7 @@ A deployable MVP capable of:
 | WP-046 | Role Catalogue Remediation (SA-007 E-05) | Backend Engineer | Done |
 | WP-047 | Duplicate Matching Criteria Reconciliation | Backend Engineer | Done |
 | WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
-| WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Not started — objective already met by a pre-existing ad-hoc commit and WP-048's adaptation of it (see `docs/WP-048-Persist-Duplicate-Detection-Result.md`) |
+| WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Done. Replaces the prior ad-hoc three-commit adaptation (create → advance status → persist duplicate flag) with a true atomic single-save pipeline — see `docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md` |
 | WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Not started |
 | WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Not started |
 
