@@ -59,8 +59,8 @@ A deployable MVP capable of:
 | WP-011 | Invoice Repository & Query Services | Backend Engineer | Done |
 | WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done |
 | WP-013 | Audit Logging & Activity History | Backend Engineer | Done |
-| WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Not started |
-| WP-015 | Invoice Work Queue | Senior React Engineer | Not started |
+| WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done |
+| WP-015 | Invoice Work Queue | Senior React Engineer | Done |
 | WP-016 | Invoice Review Screen | Senior React Engineer | Not started |
 | WP-017 | Notes & Comments Component | Senior React Engineer | Not started |
 | WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Not started |
@@ -71,11 +71,20 @@ A deployable MVP capable of:
 | WP-023 | Application Configuration & Secrets (Key Vault) | DevOps Engineer | Not started |
 | WP-024 | Logging, Monitoring & Application Insights | DevOps Engineer | Not started |
 | WP-025 | Sprint 1 QA Review & Regression Testing | Senior QA Engineer | Not started |
+| WP-046 | Role Catalogue Remediation (SA-007 E-05) | Backend Engineer | Done |
+| WP-047 | Duplicate Matching Criteria Reconciliation | Backend Engineer | Done |
+| WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
+| WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Not started — objective already met by a pre-existing ad-hoc commit and WP-048's adaptation of it (see `docs/WP-048-Persist-Duplicate-Detection-Result.md`) |
+| WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Not started |
+| WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Not started |
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 
 - `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md`
 - `docs/WP-013-Audit-Logging-Decisions.md`
+- `docs/WP-014-Dashboard-Shell-Decisions.md`
+- `docs/WP-015-Invoice-Queue-Decisions.md`
+- `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
 
