@@ -61,7 +61,7 @@ A deployable MVP capable of:
 | WP-013 | Audit Logging & Activity History | Backend Engineer | Done |
 | WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done |
 | WP-015 | Invoice Work Queue | Senior React Engineer | Done |
-| WP-016 | Invoice Review Screen | Senior React Engineer | Not started |
+| WP-016 | Invoice Review Screen | Senior React Engineer | Done |
 | WP-017 | Notes & Comments Component | Senior React Engineer | Not started |
 | WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Not started |
 | WP-019 | Supplier Folder View | Senior React Engineer | Not started |
@@ -84,6 +84,7 @@ Open architecture decisions pending Chief Technical Architect sign-off (see indi
 - `docs/WP-013-Audit-Logging-Decisions.md`
 - `docs/WP-014-Dashboard-Shell-Decisions.md`
 - `docs/WP-015-Invoice-Queue-Decisions.md`
+- `docs/WP-016-Invoice-Review-Decisions.md`
 - `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
