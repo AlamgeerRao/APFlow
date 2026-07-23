@@ -30,9 +30,12 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Vat).HasPrecision(18, 2);
         builder.Property(i => i.GrossTotal).HasPrecision(18, 2);
 
+        // WP-050: Status is a plain string (StatusReference.Code), not an enum -
+        // no HasConversion needed anymore. Length matches StatusReferenceConfiguration's
+        // own Code column, since a value here must always match one of those rows.
         builder.Property(i => i.Status)
-            .HasConversion<string>() // Store as string, not int - readable in the
-            .HasMaxLength(32);       // database, and resilient to enum member reordering.
+            .IsRequired()
+            .HasMaxLength(64);
 
         builder.Property(i => i.SourceEmailMessageId)
             .HasMaxLength(512); // Graph message ids are long opaque strings.

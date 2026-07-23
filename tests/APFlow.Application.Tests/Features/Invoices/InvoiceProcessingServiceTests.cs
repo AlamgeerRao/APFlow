@@ -6,7 +6,7 @@ using APFlow.Application.Interfaces;
 using APFlow.Application.Tests.Features;
 using APFlow.Domain.Common;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -40,7 +40,7 @@ public class InvoiceProcessingServiceTests
 
         var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
         Assert.Equal(supplier.Id, invoice.SupplierId);
-        Assert.Equal(InvoiceStatus.Extracted, invoice.Status);
+        Assert.Equal(InvoiceStatusCodes.Extracted, invoice.Status);
         Assert.Equal("invoices/graph-message-1/invoice.pdf", invoice.SourceDocumentBlobName);
         Assert.Equal(MessageId, invoice.SourceEmailMessageId);
         Assert.False(invoice.IsPotentialDuplicate); // persisted, not just reported - see WP-010's ruling

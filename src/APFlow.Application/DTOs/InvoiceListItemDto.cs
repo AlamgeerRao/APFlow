@@ -1,5 +1,4 @@
 using APFlow.Application.Interfaces;
-using APFlow.Domain.Enums;
 
 namespace APFlow.Application.DTOs;
 
@@ -22,5 +21,5 @@ public sealed record InvoiceListItemDto(
     DateOnly? DueDate,
     string? Currency,
     decimal? GrossTotal,
-    InvoiceStatus Status,
+    string Status,
     DateTimeOffset CreatedAtUtc);

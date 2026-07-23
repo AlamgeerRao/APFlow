@@ -4,7 +4,6 @@ using APFlow.Application.Features.Invoices;
 using APFlow.Application.Tests.Features;
 using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -35,7 +34,7 @@ public class InvoiceServiceTests
             supplier.Id, "INV-100", new DateOnly(2026, 1, 1), new DateOnly(2026, 2, 1), "GBP", 1000m, 200m, 1200m, "graph-msg-id"));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(InvoiceStatus.Received, result.Value.Status);
+        Assert.Equal(InvoiceStatusCodes.Received, result.Value.Status);
         Assert.Equal(1200m, result.Value.GrossTotal);
         Assert.Equal("Test Supplier", result.Value.SupplierName);
     }
@@ -49,10 +48,10 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
-            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Approved));
+            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(InvoiceStatus.Approved, result.Value.Status);
+        Assert.Equal(InvoiceStatusCodes.Approved, result.Value.Status);
         Assert.Equal("INV-1-REV", result.Value.SupplierInvoiceNumber);
     }
 
@@ -61,7 +60,7 @@ public class InvoiceServiceTests
     {
         var (service, _, _) = CreateService();
 
-        var result = await service.UpdateAsync(Guid.NewGuid(), new UpdateInvoiceRequest(null, null, null, null, null, null, null, InvoiceStatus.Approved));
+        var result = await service.UpdateAsync(Guid.NewGuid(), new UpdateInvoiceRequest(null, null, null, null, null, null, null, InvoiceStatusCodes.Approved));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Invoice.NotFound", result.Error.Code);
@@ -76,15 +75,15 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
-            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Extracted));
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
 
         Assert.True(result.IsSuccess);
         var entry = Assert.Single(auditLogRepo.AuditLogs);
         Assert.Equal(AuditActions.InvoiceStatusChanged, entry.Action);
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
-        Assert.Equal(InvoiceStatus.Received.ToString(), entry.PreviousValue); // CreateAsync always starts at Received
-        Assert.Equal(InvoiceStatus.Extracted.ToString(), entry.NewValue);
+        Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue); // CreateAsync always starts at Received
+        Assert.Equal(InvoiceStatusCodes.Extracted.ToString(), entry.NewValue);
 
         // Staged, not independently saved - InvoiceService.UpdateAsync's own
         // SaveChangesAsync call is what commits it (see IAuditService.LogAsync's
@@ -103,7 +102,7 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
-            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Received)); // same status as CreateAsync's default
+            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Received)); // same status as CreateAsync's default
 
         Assert.True(result.IsSuccess);
         Assert.Empty(auditLogRepo.AuditLogs);
@@ -236,7 +235,7 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
         var tooLong = new string('a', 129);
 
-        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(tooLong, null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Received));
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(tooLong, null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Received));
 
         Assert.True(result.IsFailure);
         Assert.Equal("Invoice.InvalidSupplierInvoiceNumber", result.Error.Code);

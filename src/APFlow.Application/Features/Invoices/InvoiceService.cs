@@ -133,8 +133,8 @@ public sealed class InvoiceService : IInvoiceService
                     Action: AuditActions.InvoiceStatusChanged,
                     EntityName: nameof(Invoice),
                     EntityId: invoice.Id,
-                    PreviousValue: previousStatus.ToString(),
-                    NewValue: request.Status.ToString()),
+                    PreviousValue: previousStatus,
+                    NewValue: request.Status),
                 cancellationToken);
 
             if (auditResult.IsFailure)

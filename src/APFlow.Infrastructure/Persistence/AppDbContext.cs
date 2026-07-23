@@ -1,5 +1,6 @@
 using System.Reflection;
 using APFlow.Application.Interfaces;
+using APFlow.Domain.Common;
 using APFlow.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,9 @@ public class AppDbContext : DbContext
 
     private static readonly MethodInfo ApplyTenantAndSoftDeleteFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(ApplyTenantAndSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+    private static readonly MethodInfo ApplyOptionalTenantAndSoftDeleteFilterMethod =
+        typeof(AppDbContext).GetMethod(nameof(ApplyOptionalTenantAndSoftDeleteFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     private readonly ICurrentUserService? _currentUserService;
     private readonly ILogger<AppDbContext>? _logger;
@@ -78,6 +82,18 @@ public class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     /// <summary>
+    /// Workflow templates (WP-050). OPTIONALLY tenant-scoped, not the same filter
+    /// shape as every other entity here - see <see cref="IOptionallyTenantScoped"/>.
+    /// </summary>
+    public DbSet<WorkflowTemplate> WorkflowTemplates => Set<WorkflowTemplate>();
+
+    /// <summary>Valid statuses within a <see cref="WorkflowTemplate"/> (WP-050). Optionally tenant-scoped - see <see cref="IOptionallyTenantScoped"/>.</summary>
+    public DbSet<StatusReference> StatusReferences => Set<StatusReference>();
+
+    /// <summary>Allowed transitions within a <see cref="WorkflowTemplate"/> (WP-050). Optionally tenant-scoped - see <see cref="IOptionallyTenantScoped"/>. No rows seeded - see <see cref="WorkflowTransition"/>'s doc comment.</summary>
+    public DbSet<WorkflowTransition> WorkflowTransitions => Set<WorkflowTransition>();
+
+    /// <summary>
     /// Creates a new <see cref="AppDbContext"/>. <paramref name="currentUserService"/>
     /// and <paramref name="logger"/> are optional (default to null) specifically so
     /// this context can be constructed at EF Core design time (migrations tooling)
@@ -110,12 +126,19 @@ public class AppDbContext : DbContext
             }
 
             // TenantEntity also derives from AuditEntity, so this must be an
-            // if/else-if: TenantEntity-derived types get ONE combined filter
-            // (tenant + soft-delete) - EF Core allows only one HasQueryFilter per
-            // entity type, and a second call would overwrite the first, not combine.
+            // if/else-if/else-if: TenantEntity-derived types get ONE combined
+            // filter (tenant + soft-delete), IOptionallyTenantScoped types get a
+            // DIFFERENT combined filter (optional-tenant + soft-delete), and plain
+            // AuditEntity types get soft-delete only - EF Core allows only one
+            // HasQueryFilter per entity type, and a second call would overwrite the
+            // first, not combine.
             if (typeof(TenantEntity).IsAssignableFrom(clrType))
             {
                 ApplyTenantAndSoftDeleteFilterMethod.MakeGenericMethod(clrType).Invoke(this, [modelBuilder]);
+            }
+            else if (typeof(IOptionallyTenantScoped).IsAssignableFrom(clrType))
+            {
+                ApplyOptionalTenantAndSoftDeleteFilterMethod.MakeGenericMethod(clrType).Invoke(this, [modelBuilder]);
             }
             else if (typeof(AuditEntity).IsAssignableFrom(clrType))
             {
@@ -141,6 +164,23 @@ public class AppDbContext : DbContext
         where TEntity : TenantEntity
     {
         modelBuilder.Entity<TEntity>().HasQueryFilter(e => !e.IsDeleted && e.TenantId == _currentTenantId);
+    }
+
+    /// <summary>
+    /// Combined OPTIONAL-tenant + soft-delete filter (WP-050) - see
+    /// <see cref="IOptionallyTenantScoped"/>. Unlike
+    /// <see cref="ApplyTenantAndSoftDeleteFilter{TEntity}"/>, a row with
+    /// <c>TenantId == null</c> (platform-wide default) is visible to every tenant,
+    /// not just a caller with no resolvable tenant - this is the one place in this
+    /// codebase where a null tenant match is intentional, not a fail-closed gap.
+    /// Still fails closed for tenant-SPECIFIC rows: a caller with no resolvable
+    /// tenant (<see cref="_currentTenantId"/> null) sees only the platform-wide
+    /// rows, never another tenant's specific ones.
+    /// </summary>
+    private void ApplyOptionalTenantAndSoftDeleteFilter<TEntity>(ModelBuilder modelBuilder)
+        where TEntity : AuditEntity, IOptionallyTenantScoped
+    {
+        modelBuilder.Entity<TEntity>().HasQueryFilter(e => !e.IsDeleted && (e.TenantId == null || e.TenantId == _currentTenantId));
     }
 
     /// <inheritdoc />

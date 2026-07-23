@@ -4,7 +4,6 @@ using APFlow.Application.Features.Invoices;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
 using APFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,10 +45,10 @@ public class AuditLogRepositoryTests
 
         var updateResult = await invoiceService.UpdateAsync(
             created.Value.Id,
-            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatus.Extracted));
+            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
 
         Assert.True(updateResult.IsSuccess);
-        Assert.Equal(InvoiceStatus.Extracted, updateResult.Value.Status);
+        Assert.Equal(InvoiceStatusCodes.Extracted, updateResult.Value.Status);
 
         // The single UpdateAsync call (one SaveChangesAsync) committed BOTH the
         // invoice's new status AND the audit entry describing it - this is the
@@ -59,8 +58,8 @@ public class AuditLogRepositoryTests
         Assert.Equal(AuditActions.InvoiceStatusChanged, entry.Action);
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
-        Assert.Equal(InvoiceStatus.Received.ToString(), entry.PreviousValue);
-        Assert.Equal(InvoiceStatus.Extracted.ToString(), entry.NewValue);
+        Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue);
+        Assert.Equal(InvoiceStatusCodes.Extracted.ToString(), entry.NewValue);
 
         // Real AppDbContext.SaveChanges stamping - "User" and "Date/Time" come from
         // AuditEntity.CreatedBy/CreatedAtUtc, not a dedicated column (see AuditLog's

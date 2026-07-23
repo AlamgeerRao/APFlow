@@ -75,7 +75,7 @@ A deployable MVP capable of:
 | WP-047 | Duplicate Matching Criteria Reconciliation | Backend Engineer | Done |
 | WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
 | WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Done. Replaces the prior ad-hoc three-commit adaptation (create → advance status → persist duplicate flag) with a true atomic single-save pipeline — see `docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md` |
-| WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Not started |
+| WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Schema, seed data (statuses only), and a fully-tested validation mechanism are complete; transition enforcement is deliberately NOT enabled yet — see `docs/WP-050-Workflow-Engine-Decisions.md` |
 | WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Not started |
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
@@ -86,6 +86,7 @@ Open architecture decisions pending Chief Technical Architect sign-off (see indi
 - `docs/WP-015-Invoice-Queue-Decisions.md`
 - `docs/WP-016-Invoice-Review-Decisions.md`
 - `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
+- `docs/WP-050-Workflow-Engine-Decisions.md` (GB Skips' proposed transition set, the undocumented platform-default transition graph, and the `EXTRACTED` status discrepancy vs. `06_Domain_Reference_Data.md` §2 all need sign-off)
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
 

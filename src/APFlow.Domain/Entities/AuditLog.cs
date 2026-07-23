@@ -61,7 +61,7 @@ public sealed class AuditLog : TenantEntity
     /// applicable (e.g. there is no "previous" state for a creation event). No
     /// structured/JSON diff format is imposed - a caller decides how to represent
     /// the value it is describing (WP-013's own caller uses
-    /// <c>InvoiceStatus.ToString()</c>).
+    /// the status code string directly).
     /// </summary>
     public string? PreviousValue { get; set; }
 

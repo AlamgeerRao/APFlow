@@ -1,13 +1,12 @@
 using APFlow.Application.Interfaces;
-using APFlow.Domain.Enums;
 
 namespace APFlow.Application.DTOs;
 
 /// <summary>
 /// The field an invoice query is sorted by. Sorting is an application-level query
 /// concept, not a domain concept - deliberately kept out of APFlow.Domain (compare
-/// to <see cref="APFlow.Domain.Enums.InvoiceStatus"/>, which represents a real
-/// business state).
+/// to <see cref="APFlow.Domain.Entities.Invoice.Status"/>, which represents a real
+/// business state - a tenant-configurable status code since WP-050, not an enum).
 /// </summary>
 public enum InvoiceSortField
 {
@@ -29,7 +28,7 @@ public enum InvoiceSortField
     /// <summary>Sort by <see cref="APFlow.Domain.Entities.Invoice.SupplierInvoiceNumber"/>.</summary>
     SupplierInvoiceNumber,
 
-    /// <summary>Sort by <see cref="APFlow.Domain.Enums.InvoiceStatus"/>.</summary>
+    /// <summary>Sort by <see cref="APFlow.Domain.Entities.Invoice.Status"/>.</summary>
     Status,
 }
 
@@ -59,7 +58,7 @@ public enum InvoiceSortField
 /// <param name="SortBy">Field to sort by. Defaults to <see cref="InvoiceSortField.CreatedAtUtc"/>.</param>
 /// <param name="SortDescending">Sort direction. Defaults to descending (newest/highest first).</param>
 public sealed record InvoiceQueryParameters(
-    InvoiceStatus? Status = null,
+    string? Status = null,
     Guid? SupplierId = null,
     DateOnly? InvoiceDateFrom = null,
     DateOnly? InvoiceDateTo = null,

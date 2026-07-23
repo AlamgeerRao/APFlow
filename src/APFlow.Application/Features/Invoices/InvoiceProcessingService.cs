@@ -2,7 +2,7 @@ using APFlow.Application.DTOs;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace APFlow.Application.Features.Invoices;
@@ -250,9 +250,9 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         // IInvoiceService.CreateAsync/UpdateAsync, both of which commit
         // independently) - validated via InvoiceFieldValidation (the same
         // validation IInvoiceService.CreateAsync uses, shared rather than
-        // duplicated) - and created already at InvoiceStatus.Extracted (PDF
+        // duplicated) - and created already at InvoiceStatusCodes.Extracted (PDF
         // extraction and Document Intelligence analysis are both complete by this
-        // point - see InvoiceStatus.Extracted's own doc comment), rather than the
+        // point - see InvoiceStatusCodes.Extracted's own doc comment), rather than the
         // previous two-step "create at Received, then separately advance to
         // Extracted": that two-step dance required its own separate commit,
         // incompatible with atomicity here.
@@ -282,7 +282,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
                 NetAmount = extraction.NetAmount.Value,
                 Vat = extraction.Vat.Value,
                 GrossTotal = extraction.GrossTotal.Value,
-                Status = InvoiceStatus.Extracted,
+                Status = InvoiceStatusCodes.Extracted,
                 SourceEmailMessageId = email.MessageId,
                 SourceDocumentBlobName = blobName,
             };

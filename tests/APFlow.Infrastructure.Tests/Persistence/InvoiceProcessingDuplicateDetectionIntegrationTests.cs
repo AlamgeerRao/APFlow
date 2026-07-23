@@ -5,7 +5,7 @@ using APFlow.Application.Features.Suppliers;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 using APFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -87,7 +87,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
 
         // Both invoices land directly at Extracted (WP-049: no separate Received-then-
         // advance step, since that would require its own, separate commit).
-        Assert.All(persistedInvoices, i => Assert.Equal(InvoiceStatus.Extracted, i.Status));
+        Assert.All(persistedInvoices, i => Assert.Equal(InvoiceStatusCodes.Extracted, i.Status));
     }
 
     [Fact]

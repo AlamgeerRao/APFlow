@@ -1,5 +1,3 @@
-using APFlow.Domain.Enums;
-
 namespace APFlow.Application.DTOs;
 
 /// <summary>Read shape for an invoice.</summary>
@@ -14,14 +12,14 @@ public sealed record InvoiceDto(
     decimal? NetAmount,
     decimal? Vat,
     decimal? GrossTotal,
-    InvoiceStatus Status,
+    string Status,
     string? SourceEmailMessageId,
     string? SourceDocumentBlobName,
     bool IsPotentialDuplicate,
     string? DuplicateCheckReason,
     DateTimeOffset CreatedAtUtc);
 
-/// <summary>Request shape for creating an invoice. No Id, no Status (always starts at InvoiceStatus.Received), no audit fields - those are owned by the entity/AppDbContext.</summary>
+/// <summary>Request shape for creating an invoice. No Id, no Status (always starts at InvoiceStatusCodes.Received), no audit fields - those are owned by the entity/AppDbContext.</summary>
 public sealed record CreateInvoiceRequest(
     Guid SupplierId,
     string? SupplierInvoiceNumber,
@@ -49,4 +47,4 @@ public sealed record UpdateInvoiceRequest(
     decimal? NetAmount,
     decimal? Vat,
     decimal? GrossTotal,
-    InvoiceStatus Status);
+    string Status);

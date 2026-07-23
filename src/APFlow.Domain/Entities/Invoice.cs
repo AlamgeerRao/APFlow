@@ -1,4 +1,4 @@
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 
 namespace APFlow.Domain.Entities;
 
@@ -53,8 +53,18 @@ public sealed class Invoice : TenantEntity
     /// <summary>The total amount including tax, if known.</summary>
     public decimal? GrossTotal { get; set; }
 
-    /// <summary>Where this invoice currently stands - see <see cref="InvoiceStatus"/>.</summary>
-    public InvoiceStatus Status { get; set; } = InvoiceStatus.Received;
+    /// <summary>
+    /// Where this invoice currently stands - a status CODE (e.g. "RECEIVED",
+    /// "APPROVED") that must match a <c>StatusReference.Code</c> row within the
+    /// acting tenant's active <c>WorkflowTemplate</c> (WP-050). A plain string, not
+    /// an enum: WP-050 retired the old <c>InvoiceStatus</c> enum specifically
+    /// because status values are tenant-configurable data (a shared enum cannot
+    /// represent a tenant-specific status like GB Skips'
+    /// <see cref="APFlow.Domain.Common.Constants.InvoiceStatusCodes.CheckedReadyToApprove"/>).
+    /// See <see cref="APFlow.Domain.Common.Constants.InvoiceStatusCodes"/> for named
+    /// constants covering the platform-default codes.
+    /// </summary>
+    public string Status { get; set; } = InvoiceStatusCodes.Received;
 
     /// <summary>
     /// The Graph message id (see WP-006) this invoice was sourced from, if it

@@ -1,7 +1,7 @@
 using APFlow.Application.DTOs;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 using APFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -50,14 +50,14 @@ public class InvoiceRepositoryQueryTests
         var supplier = new Supplier { Name = "Acme", TenantId = tenantId };
         context.Suppliers.Add(supplier);
         context.Invoices.AddRange(
-            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatus.Received },
-            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatus.Approved });
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.Received },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.Approved });
         await context.SaveChangesAsync();
 
-        var (items, totalCount) = await repository.QueryAsync(new InvoiceQueryParameters(Status: InvoiceStatus.Approved));
+        var (items, totalCount) = await repository.QueryAsync(new InvoiceQueryParameters(Status: InvoiceStatusCodes.Approved));
 
         Assert.Equal(1, totalCount);
-        Assert.Equal(InvoiceStatus.Approved, items[0].Status);
+        Assert.Equal(InvoiceStatusCodes.Approved, items[0].Status);
     }
 
     [Fact]

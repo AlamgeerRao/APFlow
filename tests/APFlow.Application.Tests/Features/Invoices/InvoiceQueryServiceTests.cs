@@ -2,7 +2,7 @@ using APFlow.Application.DTOs;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Tests.Features;
 using APFlow.Domain.Entities;
-using APFlow.Domain.Enums;
+using APFlow.Domain.Common.Constants;
 using Xunit;
 
 namespace APFlow.Application.Tests.Features.Invoices;
@@ -43,11 +43,11 @@ public class InvoiceQueryServiceTests
     {
         var (service, repo) = CreateService();
         var supplier = new Supplier { Name = "Acme" };
-        var received = NewInvoice(supplier.Id, status: InvoiceStatus.Received);
-        var approved = NewInvoice(supplier.Id, status: InvoiceStatus.Approved);
+        var received = NewInvoice(supplier.Id, status: InvoiceStatusCodes.Received);
+        var approved = NewInvoice(supplier.Id, status: InvoiceStatusCodes.Approved);
         repo.Invoices.AddRange([received, approved]);
 
-        var result = await service.SearchAsync(new InvoiceQueryParameters(Status: InvoiceStatus.Approved));
+        var result = await service.SearchAsync(new InvoiceQueryParameters(Status: InvoiceStatusCodes.Approved));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, result.Value.TotalCount);
@@ -204,7 +204,7 @@ public class InvoiceQueryServiceTests
 
     private static Invoice NewInvoice(
         Guid supplierId,
-        InvoiceStatus status = InvoiceStatus.Received,
+        string status = InvoiceStatusCodes.Received,
         DateOnly? invoiceDate = null,
         string? supplierInvoiceNumber = null,
         decimal? grossTotal = null) =>
