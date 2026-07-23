@@ -30,3 +30,4 @@ src/
 
 - **WP-014 (Dashboard Shell & Navigation):** implemented. See `docs/WP-014-Dashboard-Shell-Decisions.md` for open decisions pending Architect/WP-050 sign-off.
 - **WP-015 (Invoice Work Queue):** implemented. See `docs/WP-015-Invoice-Queue-Decisions.md` for open decisions pending Architect/WP-011 sign-off.
+- **WP-016 (Invoice Review Screen):** implemented. PDF rendering approach (native browser viewer) was explicitly ruled on by the Chief Technical Architect before implementation. See `docs/WP-016-Invoice-Review-Decisions.md` for remaining open decisions pending backend sign-off.

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { InvoiceListItem, InvoiceSortField, SortDirection } from '@/types/invoice';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { InvoiceStatusBadge } from '@/components/invoiceQueue/InvoiceStatusBadge';
@@ -38,10 +39,13 @@ function SortIcon({ direction }: { direction: SortDirection }) {
 /**
  * Read-only, sortable Invoice work queue table. Rows flagged as a
  * potential duplicate (WP-010/WP-012) are visually highlighted per
- * WP-015 task 5. No row-level actions — approval/editing/notes are
- * explicitly out of scope for this work package.
+ * WP-015 task 5. Clicking a row navigates to the read-only Review Screen
+ * (WP-016) — this table itself still performs no mutation; approval,
+ * editing, and notes remain explicitly out of scope.
  */
 export function InvoiceQueueTable({ invoices, sortBy, sortDirection, onSortChange }: InvoiceQueueTableProps) {
+  const navigate = useNavigate();
+
   if (invoices.length === 0) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-8 text-center text-sm text-slate-600">
@@ -80,9 +84,19 @@ export function InvoiceQueueTable({ invoices, sortBy, sortDirection, onSortChang
           {invoices.map((invoice) => (
             <tr
               key={invoice.id}
-              className={invoice.isPotentialDuplicate ? 'bg-amber-50' : undefined}
+              className={`cursor-pointer hover:bg-slate-50 ${invoice.isPotentialDuplicate ? 'bg-amber-50' : ''}`}
               data-testid="invoice-row"
               data-duplicate={invoice.isPotentialDuplicate}
+              tabIndex={0}
+              role="button"
+              aria-label={`Review invoice ${invoice.invoiceNumber} from ${invoice.supplierName}`}
+              onClick={() => navigate(`/invoices/review/${invoice.id}`)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  navigate(`/invoices/review/${invoice.id}`);
+                }
+              }}
             >
               <td className="px-4 py-3 text-ink-900">{invoice.supplierName}</td>
               <td className="px-4 py-3 text-ink-900">{invoice.invoiceNumber}</td>

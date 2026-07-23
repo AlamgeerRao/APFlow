@@ -5,6 +5,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { InboxPage } from '@/pages/InboxPage';
 import { InvoiceQueuePage } from '@/pages/InvoiceQueuePage';
+import { InvoiceReviewPage } from '@/pages/InvoiceReviewPage';
 import { QueryQueuePage } from '@/pages/QueryQueuePage';
 import { ApprovedPage } from '@/pages/ApprovedPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
@@ -31,6 +32,7 @@ export function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/invoices" element={<InvoiceQueuePage />} />
+        <Route path="/invoices/review/:invoiceId" element={<InvoiceReviewPage />} />
         <Route path="/invoices/:statusCode" element={<InvoiceQueuePage />} />
         <Route path="/queries" element={<QueryQueuePage />} />
         <Route path="/approved" element={<ApprovedPage />} />

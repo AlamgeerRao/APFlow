@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { InvoiceQueueTable } from '@/components/invoiceQueue/InvoiceQueueTable';
 import type { InvoiceListItem } from '@/types/invoice';
 import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition';
@@ -40,9 +41,11 @@ const authValue: AuthContextValue = {
 
 function renderTable(invoices: InvoiceListItem[], onSortChange = vi.fn()) {
   return render(
-    <AuthContext.Provider value={authValue}>
-      <InvoiceQueueTable invoices={invoices} sortBy="invoiceDate" sortDirection="asc" onSortChange={onSortChange} />
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={authValue}>
+        <InvoiceQueueTable invoices={invoices} sortBy="invoiceDate" sortDirection="asc" onSortChange={onSortChange} />
+      </AuthContext.Provider>
+    </MemoryRouter>,
   );
 }
 
@@ -99,5 +102,14 @@ describe('InvoiceQueueTable', () => {
     renderTable([]);
 
     expect(screen.getByText(/No invoices match/i)).toBeInTheDocument();
+  });
+
+  it('exposes each row as an accessible button-role element labelled with supplier and invoice number', async () => {
+    renderTable([nonDuplicateInvoice]);
+    await waitForStatusBadgesToSettle();
+
+    expect(
+      screen.getByRole('button', { name: /Review invoice NW-1001 from Northwind Traders Ltd/i }),
+    ).toBeInTheDocument();
   });
 });
