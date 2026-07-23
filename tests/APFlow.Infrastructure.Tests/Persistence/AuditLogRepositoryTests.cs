@@ -1,4 +1,5 @@
 using APFlow.Application.DTOs;
+using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Interfaces;
@@ -30,7 +31,10 @@ public class AuditLogRepositoryTests
         var invoiceRepository = new InvoiceRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
-        var invoiceService = new InvoiceService(invoiceRepository, new SupplierRepository(context), auditService, NullLogger<InvoiceService>.Instance);
+        var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
+        var invoiceService = new InvoiceService(
+            invoiceRepository, new SupplierRepository(context), auditService,
+            new FakeCurrentUserService(tenantId, "user-42"), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
 
         var supplier = new Supplier { Name = "Acme Ltd", TenantId = tenantId };
         context.Suppliers.Add(supplier);

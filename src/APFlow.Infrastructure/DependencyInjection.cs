@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<IWorkflowTemplateRepository, WorkflowTemplateRepository>();
+        services.AddScoped<IApprovalPolicyRepository, ApprovalPolicyRepository>();
 
         // Service Bus registrations are added here as they are implemented.
         // Intentionally empty at solution-foundation stage.

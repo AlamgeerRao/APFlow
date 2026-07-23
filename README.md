@@ -76,7 +76,7 @@ A deployable MVP capable of:
 | WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
 | WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Done. Replaces the prior ad-hoc three-commit adaptation (create → advance status → persist duplicate flag) with a true atomic single-save pipeline — see `docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md` |
 | WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Schema, seed data (statuses only), and a fully-tested validation mechanism are complete; transition enforcement is deliberately NOT enabled yet — see `docs/WP-050-Workflow-Engine-Decisions.md` |
-| WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Not started |
+| WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Done. Confirmed FINANCE_MANAGER as GB Skips' Full/Approver tier and enforces it via a new role-gated `ApprovalPolicy` mechanism on the `CHECKED_READY_TO_APPROVE` → `APPROVED` transition — see `docs/WP-051-Approval-Policy-Decisions.md` |
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 

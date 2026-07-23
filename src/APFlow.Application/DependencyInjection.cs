@@ -1,3 +1,4 @@
+using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Suppliers;
@@ -28,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceProcessingService, InvoiceProcessingService>();
         services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
         services.AddScoped<IWorkflowValidationService, WorkflowValidationService>();
+        services.AddScoped<IApprovalAuthorizationService, ApprovalAuthorizationService>();
 
         // Further feature registrations, validators, and mapping profiles are added
         // here as they are implemented.

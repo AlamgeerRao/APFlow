@@ -93,6 +93,9 @@ public class AppDbContext : DbContext
     /// <summary>Allowed transitions within a <see cref="WorkflowTemplate"/> (WP-050). Optionally tenant-scoped - see <see cref="IOptionallyTenantScoped"/>. No rows seeded - see <see cref="WorkflowTransition"/>'s doc comment.</summary>
     public DbSet<WorkflowTransition> WorkflowTransitions => Set<WorkflowTransition>();
 
+    /// <summary>Role-gating rules for approval-type actions (WP-051). Optionally tenant-scoped - see <see cref="IOptionallyTenantScoped"/>.</summary>
+    public DbSet<ApprovalPolicy> ApprovalPolicies => Set<ApprovalPolicy>();
+
     /// <summary>
     /// Creates a new <see cref="AppDbContext"/>. <paramref name="currentUserService"/>
     /// and <paramref name="logger"/> are optional (default to null) specifically so

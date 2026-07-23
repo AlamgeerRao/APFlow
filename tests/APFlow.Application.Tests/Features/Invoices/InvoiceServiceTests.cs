@@ -1,4 +1,5 @@
 using APFlow.Application.DTOs;
+using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Tests.Features;
@@ -107,6 +108,98 @@ public class InvoiceServiceTests
         Assert.True(result.IsSuccess);
         Assert.Empty(auditLogRepo.AuditLogs);
     }
+
+    [Fact]
+    public async Task UpdateAsync_CheckedReadyToApproveToApproved_ApReviewerRole_Rejected_InvoiceUnchanged()
+    {
+        // WP-051 required scenario: a user holding only AP_REVIEWER cannot execute
+        // the CHECKED_READY_TO_APPROVE -> APPROVED transition.
+        var (service, invoiceRepo, currentUser, policyRepo) = CreateServiceWithApproval();
+        SeedGbSkipsInvoiceApprovalPolicy(policyRepo);
+        currentUser.RolesList.Add(Roles.ApReviewer);
+        var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Approval.Unauthorized", result.Error.Code);
+
+        // The invoice is left completely untouched by the rejected attempt.
+        var unchanged = invoiceRepo.Invoices.Single(i => i.Id == invoice.Id);
+        Assert.Equal(InvoiceStatusCodes.CheckedReadyToApprove, unchanged.Status);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CheckedReadyToApproveToApproved_FinanceManagerRole_Succeeds()
+    {
+        // WP-051 required scenario: a user holding FINANCE_MANAGER can execute the
+        // CHECKED_READY_TO_APPROVE -> APPROVED transition.
+        var (service, invoiceRepo, currentUser, policyRepo) = CreateServiceWithApproval();
+        SeedGbSkipsInvoiceApprovalPolicy(policyRepo);
+        currentUser.RolesList.Add(Roles.FinanceManager);
+        var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InvoiceStatusCodes.Approved, result.Value.Status);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CheckedReadyToApproveToApproved_NoPolicyConfigured_FailsClosed()
+    {
+        // A domain with no ApprovalPolicy at all is NOT treated as "no restriction".
+        var (service, invoiceRepo, currentUser, _) = CreateServiceWithApproval(); // policyRepo left empty
+        currentUser.RolesList.Add(Roles.FinanceManager);
+        var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Approval.PolicyNotConfigured", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_OtherTransitions_NotGatedByApprovalPolicy()
+    {
+        // The role gate is narrow (WP-051 task 4) - it only applies to
+        // CHECKED_READY_TO_APPROVE -> APPROVED. A transition to a DIFFERENT status
+        // proceeds regardless of the acting user's roles or policy configuration.
+        var (service, invoiceRepo, currentUser, _) = CreateServiceWithApproval(); // no policy seeded, no roles set
+        var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.NeedsQuery));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InvoiceStatusCodes.NeedsQuery, result.Value.Status);
+    }
+
+    private static async Task<Invoice> CreateInvoiceAtCheckedReadyToApproveAsync(InvoiceService service, FakeInvoiceRepository invoiceRepo)
+    {
+        var invoice = new Invoice
+        {
+            SupplierId = Guid.NewGuid(),
+            SupplierInvoiceNumber = "INV-1",
+            Currency = "GBP",
+            GrossTotal = 120m,
+            Status = InvoiceStatusCodes.CheckedReadyToApprove,
+        };
+        invoiceRepo.Invoices.Add(invoice);
+        await Task.CompletedTask;
+        return invoice;
+    }
+
+    private static void SeedGbSkipsInvoiceApprovalPolicy(FakeApprovalPolicyRepository policyRepo) =>
+        policyRepo.Policies.Add(new ApprovalPolicy
+        {
+            Domain = ApprovalDomains.InvoiceApproval,
+            RequiredRole = Roles.FinanceManager,
+            RequiresDualControl = false,
+        });
 
     [Fact]
     public async Task DeleteAsync_ExistingInvoice_Succeeds_RemovesFromRepository()
@@ -277,7 +370,37 @@ public class InvoiceServiceTests
         var supplierRepository = new FakeSupplierRepository();
         var auditLogRepository = new FakeAuditLogRepository();
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
-        var service = new InvoiceService(invoiceRepository, supplierRepository, auditService, NullLogger<InvoiceService>.Instance);
+        var currentUserService = new FakeCurrentUserService();
+        var approvalAuthorizationService = new FakeApprovalAuthorizationService(); // defaults to always-authorized
+        var service = new InvoiceService(
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
         return (service, invoiceRepository, supplierRepository, auditLogRepository);
+    }
+
+    /// <summary>
+    /// Same as <see cref="CreateService"/> but also exposes the
+    /// <see cref="FakeCurrentUserService"/> (to set the acting user's roles) and
+    /// <see cref="FakeApprovalPolicyRepository"/> (to seed an ApprovalPolicy)
+    /// backing InvoiceService (WP-051), for tests asserting on the
+    /// CHECKED_READY_TO_APPROVE -&gt; APPROVED role gate specifically. Uses the REAL
+    /// <see cref="ApprovalAuthorizationService"/> (not a fake of the whole
+    /// service) so these tests prove the actual policy-checking logic, not just
+    /// that InvoiceService reacts correctly to a mocked Result. A separate
+    /// overload for the same reason as <see cref="CreateServiceWithAudit"/> - the
+    /// other pre-WP-051 tests in this file don't need updating for dependencies
+    /// they don't care about.
+    /// </summary>
+    private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeCurrentUserService CurrentUserService, FakeApprovalPolicyRepository ApprovalPolicyRepository) CreateServiceWithApproval()
+    {
+        var invoiceRepository = new FakeInvoiceRepository();
+        var supplierRepository = new FakeSupplierRepository();
+        var auditLogRepository = new FakeAuditLogRepository();
+        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var currentUserService = new FakeCurrentUserService();
+        var approvalPolicyRepository = new FakeApprovalPolicyRepository();
+        var approvalAuthorizationService = new ApprovalAuthorizationService(approvalPolicyRepository);
+        var service = new InvoiceService(
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
+        return (service, invoiceRepository, currentUserService, approvalPolicyRepository);
     }
 }

@@ -1,4 +1,5 @@
 using APFlow.Application.DTOs;
+using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Suppliers;
@@ -36,7 +37,9 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var supplierRepository = new SupplierRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
-        var invoiceService = new InvoiceService(invoiceRepository, supplierRepository, auditService, NullLogger<InvoiceService>.Instance);
+        var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
+        var invoiceService = new InvoiceService(
+            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
@@ -100,7 +103,9 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var supplierRepository = new SupplierRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
-        var invoiceService = new InvoiceService(invoiceRepository, supplierRepository, auditService, NullLogger<InvoiceService>.Instance);
+        var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
+        var invoiceService = new InvoiceService(
+            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 

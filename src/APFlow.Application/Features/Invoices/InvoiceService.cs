@@ -10,16 +10,19 @@ namespace APFlow.Application.Features.Invoices;
 
 /// <summary>
 /// Default implementation of <see cref="IInvoiceService"/>. Depends on
-/// <see cref="IInvoiceRepository"/>, <see cref="ISupplierRepository"/>, and (WP-013)
-/// <see cref="IAuditService"/> - all plain, EF-Core-free interfaces - so this class
-/// is fully unit-testable with fake repositories/services. No database, no EF Core
-/// provider required.
+/// <see cref="IInvoiceRepository"/>, <see cref="ISupplierRepository"/>, (WP-013)
+/// <see cref="IAuditService"/>, and (WP-051) <see cref="ICurrentUserService"/> /
+/// <see cref="IApprovalAuthorizationService"/> - all plain, EF-Core-free
+/// interfaces - so this class is fully unit-testable with fake
+/// repositories/services. No database, no EF Core provider required.
 /// </summary>
 public sealed class InvoiceService : IInvoiceService
 {
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly ISupplierRepository _supplierRepository;
     private readonly IAuditService _auditService;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly IApprovalAuthorizationService _approvalAuthorizationService;
     private readonly ILogger<InvoiceService> _logger;
 
     /// <summary>Creates a new <see cref="InvoiceService"/>.</summary>
@@ -27,11 +30,15 @@ public sealed class InvoiceService : IInvoiceService
         IInvoiceRepository invoiceRepository,
         ISupplierRepository supplierRepository,
         IAuditService auditService,
+        ICurrentUserService currentUserService,
+        IApprovalAuthorizationService approvalAuthorizationService,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
         _supplierRepository = supplierRepository;
         _auditService = auditService;
+        _currentUserService = currentUserService;
+        _approvalAuthorizationService = approvalAuthorizationService;
         _logger = logger;
     }
 
@@ -107,6 +114,32 @@ public sealed class InvoiceService : IInvoiceService
         }
 
         var previousStatus = invoice.Status;
+
+        // WP-051 task 4: gate the CHECKED_READY_TO_APPROVE -> APPROVED transition
+        // specifically by the acting user's role, via the seeded GB Skips
+        // ApprovalPolicy (ApprovalDomains.InvoiceApproval). Deliberately narrow -
+        // NOT a general "check every transition against IWorkflowValidationService"
+        // activation, which remains blocked on the platform-default transition
+        // graph being undocumented anywhere (see docs/WP-050-Workflow-Engine-Decisions.md).
+        // This check only ever matters for GB Skips tenants: the platform-default
+        // template has no CHECKED_READY_TO_APPROVE status at all, so
+        // previousStatus can never equal it for a platform-default invoice.
+        // Checked and rejected BEFORE any field is mutated, so an unauthorized
+        // attempt leaves the invoice completely untouched.
+        if (string.Equals(previousStatus, InvoiceStatusCodes.CheckedReadyToApprove, StringComparison.Ordinal)
+            && string.Equals(request.Status, InvoiceStatusCodes.Approved, StringComparison.Ordinal))
+        {
+            var authorizationResult = await _approvalAuthorizationService.AuthorizeAsync(
+                ApprovalDomains.InvoiceApproval, _currentUserService.Roles, cancellationToken);
+
+            if (authorizationResult.IsFailure)
+            {
+                _logger.LogWarning(
+                    "Invoice {InvoiceId} approval rejected: {ErrorCode} - {ErrorMessage}",
+                    invoice.Id, authorizationResult.Error.Code, authorizationResult.Error.Message);
+                return Result.Failure<InvoiceDto>(authorizationResult.Error);
+            }
+        }
 
         invoice.SupplierInvoiceNumber = request.SupplierInvoiceNumber;
         invoice.InvoiceDate = request.InvoiceDate;

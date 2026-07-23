@@ -60,7 +60,12 @@ public class WorkflowTemplateRepositoryTests
         Assert.True(awaitingReview.SortOrder < needsReviewFebina.SortOrder);
         Assert.True(needsReviewFebina.SortOrder < approved.SortOrder);
 
-        Assert.Empty(template.Transitions); // WP-050: no transitions seeded yet, even for GB Skips
+        // WP-051 seeded exactly one transition for GB Skips (CHECKED_READY_TO_APPROVE
+        // -> APPROVED, per its own explicit task 4 direction) - everything else
+        // proposed in WP-050 remains unconfirmed and unseeded.
+        var transition = Assert.Single(template.Transitions);
+        Assert.Equal(InvoiceStatusCodes.CheckedReadyToApprove, transition.FromStatusCode);
+        Assert.Equal(InvoiceStatusCodes.Approved, transition.ToStatusCode);
     }
 
     [Fact]
