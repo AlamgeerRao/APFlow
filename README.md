@@ -63,7 +63,7 @@ A deployable MVP capable of:
 | WP-015 | Invoice Work Queue | Senior React Engineer | Done |
 | WP-016 | Invoice Review Screen | Senior React Engineer | Done |
 | WP-017 | Notes & Comments Component | Senior React Engineer | Done. No backend API contract for notes exists yet (not even unconfirmed) — implemented against a fixture client and a proposed, non-binding HTTP contract; the API endpoint itself is tracked in `docs/Backlog.md` as a near-term blocker. Needs explicit sign-off — see `docs/WP-017-Invoice-Notes-Decisions.md` |
-| WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Not started |
+| WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Done. Generalised, data-driven action rendering (no hardcoded button set) against a fixture `WorkflowActionClient`; no backend endpoint exists yet to list available actions or change status. Platform-default tenants see zero actions today - its transition graph was undocumented when this WP was authored but has since been fully seeded by WP-053; the frontend fixture itself hasn't been revisited to reflect that. Needs explicit sign-off — see `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` |
 | WP-019 | Supplier Folder View | Senior React Engineer | Not started |
 | WP-020 | API Integration & Error Handling | Senior React Engineer | Not started |
 | WP-021 | Azure Infrastructure (App Service, SQL, Storage) | DevOps Engineer | Not started |
@@ -88,6 +88,7 @@ Open architecture decisions pending Chief Technical Architect sign-off (see indi
 - `docs/WP-015-Invoice-Queue-Decisions.md`
 - `docs/WP-016-Invoice-Review-Decisions.md`
 - `docs/WP-017-Invoice-Notes-Decisions.md` (no backend API contract for notes exists at all yet; proposed contract needs Chief Technical Architect/Backend Engineer sign-off before the fixture client is replaced)
+- `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` (no backend endpoint exists to list/execute workflow actions; the transition-graph gap it flagged is now resolved by WP-053, but the frontend fixture data itself still hardcodes zero actions for platform-default tenants — proposed HTTP contract needs sign-off before the fixture client is replaced, and WP-054 is already building the real endpoint)
 - `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
 - `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` (per-field extraction-confidence persistence scope, and reconciliation against WP-015's fixture once available)
 - `docs/WP-053-Transition-Enforcement-Decisions.md` (two non-blocking discrepancies noted between the work package's wording and what was actually confirmed/implemented)

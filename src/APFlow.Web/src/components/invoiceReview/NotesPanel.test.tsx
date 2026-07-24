@@ -5,7 +5,7 @@ import { NotesPanel } from '@/components/invoiceReview/NotesPanel';
 import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition';
 
 const authValue: AuthContextValue = {
-  user: { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Jamie Lee' },
+  user: { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Jamie Lee', roles: ['AP_REVIEWER'] },
   isAuthenticated: true,
   signIn: () => {},
   signOut: () => {},

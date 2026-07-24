@@ -7,7 +7,7 @@ import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition
 function renderWithAuth(isAuthenticated: boolean, initialPath = '/invoices') {
   const authValue: AuthContextValue = {
     user: isAuthenticated
-      ? { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Test User' }
+      ? { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Test User', roles: ['AP_REVIEWER'] }
       : null,
     isAuthenticated,
     signIn: () => {},

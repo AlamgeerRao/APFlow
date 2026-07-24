@@ -6,14 +6,31 @@ import type { ActingUser } from '@/auth/authContextDefinition';
  * Sign-in stub. Real authentication (Microsoft Entra External ID) is owned
  * by WP-002 and is out of scope for WP-014 ("No business functionality").
  *
- * This offers a choice between the two tenant fixtures purely so the
- * data-driven nav can be verified locally against both the platform-default
- * tenant and GB Skips' extended tenant, per WP-014's acceptance criteria.
- * It is replaced wholesale once WP-002's real sign-in flow lands.
+ * Offers a choice across tenant AND role fixtures — extended by WP-018 to
+ * cover both a `FINANCE_MANAGER` and an `AP_REVIEWER` GB Skips user
+ * specifically, since its acceptance criteria requires confirming Approve
+ * is visible/usable for the former and not the latter. Replaced wholesale
+ * once WP-002's real sign-in flow lands.
  */
 const DEMO_USERS: ActingUser[] = [
-  { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Alex Reviewer' },
-  { tenantId: 'gb-skips', tenantName: 'GB Skips', displayName: 'Patrick (GB Skips)' },
+  {
+    tenantId: 'platform-default',
+    tenantName: 'Platform Default Tenant',
+    displayName: 'Alex Reviewer',
+    roles: ['AP_REVIEWER'],
+  },
+  {
+    tenantId: 'gb-skips',
+    tenantName: 'GB Skips',
+    displayName: 'Patrick (GB Skips — Finance Manager)',
+    roles: ['FINANCE_MANAGER'],
+  },
+  {
+    tenantId: 'gb-skips',
+    tenantName: 'GB Skips',
+    displayName: 'Priya Shah (GB Skips — AP Reviewer)',
+    roles: ['AP_REVIEWER'],
+  },
 ];
 
 export function LoginPage() {
@@ -37,7 +54,7 @@ export function LoginPage() {
         <div className="mt-6 space-y-2">
           {DEMO_USERS.map((user) => (
             <button
-              key={user.tenantId}
+              key={user.displayName}
               type="button"
               onClick={() => handleSignIn(user)}
               className="w-full rounded-md border border-slate-200 px-4 py-2 text-left text-sm font-medium text-ink-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600"

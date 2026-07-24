@@ -9,6 +9,7 @@ import { ExtractedFieldsPanel } from '@/components/invoiceReview/ExtractedFields
 import { AuditSummaryPanel } from '@/components/invoiceReview/AuditSummaryPanel';
 import { InvoicePdfViewer } from '@/components/invoiceReview/InvoicePdfViewer';
 import { NotesPanel } from '@/components/invoiceReview/NotesPanel';
+import { WorkflowActionsPanel } from '@/components/invoiceReview/WorkflowActionsPanel';
 import {
   InvoiceReviewLoadingState,
   InvoiceReviewErrorState,
@@ -16,11 +17,10 @@ import {
 } from '@/components/invoiceReview/InvoiceReviewStates';
 
 /**
- * Invoice Review Screen (WP-016, extended by WP-017's Notes panel).
- * Otherwise entirely read-only: no approve, reject, or query affordance
- * anywhere on this page — those remain explicitly out of scope. WP-017
- * adds the one deliberate exception: users can add a new note, but per its
- * own explicit scope, still cannot edit or delete an existing one.
+ * Invoice Review Screen (WP-016, extended by WP-017's Notes panel and
+ * WP-018's Workflow Actions panel). Payment, remittance, and supplier email
+ * remain explicitly out of scope (WP-018's own Out of Scope list) — no
+ * affordance for any of those exists anywhere on this page.
  */
 export function InvoiceReviewPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -68,6 +68,7 @@ export function InvoiceReviewPage() {
         </div>
 
         <div className="order-1 flex flex-col gap-6 lg:order-2">
+          <WorkflowActionsPanel invoice={invoice} onStatusChanged={retry} />
           <InvoiceHeaderSummary invoice={invoice} />
           <ExtractedFieldsPanel fields={invoice.extractedFields} />
           <AuditSummaryPanel entries={invoice.auditEntries} />

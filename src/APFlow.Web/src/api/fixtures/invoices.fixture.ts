@@ -191,3 +191,22 @@ export const invoiceFixtures: FixtureInvoice[] = [
     duplicateCheckReason: null,
   },
 ];
+
+/**
+ * Mutates a fixture invoice's status in place (WP-018). Deliberately mutates
+ * the SAME array/objects every other fixture client (`invoiceClient.ts`,
+ * `invoiceDetailClient.ts`) reads from, rather than maintaining a separate,
+ * parallel "current status" store — this is what makes "refresh UI after
+ * update" (WP-018 task 6) work consistently everywhere an invoice's status
+ * is displayed (the queue, the review screen's header, this invoice's own
+ * available-actions list), all from one call, exactly as a real backend
+ * update followed by a real refetch would. Returns false (mutates nothing)
+ * if no fixture invoice with the given id/tenant exists.
+ */
+export function updateFixtureInvoiceStatus(tenantId: string, invoiceId: string, newStatusCode: string): boolean {
+  const invoice = invoiceFixtures.find((item) => item.tenantId === tenantId && item.id === invoiceId);
+  if (!invoice) return false;
+
+  invoice.status = newStatusCode;
+  return true;
+}

@@ -6,7 +6,7 @@ import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition
 import { invoiceClient } from '@/api/invoiceClient';
 
 const authValue: AuthContextValue = {
-  user: { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Test User' },
+  user: { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Test User', roles: ['AP_REVIEWER'] },
   isAuthenticated: true,
   signIn: () => {},
   signOut: () => {},
