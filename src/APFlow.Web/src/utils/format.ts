@@ -10,3 +10,22 @@ export function formatDate(isoDate: string): string {
     date,
   );
 }
+
+/**
+ * Formats an ISO 8601 timestamp (date + time) for display, e.g.
+ * formatDateTime('2026-07-01T08:12:00Z') -> "01 Jul 2026, 08:12". Added for
+ * WP-017's Notes panel (task 3: display date/time). Deliberately not used
+ * to refactor `AuditSummaryPanel`'s existing local `formatTimestamp` — that
+ * component is out of scope for this work package (Development Workflow §9:
+ * "do not change unrelated files").
+ */
+export function formatDateTime(isoTimestamp: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }).format(new Date(isoTimestamp));
+}

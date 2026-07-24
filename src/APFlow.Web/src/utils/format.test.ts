@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
 
 describe('formatCurrency', () => {
   it('formats a GBP amount with the currency symbol and two decimal places', () => {
@@ -22,5 +22,15 @@ describe('formatDate', () => {
 
   it('formats a date in a different month correctly', () => {
     expect(formatDate('2026-01-05')).toBe('05 Jan 2026');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('formats an ISO timestamp as "DD Mon YYYY, HH:mm"', () => {
+    expect(formatDateTime('2026-07-01T08:12:00Z')).toBe('01 Jul 2026, 08:12');
+  });
+
+  it('formats a different timestamp correctly', () => {
+    expect(formatDateTime('2026-01-05T23:45:00Z')).toBe('05 Jan 2026, 23:45');
   });
 });

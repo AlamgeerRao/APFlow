@@ -62,7 +62,7 @@ A deployable MVP capable of:
 | WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done |
 | WP-015 | Invoice Work Queue | Senior React Engineer | Done |
 | WP-016 | Invoice Review Screen | Senior React Engineer | Done |
-| WP-017 | Notes & Comments Component | Senior React Engineer | Not started |
+| WP-017 | Notes & Comments Component | Senior React Engineer | Done. No backend API contract for notes exists yet (not even unconfirmed) — implemented against a fixture client and a proposed, non-binding HTTP contract; the API endpoint itself is tracked in `docs/Backlog.md` as a near-term blocker. Needs explicit sign-off — see `docs/WP-017-Invoice-Notes-Decisions.md` |
 | WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Not started |
 | WP-019 | Supplier Folder View | Senior React Engineer | Not started |
 | WP-020 | API Integration & Error Handling | Senior React Engineer | Not started |
@@ -87,6 +87,7 @@ Open architecture decisions pending Chief Technical Architect sign-off (see indi
 - `docs/WP-014-Dashboard-Shell-Decisions.md`
 - `docs/WP-015-Invoice-Queue-Decisions.md`
 - `docs/WP-016-Invoice-Review-Decisions.md`
+- `docs/WP-017-Invoice-Notes-Decisions.md` (no backend API contract for notes exists at all yet; proposed contract needs Chief Technical Architect/Backend Engineer sign-off before the fixture client is replaced)
 - `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
 - `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` (per-field extraction-confidence persistence scope, and reconciliation against WP-015's fixture once available)
 - `docs/WP-053-Transition-Enforcement-Decisions.md` (two non-blocking discrepancies noted between the work package's wording and what was actually confirmed/implemented)

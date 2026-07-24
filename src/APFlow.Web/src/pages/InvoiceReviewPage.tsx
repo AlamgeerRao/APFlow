@@ -8,6 +8,7 @@ import { DuplicateWarningBanner } from '@/components/invoiceReview/DuplicateWarn
 import { ExtractedFieldsPanel } from '@/components/invoiceReview/ExtractedFieldsPanel';
 import { AuditSummaryPanel } from '@/components/invoiceReview/AuditSummaryPanel';
 import { InvoicePdfViewer } from '@/components/invoiceReview/InvoicePdfViewer';
+import { NotesPanel } from '@/components/invoiceReview/NotesPanel';
 import {
   InvoiceReviewLoadingState,
   InvoiceReviewErrorState,
@@ -15,9 +16,11 @@ import {
 } from '@/components/invoiceReview/InvoiceReviewStates';
 
 /**
- * Invoice Review Screen (WP-016). Entirely read-only: no approve, reject,
- * query, or notes-editing affordance anywhere on this page — those are
- * explicitly out of scope.
+ * Invoice Review Screen (WP-016, extended by WP-017's Notes panel).
+ * Otherwise entirely read-only: no approve, reject, or query affordance
+ * anywhere on this page — those remain explicitly out of scope. WP-017
+ * adds the one deliberate exception: users can add a new note, but per its
+ * own explicit scope, still cannot edit or delete an existing one.
  */
 export function InvoiceReviewPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -68,6 +71,7 @@ export function InvoiceReviewPage() {
           <InvoiceHeaderSummary invoice={invoice} />
           <ExtractedFieldsPanel fields={invoice.extractedFields} />
           <AuditSummaryPanel entries={invoice.auditEntries} />
+          <NotesPanel invoiceId={invoice.id} />
         </div>
       </div>
     </>
