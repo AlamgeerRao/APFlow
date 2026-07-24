@@ -75,9 +75,10 @@ A deployable MVP capable of:
 | WP-047 | Duplicate Matching Criteria Reconciliation | Backend Engineer | Done |
 | WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
 | WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Done. Replaces the prior ad-hoc three-commit adaptation (create → advance status → persist duplicate flag) with a true atomic single-save pipeline — see `docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md` |
-| WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Schema, seed data (statuses only), and a fully-tested validation mechanism are complete; transition enforcement is deliberately NOT enabled yet — see `docs/WP-050-Workflow-Engine-Decisions.md` |
+| WP-050 | Tenant-Configurable Workflow Engine | Backend Engineer | Schema, seed data (statuses only), and a fully-tested validation mechanism delivered; its central open item (transition enforcement not enabled) was subsequently closed by WP-053 — see `docs/WP-050-Workflow-Engine-Decisions.md` |
 | WP-051 | Confirm GB Skips Role Mapping (Full/Approver → FINANCE_MANAGER) | Chief Technical Architect / Product Owner | Done. Confirmed FINANCE_MANAGER as GB Skips' Full/Approver tier and enforces it via a new role-gated `ApprovalPolicy` mechanism on the `CHECKED_READY_TO_APPROVE` → `APPROVED` transition — see `docs/WP-051-Approval-Policy-Decisions.md` |
 | WP-052 | Pipeline & API Hardening (EF Core migrations, content-hash idempotency, extended audit logging, Invoice Detail API) | Backend Engineer | Done. Two items flagged for sign-off, not silently resolved — see `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` |
+| WP-053 | Seed & Enable Workflow Transition Enforcement | Backend Engineer | Done. Seeds both templates' full confirmed transition graphs (57 rows) and wires `IWorkflowValidationService` + a generalised four-transition role gate live into `InvoiceService.UpdateAsync`, closing WP-050's central open item. Two non-blocking discrepancies flagged, not silently resolved — see `docs/WP-053-Transition-Enforcement-Decisions.md` |
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 
@@ -87,11 +88,19 @@ Open architecture decisions pending Chief Technical Architect sign-off (see indi
 - `docs/WP-015-Invoice-Queue-Decisions.md`
 - `docs/WP-016-Invoice-Review-Decisions.md`
 - `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
-- `docs/WP-050-Workflow-Engine-Decisions.md` (GB Skips' proposed transition set, the undocumented platform-default transition graph, and the `EXTRACTED` status discrepancy vs. `06_Domain_Reference_Data.md` §2 all need sign-off)
 - `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` (per-field extraction-confidence persistence scope, and reconciliation against WP-015's fixture once available)
+- `docs/WP-053-Transition-Enforcement-Decisions.md` (two non-blocking discrepancies noted between the work package's wording and what was actually confirmed/implemented)
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
 
 - `docs/WP-004-Graph-Multitenancy-Decision.md`
 - `docs/WP-004-Health-Check-Severity-Decision.md`
 - `docs/WP-010-Duplicate-Flag-Persistence-Decision.md`
+
+Other resolved architecture decisions (closed independently of the 2026-07-20 ruling batch, via implementation/verification or a later work package's ruling):
+
+- `docs/WP-003-Tenant-Isolation-Decision.md` — resolved in WP-009, the document's own trigger condition (first `TenantEntity`-derived entities landed).
+- `docs/WP-005-Blob-Storage-Tenant-Isolation-Decision.md` — resolved 2026-07-18; blob-name prefixing enforced in `BlobStorageService`, implemented and verified.
+- `docs/WP-047-Duplicate-Matching-Reconciliation.md` — complete; its one provisional item (FINANCE_MANAGER as GB Skips' Full/Approver mapping) was subsequently confirmed by WP-051.
+- `docs/WP-051-Approval-Policy-Decisions.md` — complete for everything the codebase needs today; Task 5 is documentation-only (WP-038 doesn't exist).
+- `docs/WP-050-Workflow-Engine-Decisions.md` — its central open item (GB Skips' proposed transition set, the undocumented platform-default transition graph, and enabling enforcement) was subsequently confirmed, seeded, and wired live by WP-053. The GB Skips placeholder tenant ID (a separate, pre-existing item — see the doc's own note) remains open.
