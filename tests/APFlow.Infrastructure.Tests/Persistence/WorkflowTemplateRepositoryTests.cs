@@ -33,7 +33,17 @@ public class WorkflowTemplateRepositoryTests
         Assert.Contains(template.Statuses, s => s.Code == InvoiceStatusCodes.Extracted);
         Assert.DoesNotContain(template.Statuses, s => s.Code == InvoiceStatusCodes.CheckedReadyToApprove);
         Assert.DoesNotContain(template.Statuses, s => s.Code == InvoiceStatusCodes.NeedsReviewFebina);
-        Assert.Empty(template.Transitions); // WP-050: no transitions seeded yet
+        // WP-053 seeded the full confirmed graph. Platform-default specifically
+        // INCLUDES direct reviewer approval (AWAITING_REVIEW -> APPROVED), which GB
+        // Skips' template deliberately omits.
+        Assert.NotEmpty(template.Transitions);
+        Assert.Contains(template.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.AwaitingReview && t.ToStatusCode == InvoiceStatusCodes.Approved);
+        Assert.DoesNotContain(template.Transitions, t =>
+            t.ToStatusCode == InvoiceStatusCodes.CheckedReadyToApprove || t.ToStatusCode == InvoiceStatusCodes.NeedsReviewFebina);
+        // DUPLICATE_SUSPECTED remains a valid status but has no edges (WP-053).
+        Assert.DoesNotContain(template.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.DuplicateSuspected || t.ToStatusCode == InvoiceStatusCodes.DuplicateSuspected);
     }
 
     [Fact]
@@ -60,12 +70,15 @@ public class WorkflowTemplateRepositoryTests
         Assert.True(awaitingReview.SortOrder < needsReviewFebina.SortOrder);
         Assert.True(needsReviewFebina.SortOrder < approved.SortOrder);
 
-        // WP-051 seeded exactly one transition for GB Skips (CHECKED_READY_TO_APPROVE
-        // -> APPROVED, per its own explicit task 4 direction) - everything else
-        // proposed in WP-050 remains unconfirmed and unseeded.
-        var transition = Assert.Single(template.Transitions);
-        Assert.Equal(InvoiceStatusCodes.CheckedReadyToApprove, transition.FromStatusCode);
-        Assert.Equal(InvoiceStatusCodes.Approved, transition.ToStatusCode);
+        // WP-053 seeded GB Skips' full confirmed graph: it routes approval through
+        // CHECKED_READY_TO_APPROVE and deliberately does NOT have the platform
+        // default's direct AWAITING_REVIEW -> APPROVED edge.
+        Assert.Contains(template.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.CheckedReadyToApprove && t.ToStatusCode == InvoiceStatusCodes.Approved);
+        Assert.Contains(template.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.AwaitingReview && t.ToStatusCode == InvoiceStatusCodes.CheckedReadyToApprove);
+        Assert.DoesNotContain(template.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.AwaitingReview && t.ToStatusCode == InvoiceStatusCodes.Approved);
     }
 
     [Fact]

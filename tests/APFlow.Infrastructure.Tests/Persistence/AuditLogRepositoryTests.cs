@@ -2,6 +2,7 @@ using APFlow.Application.DTOs;
 using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
+using APFlow.Application.Features.Workflow;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
@@ -34,7 +35,8 @@ public class AuditLogRepositoryTests
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
             invoiceRepository, new SupplierRepository(context), auditService,
-            new FakeCurrentUserService(tenantId, "user-42"), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
+            new FakeCurrentUserService(tenantId, "user-42"), approvalAuthorizationService,
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
 
         var supplier = new Supplier { Name = "Acme Ltd", TenantId = tenantId };
         context.Suppliers.Add(supplier);
@@ -50,6 +52,18 @@ public class AuditLogRepositoryTests
         // which contradicts its own documented immutability - see AuditLog.cs).
         Assert.DoesNotContain(await context.AuditLogs.ToListAsync(), a => a.Action == AuditActions.InvoiceStatusChanged);
 
+        // WP-053: transition enforcement is now LIVE, so this test must move the
+        // invoice along an edge that genuinely exists in the confirmed graph.
+        // RECEIVED -> EXTRACTED (what this test originally used, and what WP-053's
+        // own task 5 assumed would still pass) is NOT such an edge - the confirmed
+        // graph routes ingestion RECEIVED -> PROCESSING -> EXTRACTED. Stepping via
+        // PROCESSING here rather than inventing an unconfirmed direct edge - see
+        // docs/WP-053-Transition-Enforcement-Decisions.md.
+        var toProcessing = await invoiceService.UpdateAsync(
+            created.Value.Id,
+            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Processing));
+        Assert.True(toProcessing.IsSuccess);
+
         var updateResult = await invoiceService.UpdateAsync(
             created.Value.Id,
             new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
@@ -57,18 +71,29 @@ public class AuditLogRepositoryTests
         Assert.True(updateResult.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.Extracted, updateResult.Value.Status);
 
-        // The single UpdateAsync call (one SaveChangesAsync) committed BOTH the
+        // Each UpdateAsync call (one SaveChangesAsync each) committed BOTH the
         // invoice's new status AND the audit entry describing it - this is the
         // atomic-commit design's whole point, proven against a real DbContext.
-        // (CreateAsync's own InvoiceCreated entry is also present from earlier -
-        // WP-052 Part C - so this asserts two entries total, not one.)
+        // Three entries total: CreateAsync's InvoiceCreated (WP-052 Part C), plus
+        // one InvoiceStatusChanged per transition (Received -> Processing ->
+        // Extracted).
         var auditEntries = await context.AuditLogs.ToListAsync();
-        Assert.Equal(2, auditEntries.Count);
-        var entry = Assert.Single(auditEntries, a => a.Action == AuditActions.InvoiceStatusChanged);
+        Assert.Equal(3, auditEntries.Count);
+
+        var statusChanges = auditEntries
+            .Where(a => a.Action == AuditActions.InvoiceStatusChanged)
+            .OrderBy(a => a.CreatedAtUtc)
+            .ToList();
+        Assert.Equal(2, statusChanges.Count);
+
+        Assert.Equal(InvoiceStatusCodes.Received, statusChanges[0].PreviousValue);
+        Assert.Equal(InvoiceStatusCodes.Processing, statusChanges[0].NewValue);
+
+        var entry = statusChanges[1];
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
-        Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue);
-        Assert.Equal(InvoiceStatusCodes.Extracted.ToString(), entry.NewValue);
+        Assert.Equal(InvoiceStatusCodes.Processing, entry.PreviousValue);
+        Assert.Equal(InvoiceStatusCodes.Extracted, entry.NewValue);
 
         // Real AppDbContext.SaveChanges stamping - "User" and "Date/Time" come from
         // AuditEntity.CreatedBy/CreatedAtUtc, not a dedicated column (see AuditLog's
@@ -163,7 +188,16 @@ public class AuditLogRepositoryTests
             .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
             .Options;
 
-        return new AppDbContext(options, new FakeCurrentUserService(tenantId, currentUserId));
+        var context = new AppDbContext(options, new FakeCurrentUserService(tenantId, currentUserId));
+
+        // Required for HasData seed rows (workflow templates/statuses/transitions)
+        // to materialize under the InMemory provider - unlike a real SqlServer
+        // database via migrations, it does not seed automatically on first query.
+        // Needed here as of WP-053, since InvoiceService.UpdateAsync now enforces
+        // transitions against the seeded graph.
+        context.Database.EnsureCreated();
+
+        return context;
     }
 
     private sealed class FakeCurrentUserService : ICurrentUserService

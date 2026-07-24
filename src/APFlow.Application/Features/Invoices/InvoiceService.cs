@@ -11,8 +11,9 @@ namespace APFlow.Application.Features.Invoices;
 /// <summary>
 /// Default implementation of <see cref="IInvoiceService"/>. Depends on
 /// <see cref="IInvoiceRepository"/>, <see cref="ISupplierRepository"/>, (WP-013)
-/// <see cref="IAuditService"/>, and (WP-051) <see cref="ICurrentUserService"/> /
-/// <see cref="IApprovalAuthorizationService"/> - all plain, EF-Core-free
+/// <see cref="IAuditService"/>, (WP-051) <see cref="ICurrentUserService"/> /
+/// <see cref="IApprovalAuthorizationService"/>, and (WP-053)
+/// <see cref="IWorkflowValidationService"/> - all plain, EF-Core-free
 /// interfaces - so this class is fully unit-testable with fake
 /// repositories/services. No database, no EF Core provider required.
 /// </summary>
@@ -23,6 +24,7 @@ public sealed class InvoiceService : IInvoiceService
     private readonly IAuditService _auditService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IApprovalAuthorizationService _approvalAuthorizationService;
+    private readonly IWorkflowValidationService _workflowValidationService;
     private readonly ILogger<InvoiceService> _logger;
 
     /// <summary>Creates a new <see cref="InvoiceService"/>.</summary>
@@ -32,6 +34,7 @@ public sealed class InvoiceService : IInvoiceService
         IAuditService auditService,
         ICurrentUserService currentUserService,
         IApprovalAuthorizationService approvalAuthorizationService,
+        IWorkflowValidationService workflowValidationService,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
@@ -39,6 +42,7 @@ public sealed class InvoiceService : IInvoiceService
         _auditService = auditService;
         _currentUserService = currentUserService;
         _approvalAuthorizationService = approvalAuthorizationService;
+        _workflowValidationService = workflowValidationService;
         _logger = logger;
     }
 
@@ -139,30 +143,50 @@ public sealed class InvoiceService : IInvoiceService
         }
 
         var previousStatus = invoice.Status;
+        var statusIsChanging = !string.Equals(previousStatus, request.Status, StringComparison.Ordinal);
 
-        // WP-051 task 4: gate the CHECKED_READY_TO_APPROVE -> APPROVED transition
-        // specifically by the acting user's role, via the seeded GB Skips
-        // ApprovalPolicy (ApprovalDomains.InvoiceApproval). Deliberately narrow -
-        // NOT a general "check every transition against IWorkflowValidationService"
-        // activation, which remains blocked on the platform-default transition
-        // graph being undocumented anywhere (see docs/WP-050-Workflow-Engine-Decisions.md).
-        // This check only ever matters for GB Skips tenants: the platform-default
-        // template has no CHECKED_READY_TO_APPROVE status at all, so
-        // previousStatus can never equal it for a platform-default invoice.
-        // Checked and rejected BEFORE any field is mutated, so an unauthorized
-        // attempt leaves the invoice completely untouched.
-        if (string.Equals(previousStatus, InvoiceStatusCodes.CheckedReadyToApprove, StringComparison.Ordinal)
-            && string.Equals(request.Status, InvoiceStatusCodes.Approved, StringComparison.Ordinal))
+        // WP-053: enforcement is now LIVE. Both checks below run before any field is
+        // mutated, so a rejected attempt leaves the invoice completely untouched.
+        // Only run at all when the status is actually changing - a plain field edit
+        // (same status) is not a transition and is neither validated nor gated.
+        if (statusIsChanging)
         {
-            var authorizationResult = await _approvalAuthorizationService.AuthorizeAsync(
-                ApprovalDomains.InvoiceApproval, _currentUserService.Roles, cancellationToken);
+            // (1) Is this transition allowed at all by the acting tenant's workflow
+            // template? WP-050 built and fully tested IWorkflowValidationService but
+            // deliberately never called it from a blocking path, because neither
+            // template had a confirmed transition graph seeded - doing so then would
+            // have rejected every status change in the application. WP-053 seeds both
+            // confirmed graphs, which is what makes this call safe to activate.
+            var transitionResult = await _workflowValidationService.ValidateTransitionAsync(
+                WorkflowDomains.Invoice, previousStatus, request.Status, cancellationToken);
 
-            if (authorizationResult.IsFailure)
+            if (transitionResult.IsFailure)
             {
                 _logger.LogWarning(
-                    "Invoice {InvoiceId} approval rejected: {ErrorCode} - {ErrorMessage}",
-                    invoice.Id, authorizationResult.Error.Code, authorizationResult.Error.Message);
-                return Result.Failure<InvoiceDto>(authorizationResult.Error);
+                    "Invoice {InvoiceId} status change {PreviousStatus} -> {NewStatus} rejected: {ErrorCode} - {ErrorMessage}",
+                    invoice.Id, previousStatus, request.Status, transitionResult.Error.Code, transitionResult.Error.Message);
+                return Result.Failure<InvoiceDto>(transitionResult.Error);
+            }
+
+            // (2) Is the acting user allowed to perform THIS PARTICULAR transition?
+            // Generalised in WP-053 from WP-051's single hardcoded
+            // CHECKED_READY_TO_APPROVE -> APPROVED case to all four gated transitions
+            // (see RoleGatedTransitions). Which transitions are gated is a Domain
+            // constant; which role each requires comes from the tenant's
+            // ApprovalPolicy data (ApprovalDomains.InvoiceApproval), unchanged from
+            // WP-051's mechanism.
+            if (RoleGatedTransitions.RequiresApprovalRole(previousStatus, request.Status))
+            {
+                var authorizationResult = await _approvalAuthorizationService.AuthorizeAsync(
+                    ApprovalDomains.InvoiceApproval, _currentUserService.Roles, cancellationToken);
+
+                if (authorizationResult.IsFailure)
+                {
+                    _logger.LogWarning(
+                        "Invoice {InvoiceId} transition {PreviousStatus} -> {NewStatus} rejected (role gate): {ErrorCode} - {ErrorMessage}",
+                        invoice.Id, previousStatus, request.Status, authorizationResult.Error.Code, authorizationResult.Error.Message);
+                    return Result.Failure<InvoiceDto>(authorizationResult.Error);
+                }
             }
         }
 

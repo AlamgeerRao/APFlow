@@ -325,7 +325,8 @@ public class InvoiceProcessingServiceTests
         var currentUserService = new FakeCurrentUserService();
         var approvalAuthorizationService = new FakeApprovalAuthorizationService(); // not exercised - InvoiceProcessingService no longer calls InvoiceService.UpdateAsync (WP-049)
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
+            new FakeWorkflowValidationService(), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
 
         var emailSync = new FakeEmailSyncService();

@@ -2,6 +2,7 @@ using APFlow.Application.DTOs;
 using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
+using APFlow.Application.Features.Workflow;
 using APFlow.Application.Features.Suppliers;
 using APFlow.Application.Interfaces;
 using APFlow.Domain.Common;
@@ -39,7 +40,8 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
+            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
@@ -105,7 +107,8 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService, NullLogger<InvoiceService>.Instance);
+            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
