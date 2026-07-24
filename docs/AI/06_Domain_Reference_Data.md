@@ -40,6 +40,7 @@ The baseline, platform-default invoice state list (SA-002 §5), applicable to ev
 |---|---|---|
 | `RECEIVED` | Received | No |
 | `PROCESSING` | Processing | No |
+| `EXTRACTED` | Extracted | No |
 | `DUPLICATE_SUSPECTED` | Duplicate Suspected | No |
 | `AWAITING_REVIEW` | Awaiting Review | No |
 | `NEEDS_QUERY` | Needs Query | No |
@@ -65,7 +66,13 @@ These two states are **tenant-scoped data**, not part of the global default cata
 
 ---
 
-## 3. AI Agent Rules
+## 3. Revision History
+
+- **2026-07-23 — Added `EXTRACTED` to §2.** Discovered via WP-050's review: `EXTRACTED` was already a real, shipped, tested status (produced by the WP-012/WP-049 ingestion pipeline on successful Document Intelligence analysis) that predated this document and was never cross-checked against it. This document was corrected to match the already-deployed pipeline, rather than changing shipped pipeline behaviour to match a documentation gap. `DUPLICATE_SUSPECTED`'s continued relevance is under review separately (see WP-050 decision log) following the WP-047 ruling that duplicate handling is now a flag/reason on `Invoice`, not a status transition — do not assume `DUPLICATE_SUSPECTED` is still reachable until that is resolved.
+
+---
+
+## 4. AI Agent Rules
 
 - Never invent a role, status, or other reference-data value not listed here.
 - If a work package's requirements imply a role or status this document doesn't cover, stop and escalate to the Chief Technical Architect rather than choosing one.
