@@ -55,6 +55,18 @@ public sealed class AuditService : IAuditService
         return Result.Success(auditLog.Id);
     }
 
+    /// <inheritdoc />
+    public async Task<Result<Guid>> LogAndSaveAsync(RecordAuditLogRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await LogAsync(request, cancellationToken);
+        if (result.IsSuccess)
+        {
+            await _repository.SaveChangesAsync(cancellationToken);
+        }
+
+        return result;
+    }
+
     /// <summary>Validates required fields before anything touches the repository, mirroring every other service's validate-before-repository pattern.</summary>
     private static Error? Validate(RecordAuditLogRequest request)
     {

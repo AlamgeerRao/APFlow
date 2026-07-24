@@ -188,6 +188,18 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     {
         var blobName = BuildBlobName(email.MessageId, attachment.FileName);
 
+        // WP-052: the idempotency key is the PDF's content hash, not its blob name.
+        // The old blob-name-based key (messageId + fileName) had a known,
+        // documented gap (docs/WP-012-Invoice-Processing-Pipeline-Decisions.md
+        // item 2): two DISTINCT attachments on the same email that happened to
+        // share a file name would collide, and the second would be silently
+        // skipped as "already processed" - a real data-loss risk, not just a
+        // theoretical one. Hashing the actual bytes means only genuinely
+        // identical documents collide, regardless of what either is named.
+        // Computed here, once, from the byte array WP-007's extraction already
+        // produced in memory - no re-read of the attachment.
+        var contentHash = ComputeContentHash(attachment.Content);
+
         // Idempotency check. Fails CLOSED: if this check itself cannot be completed,
         // this attachment is reported as a failure (not silently reprocessed) rather
         // than risking a duplicate invoice row if the check's own failure is masking
@@ -199,11 +211,11 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
             return Failed(email.MessageId, attachment.FileName, existingInvoicesResult.Error);
         }
 
-        var existing = existingInvoicesResult.Value.FirstOrDefault(i => i.SourceDocumentBlobName == blobName);
+        var existing = existingInvoicesResult.Value.FirstOrDefault(i => i.SourceDocumentContentHash == contentHash);
         if (existing is not null)
         {
             _logger.LogInformation(
-                "Attachment {FileName} on email {MessageId} was already processed as invoice {InvoiceId}; skipping.",
+                "Attachment {FileName} on email {MessageId} was already processed as invoice {InvoiceId} (matched by content hash).",
                 attachment.FileName, email.MessageId, existing.Id);
             return new InvoiceProcessingItemResult(
                 email.MessageId, attachment.FileName, InvoiceProcessingOutcome.AlreadyProcessed, existing.Id, IsPotentialDuplicate: null, null, null);
@@ -285,6 +297,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
                 Status = InvoiceStatusCodes.Extracted,
                 SourceEmailMessageId = email.MessageId,
                 SourceDocumentBlobName = blobName,
+                SourceDocumentContentHash = contentHash,
             };
 
             var duplicateCheckResult = _duplicateDetectionService.Check(candidate, otherInvoices);
@@ -404,6 +417,14 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     /// pipeline's idempotency key.
     /// </summary>
     private static string BuildBlobName(string messageId, string fileName) => $"invoices/{messageId}/{fileName}";
+
+    /// <summary>
+    /// Computes the lowercase-hex SHA-256 hash of a PDF attachment's raw bytes -
+    /// WP-052's ingestion idempotency key (see <see cref="Invoice.SourceDocumentContentHash"/>'s
+    /// doc comment for why this replaced the blob-name-based key).
+    /// </summary>
+    private static string ComputeContentHash(byte[] content) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
 
     private async Task<Result<T>> ExecuteWithRetryAsync<T>(
         Func<Task<Result<T>>> operation, string operationName, CancellationToken cancellationToken)

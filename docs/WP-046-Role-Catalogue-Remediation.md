@@ -68,6 +68,17 @@ whether role assignment is intended to remain entirely Entra-side indefinitely.
 
 ### 2. No `db/migrations/*.sql` mechanism exists in this codebase
 
+**RESOLVED by WP-052 Part A** (2026-07-23): a real, generated EF Core migration
+workflow now exists (`Migrations/` folder under `APFlow.Infrastructure/Persistence/`,
+committed to source control; verified applying cleanly via `dotnet ef database
+update` against a real SQL Server instance). Per WP-052's own Part A instruction,
+this replaces any expectation of a hand-written `db/migrations/*.sql` file - the
+"Provide" wording below, and in any future work package, should read "generated EF
+Core migration (`Migrations/` folder)," not `db/migrations/*.sql`. The analysis
+below is retained as the historical record of why no such file was produced at the
+time WP-046 was delivered - not deleted, since it explains a real discrepancy this
+document caught.
+
 The work package's "Files expected" lists `db/migrations/00X_correct_role_catalogue.sql`.
 This codebase uses EF Core Code First (see `03_Solution_Structure.md`,
 `APFlow.Infrastructure`'s `AppDbContext`) - it has no `db/migrations` folder, no raw

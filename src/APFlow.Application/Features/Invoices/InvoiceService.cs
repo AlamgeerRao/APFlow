@@ -87,9 +87,34 @@ public sealed class InvoiceService : IInvoiceService
             GrossTotal = request.GrossTotal,
             SourceEmailMessageId = request.SourceEmailMessageId,
             SourceDocumentBlobName = request.SourceDocumentBlobName,
+            SourceDocumentContentHash = request.SourceDocumentContentHash,
         };
 
         await _invoiceRepository.AddAsync(invoice, cancellationToken);
+
+        // WP-052 Part C: automatically log invoice creation. Staged only (per
+        // WP-013's "stage, don't save" pattern - see IAuditService.LogAsync's doc
+        // comment) so it commits atomically with the invoice's own insert via the
+        // single SaveChangesAsync call below, not as an independent commit.
+        var createAuditResult = await _auditService.LogAsync(
+            new RecordAuditLogRequest(
+                Action: AuditActions.InvoiceCreated,
+                EntityName: nameof(Invoice),
+                EntityId: invoice.Id,
+                PreviousValue: null,
+                NewValue: SerializeSnapshot(invoice, supplier.Name)),
+            cancellationToken);
+
+        if (createAuditResult.IsFailure)
+        {
+            // Same reasoning as UpdateAsync's status-change audit failure handling:
+            // a missing audit entry is a smaller problem than refusing a
+            // legitimate creation because of it. Logged loudly, not silent.
+            _logger.LogWarning(
+                "Failed to stage audit log entry for invoice {InvoiceId} creation: {ErrorCode} - {ErrorMessage}",
+                invoice.Id, createAuditResult.Error.Code, createAuditResult.Error.Message);
+        }
+
         await _invoiceRepository.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Created invoice {InvoiceId} for supplier {SupplierId}.", invoice.Id, invoice.SupplierId);
@@ -200,6 +225,28 @@ public sealed class InvoiceService : IInvoiceService
         }
 
         _invoiceRepository.Remove(invoice);
+
+        // WP-052 Part C: automatically log invoice deletion. Snapshot captured
+        // BEFORE Remove takes effect (the in-memory entity is unchanged by
+        // Remove() until SaveChangesAsync commits - see FakeInvoiceRepository's
+        // own no-op Update()/Remove() semantics for the same reasoning applied to
+        // tests). Staged only, commits atomically with the deletion itself.
+        var deleteAuditResult = await _auditService.LogAsync(
+            new RecordAuditLogRequest(
+                Action: AuditActions.InvoiceDeleted,
+                EntityName: nameof(Invoice),
+                EntityId: invoice.Id,
+                PreviousValue: SerializeSnapshot(invoice, invoice.Supplier?.Name),
+                NewValue: null),
+            cancellationToken);
+
+        if (deleteAuditResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Failed to stage audit log entry for invoice {InvoiceId} deletion: {ErrorCode} - {ErrorMessage}",
+                invoice.Id, deleteAuditResult.Error.Code, deleteAuditResult.Error.Message);
+        }
+
         await _invoiceRepository.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Deleted (soft) invoice {InvoiceId}.", id);
@@ -235,12 +282,56 @@ public sealed class InvoiceService : IInvoiceService
         });
 
         _invoiceRepository.Update(invoice);
+
+        // WP-052 Part C: automatically log note additions. NewValue is the raw
+        // note content itself (per this task's literal wording), not a JSON
+        // snapshot - unlike Create/Delete, there is no multi-field entity state to
+        // capture, just the one piece of new information. Staged only, commits
+        // atomically with the note's own insert.
+        var noteAuditResult = await _auditService.LogAsync(
+            new RecordAuditLogRequest(
+                Action: AuditActions.NoteAdded,
+                EntityName: nameof(Invoice),
+                EntityId: invoiceId,
+                PreviousValue: null,
+                NewValue: content),
+            cancellationToken);
+
+        if (noteAuditResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Failed to stage audit log entry for note added to invoice {InvoiceId}: {ErrorCode} - {ErrorMessage}",
+                invoiceId, noteAuditResult.Error.Code, noteAuditResult.Error.Message);
+        }
+
         await _invoiceRepository.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Added note to invoice {InvoiceId}.", invoiceId);
 
         return Result.Success();
     }
+
+    /// <summary>
+    /// Builds the JSON snapshot used for the InvoiceCreated/InvoiceDeleted audit
+    /// entries (WP-052 Part C): Supplier, Invoice Number, Invoice Date, Gross
+    /// Amount, Currency, and Status - the fields task C names explicitly.
+    /// Deliberately the same shape for both create and delete, so a reviewer
+    /// comparing a deletion's PreviousValue against the corresponding creation's
+    /// NewValue is looking at directly comparable data.
+    /// </summary>
+    private static string SerializeSnapshot(Invoice invoice, string? supplierName) =>
+        System.Text.Json.JsonSerializer.Serialize(new InvoiceAuditSnapshot(
+            invoice.SupplierId, supplierName, invoice.SupplierInvoiceNumber, invoice.InvoiceDate,
+            invoice.GrossTotal, invoice.Currency, invoice.Status));
+
+    private sealed record InvoiceAuditSnapshot(
+        Guid SupplierId,
+        string? SupplierName,
+        string? SupplierInvoiceNumber,
+        DateOnly? InvoiceDate,
+        decimal? GrossTotal,
+        string? Currency,
+        string Status);
 
     private static InvoiceDto ToDto(Invoice invoice) => new(
         Id: invoice.Id,
@@ -256,6 +347,7 @@ public sealed class InvoiceService : IInvoiceService
         Status: invoice.Status,
         SourceEmailMessageId: invoice.SourceEmailMessageId,
         SourceDocumentBlobName: invoice.SourceDocumentBlobName,
+        SourceDocumentContentHash: invoice.SourceDocumentContentHash,
         IsPotentialDuplicate: invoice.IsPotentialDuplicate,
         DuplicateCheckReason: invoice.DuplicateCheckReason,
         CreatedAtUtc: invoice.CreatedAtUtc);

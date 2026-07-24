@@ -79,8 +79,11 @@ public class InvoiceServiceTests
             "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
 
         Assert.True(result.IsSuccess);
-        var entry = Assert.Single(auditLogRepo.AuditLogs);
-        Assert.Equal(AuditActions.InvoiceStatusChanged, entry.Action);
+        // CreateAsync (WP-052 Part C) also stages its own InvoiceCreated entry -
+        // this test is about the status-change entry specifically, so it filters
+        // to that one rather than assuming it's the only entry present.
+        Assert.Equal(2, auditLogRepo.AuditLogs.Count);
+        var entry = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.InvoiceStatusChanged);
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
         Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue); // CreateAsync always starts at Received
@@ -95,18 +98,22 @@ public class InvoiceServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_StatusUnchanged_NoAuditLogEntryStaged()
+    public async Task UpdateAsync_StatusUnchanged_NoAdditionalAuditLogEntryStaged()
     {
         var (service, _, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
         var supplier = new Supplier { Name = "Test Supplier" };
         supplierRepo.Suppliers.Add(supplier);
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+        // CreateAsync itself already staged one InvoiceCreated entry (WP-052 Part
+        // C) - this test asserts the UPDATE doesn't add a SECOND entry when the
+        // status is unchanged, not that zero entries exist overall.
+        Assert.Single(auditLogRepo.AuditLogs);
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
             "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Received)); // same status as CreateAsync's default
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(auditLogRepo.AuditLogs);
+        Assert.Single(auditLogRepo.AuditLogs);
     }
 
     [Fact]
@@ -202,6 +209,34 @@ public class InvoiceServiceTests
         });
 
     [Fact]
+    public async Task CreateAsync_StagesInvoiceCreatedAuditEntry_CommittedWithTheInsert()
+    {
+        var (service, invoiceRepo, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+
+        var result = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", new DateOnly(2026, 1, 1), null, "GBP", 100m, 20m, 120m, null));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(auditLogRepo.AuditLogs);
+        Assert.Equal(AuditActions.InvoiceCreated, entry.Action);
+        Assert.Equal(nameof(Invoice), entry.EntityName);
+        Assert.Equal(result.Value.Id, entry.EntityId);
+        Assert.Null(entry.PreviousValue);
+        Assert.NotNull(entry.NewValue);
+        Assert.Contains(supplier.Id.ToString(), entry.NewValue);
+        Assert.Contains("Test Supplier", entry.NewValue);
+        Assert.Contains("INV-1", entry.NewValue);
+        Assert.Contains("120", entry.NewValue); // GrossTotal
+        Assert.Contains(InvoiceStatusCodes.Received, entry.NewValue); // initial status
+
+        // Staged, not independently saved - same "commit together" design as the
+        // status-change entry.
+        Assert.False(auditLogRepo.SaveChangesCalled);
+        Assert.True(invoiceRepo.SaveChangesCalled);
+    }
+
+    [Fact]
     public async Task DeleteAsync_ExistingInvoice_Succeeds_RemovesFromRepository()
     {
         var (service, invoiceRepo, supplierRepo) = CreateService();
@@ -227,6 +262,31 @@ public class InvoiceServiceTests
     }
 
     [Fact]
+    public async Task DeleteAsync_StagesInvoiceDeletedAuditEntry_WithPreDeletionSnapshot()
+    {
+        var (service, invoiceRepo, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+        auditLogRepo.AuditLogs.Clear(); // isolate this test to the delete-specific entry
+
+        var result = await service.DeleteAsync(created.Value.Id);
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(auditLogRepo.AuditLogs);
+        Assert.Equal(AuditActions.InvoiceDeleted, entry.Action);
+        Assert.Equal(nameof(Invoice), entry.EntityName);
+        Assert.Equal(created.Value.Id, entry.EntityId);
+        Assert.Null(entry.NewValue);
+        Assert.NotNull(entry.PreviousValue);
+        Assert.Contains("INV-1", entry.PreviousValue);
+        Assert.Contains("120", entry.PreviousValue);
+
+        Assert.False(auditLogRepo.SaveChangesCalled);
+        Assert.True(invoiceRepo.SaveChangesCalled);
+    }
+
+    [Fact]
     public async Task AddNoteAsync_ValidContent_AddsNoteToInvoice()
     {
         var (service, invoiceRepo, supplierRepo) = CreateService();
@@ -238,6 +298,29 @@ public class InvoiceServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Single(invoiceRepo.Invoices[0].Notes);
+    }
+
+    [Fact]
+    public async Task AddNoteAsync_StagesNoteAddedAuditEntry_WithFullNoteContentAsNewValue()
+    {
+        var (service, invoiceRepo, supplierRepo, auditLogRepo) = CreateServiceWithAudit();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+        auditLogRepo.AuditLogs.Clear(); // isolate this test to the note-specific entry
+
+        var result = await service.AddNoteAsync(created.Value.Id, "Looks correct, approved.");
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(auditLogRepo.AuditLogs);
+        Assert.Equal(AuditActions.NoteAdded, entry.Action);
+        Assert.Equal(nameof(Invoice), entry.EntityName);
+        Assert.Equal(created.Value.Id, entry.EntityId);
+        Assert.Null(entry.PreviousValue);
+        Assert.Equal("Looks correct, approved.", entry.NewValue); // the full, raw note content - not JSON
+
+        Assert.False(auditLogRepo.SaveChangesCalled);
+        Assert.True(invoiceRepo.SaveChangesCalled);
     }
 
     [Fact]

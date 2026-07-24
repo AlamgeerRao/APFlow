@@ -1,13 +1,61 @@
-﻿BEGIN TRANSACTION;
-DROP INDEX [IX_Invoices_TenantId_Status] ON [Invoices];
-DECLARE @var0 sysname;
-SELECT @var0 = [d].[name]
-FROM [sys].[default_constraints] [d]
-INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
-WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Invoices]') AND [c].[name] = N'Status');
-IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [Invoices] DROP CONSTRAINT [' + @var0 + '];');
-ALTER TABLE [Invoices] ALTER COLUMN [Status] nvarchar(64) NOT NULL;
-CREATE INDEX [IX_Invoices_TenantId_Status] ON [Invoices] ([TenantId], [Status]);
+﻿IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+GO
+
+BEGIN TRANSACTION;
+CREATE TABLE [ApprovalPolicies] (
+    [Id] uniqueidentifier NOT NULL,
+    [TenantId] uniqueidentifier NULL,
+    [Domain] nvarchar(100) NOT NULL,
+    [RequiredRole] nvarchar(100) NOT NULL,
+    [RequiresDualControl] bit NOT NULL,
+    [CreatedAtUtc] datetimeoffset NOT NULL,
+    [CreatedBy] nvarchar(max) NULL,
+    [ModifiedAtUtc] datetimeoffset NULL,
+    [ModifiedBy] nvarchar(max) NULL,
+    [IsDeleted] bit NOT NULL,
+    [DeletedAtUtc] datetimeoffset NULL,
+    [DeletedBy] nvarchar(max) NULL,
+    CONSTRAINT [PK_ApprovalPolicies] PRIMARY KEY ([Id])
+);
+
+CREATE TABLE [AuditLogs] (
+    [Id] uniqueidentifier NOT NULL,
+    [Action] nvarchar(100) NOT NULL,
+    [EntityName] nvarchar(100) NOT NULL,
+    [EntityId] uniqueidentifier NOT NULL,
+    [PreviousValue] nvarchar(2000) NULL,
+    [NewValue] nvarchar(2000) NULL,
+    [CreatedAtUtc] datetimeoffset NOT NULL,
+    [CreatedBy] nvarchar(max) NULL,
+    [ModifiedAtUtc] datetimeoffset NULL,
+    [ModifiedBy] nvarchar(max) NULL,
+    [IsDeleted] bit NOT NULL,
+    [DeletedAtUtc] datetimeoffset NULL,
+    [DeletedBy] nvarchar(max) NULL,
+    [TenantId] uniqueidentifier NOT NULL,
+    CONSTRAINT [PK_AuditLogs] PRIMARY KEY ([Id])
+);
+
+CREATE TABLE [Suppliers] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(256) NOT NULL,
+    [CreatedAtUtc] datetimeoffset NOT NULL,
+    [CreatedBy] nvarchar(max) NULL,
+    [ModifiedAtUtc] datetimeoffset NULL,
+    [ModifiedBy] nvarchar(max) NULL,
+    [IsDeleted] bit NOT NULL,
+    [DeletedAtUtc] datetimeoffset NULL,
+    [DeletedBy] nvarchar(max) NULL,
+    [TenantId] uniqueidentifier NOT NULL,
+    CONSTRAINT [PK_Suppliers] PRIMARY KEY ([Id])
+);
 
 CREATE TABLE [WorkflowTemplates] (
     [Id] uniqueidentifier NOT NULL,
@@ -22,6 +70,33 @@ CREATE TABLE [WorkflowTemplates] (
     [DeletedAtUtc] datetimeoffset NULL,
     [DeletedBy] nvarchar(max) NULL,
     CONSTRAINT [PK_WorkflowTemplates] PRIMARY KEY ([Id])
+);
+
+CREATE TABLE [Invoices] (
+    [Id] uniqueidentifier NOT NULL,
+    [SupplierId] uniqueidentifier NOT NULL,
+    [SupplierInvoiceNumber] nvarchar(128) NULL,
+    [InvoiceDate] date NULL,
+    [DueDate] date NULL,
+    [Currency] nvarchar(3) NULL,
+    [NetAmount] decimal(18,2) NULL,
+    [Vat] decimal(18,2) NULL,
+    [GrossTotal] decimal(18,2) NULL,
+    [Status] nvarchar(64) NOT NULL,
+    [SourceEmailMessageId] nvarchar(512) NULL,
+    [SourceDocumentBlobName] nvarchar(1024) NULL,
+    [IsPotentialDuplicate] bit NOT NULL DEFAULT CAST(0 AS bit),
+    [DuplicateCheckReason] nvarchar(4000) NULL,
+    [CreatedAtUtc] datetimeoffset NOT NULL,
+    [CreatedBy] nvarchar(max) NULL,
+    [ModifiedAtUtc] datetimeoffset NULL,
+    [ModifiedBy] nvarchar(max) NULL,
+    [IsDeleted] bit NOT NULL,
+    [DeletedAtUtc] datetimeoffset NULL,
+    [DeletedBy] nvarchar(max) NULL,
+    [TenantId] uniqueidentifier NOT NULL,
+    CONSTRAINT [PK_Invoices] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_Invoices_Suppliers_SupplierId] FOREIGN KEY ([SupplierId]) REFERENCES [Suppliers] ([Id]) ON DELETE NO ACTION
 );
 
 CREATE TABLE [StatusReferences] (
@@ -59,6 +134,29 @@ CREATE TABLE [WorkflowTransitions] (
     CONSTRAINT [PK_WorkflowTransitions] PRIMARY KEY ([Id]),
     CONSTRAINT [FK_WorkflowTransitions_WorkflowTemplates_WorkflowTemplateId] FOREIGN KEY ([WorkflowTemplateId]) REFERENCES [WorkflowTemplates] ([Id]) ON DELETE NO ACTION
 );
+
+CREATE TABLE [InvoiceNotes] (
+    [Id] uniqueidentifier NOT NULL,
+    [InvoiceId] uniqueidentifier NOT NULL,
+    [Content] nvarchar(4000) NOT NULL,
+    [CreatedAtUtc] datetimeoffset NOT NULL,
+    [CreatedBy] nvarchar(max) NULL,
+    [ModifiedAtUtc] datetimeoffset NULL,
+    [ModifiedBy] nvarchar(max) NULL,
+    [IsDeleted] bit NOT NULL,
+    [DeletedAtUtc] datetimeoffset NULL,
+    [DeletedBy] nvarchar(max) NULL,
+    [TenantId] uniqueidentifier NOT NULL,
+    CONSTRAINT [PK_InvoiceNotes] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_InvoiceNotes_Invoices_InvoiceId] FOREIGN KEY ([InvoiceId]) REFERENCES [Invoices] ([Id]) ON DELETE NO ACTION
+);
+
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'Domain', N'IsDeleted', N'ModifiedAtUtc', N'ModifiedBy', N'RequiredRole', N'RequiresDualControl', N'TenantId') AND [object_id] = OBJECT_ID(N'[ApprovalPolicies]'))
+    SET IDENTITY_INSERT [ApprovalPolicies] ON;
+INSERT INTO [ApprovalPolicies] ([Id], [CreatedAtUtc], [CreatedBy], [DeletedAtUtc], [DeletedBy], [Domain], [IsDeleted], [ModifiedAtUtc], [ModifiedBy], [RequiredRole], [RequiresDualControl], [TenantId])
+VALUES ('00000000-0000-0000-0004-000000000001', '2026-07-23T00:00:00.0000000+00:00', N'system', NULL, NULL, N'InvoiceApproval', CAST(0 AS bit), NULL, NULL, N'FINANCE_MANAGER', CAST(0 AS bit), '00000000-0000-0000-0000-0000000b5121');
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'Domain', N'IsDeleted', N'ModifiedAtUtc', N'ModifiedBy', N'RequiredRole', N'RequiresDualControl', N'TenantId') AND [object_id] = OBJECT_ID(N'[ApprovalPolicies]'))
+    SET IDENTITY_INSERT [ApprovalPolicies] OFF;
 
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'DomainName', N'IsDeleted', N'ModifiedAtUtc', N'ModifiedBy', N'Name', N'TenantId') AND [object_id] = OBJECT_ID(N'[WorkflowTemplates]'))
     SET IDENTITY_INSERT [WorkflowTemplates] ON;
@@ -104,14 +202,39 @@ VALUES ('00000000-0000-0000-0002-000000000001', N'RECEIVED', '2026-07-23T00:00:0
 IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'Code', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'IsDeleted', N'IsTerminal', N'ModifiedAtUtc', N'ModifiedBy', N'Name', N'SortOrder', N'TenantId', N'WorkflowTemplateId') AND [object_id] = OBJECT_ID(N'[StatusReferences]'))
     SET IDENTITY_INSERT [StatusReferences] OFF;
 
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'FromStatusCode', N'IsDeleted', N'ModifiedAtUtc', N'ModifiedBy', N'TenantId', N'ToStatusCode', N'WorkflowTemplateId') AND [object_id] = OBJECT_ID(N'[WorkflowTransitions]'))
+    SET IDENTITY_INSERT [WorkflowTransitions] ON;
+INSERT INTO [WorkflowTransitions] ([Id], [CreatedAtUtc], [CreatedBy], [DeletedAtUtc], [DeletedBy], [FromStatusCode], [IsDeleted], [ModifiedAtUtc], [ModifiedBy], [TenantId], [ToStatusCode], [WorkflowTemplateId])
+VALUES ('00000000-0000-0000-0005-000000000001', '2026-07-23T00:00:00.0000000+00:00', N'system', NULL, NULL, N'CHECKED_READY_TO_APPROVE', CAST(0 AS bit), NULL, NULL, '00000000-0000-0000-0000-0000000b5121', N'APPROVED', '00000000-0000-0000-0001-000000000002');
+IF EXISTS (SELECT * FROM [sys].[identity_columns] WHERE [name] IN (N'Id', N'CreatedAtUtc', N'CreatedBy', N'DeletedAtUtc', N'DeletedBy', N'FromStatusCode', N'IsDeleted', N'ModifiedAtUtc', N'ModifiedBy', N'TenantId', N'ToStatusCode', N'WorkflowTemplateId') AND [object_id] = OBJECT_ID(N'[WorkflowTransitions]'))
+    SET IDENTITY_INSERT [WorkflowTransitions] OFF;
+
+CREATE UNIQUE INDEX [IX_ApprovalPolicies_Domain_TenantId] ON [ApprovalPolicies] ([Domain], [TenantId]) WHERE [TenantId] IS NOT NULL;
+
+CREATE INDEX [IX_AuditLogs_TenantId_EntityName_EntityId] ON [AuditLogs] ([TenantId], [EntityName], [EntityId]);
+
+CREATE INDEX [IX_InvoiceNotes_InvoiceId] ON [InvoiceNotes] ([InvoiceId]);
+
+CREATE INDEX [IX_InvoiceNotes_TenantId_InvoiceId] ON [InvoiceNotes] ([TenantId], [InvoiceId]);
+
+CREATE INDEX [IX_Invoices_SupplierId] ON [Invoices] ([SupplierId]);
+
+CREATE INDEX [IX_Invoices_TenantId_InvoiceDate] ON [Invoices] ([TenantId], [InvoiceDate]);
+
+CREATE INDEX [IX_Invoices_TenantId_Status] ON [Invoices] ([TenantId], [Status]);
+
+CREATE INDEX [IX_Invoices_TenantId_SupplierId] ON [Invoices] ([TenantId], [SupplierId]);
+
 CREATE UNIQUE INDEX [IX_StatusReferences_WorkflowTemplateId_Code] ON [StatusReferences] ([WorkflowTemplateId], [Code]);
+
+CREATE INDEX [IX_Suppliers_TenantId_Name] ON [Suppliers] ([TenantId], [Name]);
 
 CREATE UNIQUE INDEX [IX_WorkflowTemplates_DomainName_TenantId] ON [WorkflowTemplates] ([DomainName], [TenantId]) WHERE [TenantId] IS NOT NULL;
 
 CREATE UNIQUE INDEX [IX_WorkflowTransitions_WorkflowTemplateId_FromStatusCode_ToStatusCode] ON [WorkflowTransitions] ([WorkflowTemplateId], [FromStatusCode], [ToStatusCode]);
 
 INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-VALUES (N'20260723083648_AddWorkflowEngine', N'9.0.0');
+VALUES (N'20260723145050_InitialCreate', N'9.0.0');
 
 COMMIT;
 GO

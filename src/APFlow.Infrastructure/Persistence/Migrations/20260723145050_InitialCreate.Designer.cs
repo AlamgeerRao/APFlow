@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace APFlow.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260723083648_AddWorkflowEngine")]
-    partial class AddWorkflowEngine
+    [Migration("20260723145050_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,70 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("APFlow.Domain.Entities.ApprovalPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DeletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("ModifiedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ModifiedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RequiredRole")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("RequiresDualControl")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Domain", "TenantId")
+                        .IsUnique()
+                        .HasFilter("[TenantId] IS NOT NULL");
+
+                    b.ToTable("ApprovalPolicies", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0004-000000000001"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            Domain = "InvoiceApproval",
+                            IsDeleted = false,
+                            RequiredRole = "FINANCE_MANAGER",
+                            RequiresDualControl = false,
+                            TenantId = new Guid("00000000-0000-0000-0000-0000000b5121")
+                        });
+                });
 
             modelBuilder.Entity("APFlow.Domain.Entities.AuditLog", b =>
                 {
@@ -813,6 +877,19 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("WorkflowTransitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0005-000000000001"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = "system",
+                            FromStatusCode = "CHECKED_READY_TO_APPROVE",
+                            IsDeleted = false,
+                            TenantId = new Guid("00000000-0000-0000-0000-0000000b5121"),
+                            ToStatusCode = "APPROVED",
+                            WorkflowTemplateId = new Guid("00000000-0000-0000-0001-000000000002")
+                        });
                 });
 
             modelBuilder.Entity("APFlow.Domain.Entities.Invoice", b =>

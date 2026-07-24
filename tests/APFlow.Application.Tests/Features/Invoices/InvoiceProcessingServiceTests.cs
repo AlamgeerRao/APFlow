@@ -266,6 +266,56 @@ public class InvoiceProcessingServiceTests
         Assert.Contains(secondMessageId, deps.EmailSync.MarkedAsProcessedMessageIds);
     }
 
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_SameFileNameDifferentContent_BothProcessed()
+    {
+        // WP-052 Part B required scenario: two attachments sharing a file name but
+        // with genuinely different content are NOT deduplicated - the old
+        // blob-name-based key (messageId + fileName) would have collided here,
+        // silently dropping the second one. The content-hash key does not.
+        var (service, deps) = CreateService();
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] =
+        [
+            new PdfAttachmentDto("invoice.pdf", 1024, "application/pdf", [1, 2, 3]),
+            new PdfAttachmentDto("invoice.pdf", 1024, "application/pdf", [4, 5, 6]), // same name, different bytes
+        ];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.All(result.Value.Items, item => Assert.Equal(InvoiceProcessingOutcome.Processed, item.Outcome));
+        Assert.Equal(2, deps.InvoiceRepository.Invoices.Count);
+        Assert.Equal(2, deps.InvoiceRepository.Invoices.Select(i => i.SourceDocumentContentHash).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_DifferentFileNamesSameContent_SecondDeduplicated()
+    {
+        // WP-052 Part B required scenario: two attachments with different file
+        // names but IDENTICAL content are deduplicated - the dedup key follows the
+        // document's actual bytes, not what either copy happens to be named.
+        var (service, deps) = CreateService();
+        var identicalContent = System.Text.Encoding.UTF8.GetBytes("identical-pdf-bytes");
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] =
+        [
+            new PdfAttachmentDto("copy-a.pdf", 1024, "application/pdf", identicalContent),
+            new PdfAttachmentDto("copy-b.pdf", 1024, "application/pdf", identicalContent),
+        ];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Contains(result.Value.Items, i => i.FileName == "copy-a.pdf" && i.Outcome == InvoiceProcessingOutcome.Processed);
+        Assert.Contains(result.Value.Items, i => i.FileName == "copy-b.pdf" && i.Outcome == InvoiceProcessingOutcome.AlreadyProcessed);
+        Assert.Single(deps.InvoiceRepository.Invoices); // only one invoice row created, despite two attachments
+    }
+
     private static (InvoiceProcessingService Service, TestDependencies Dependencies) CreateService()
     {
         var invoiceRepository = new FakeInvoiceRepository();
@@ -294,7 +344,8 @@ public class InvoiceProcessingServiceTests
 
     private static EmailSummaryDto NewEmail() => new(MessageId, "Invoice attached", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow);
 
-    private static PdfAttachmentDto NewAttachment(string fileName = FileName) => new(fileName, 1024, "application/pdf", [1, 2, 3]);
+    private static PdfAttachmentDto NewAttachment(string fileName = FileName) =>
+        new(fileName, 1024, "application/pdf", System.Text.Encoding.UTF8.GetBytes($"pdf-bytes-for-{fileName}"));
 
     private static InvoiceExtractionResult NewExtraction(string? supplierName) => new(
         SupplierName: new ExtractedField<string?>(supplierName, 0.95),

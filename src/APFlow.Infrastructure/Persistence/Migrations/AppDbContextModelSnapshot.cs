@@ -200,6 +200,10 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
 
+                    b.Property<string>("SourceDocumentContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("SourceEmailMessageId")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
@@ -228,6 +232,8 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId", "InvoiceDate");
+
+                    b.HasIndex("TenantId", "SourceDocumentContentHash");
 
                     b.HasIndex("TenantId", "Status");
 

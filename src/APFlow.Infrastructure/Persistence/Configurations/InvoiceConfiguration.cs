@@ -45,6 +45,15 @@ public sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.SourceDocumentBlobName)
             .HasMaxLength(1024);
 
+        // SHA-256 as lowercase hex is always exactly 64 characters.
+        builder.Property(i => i.SourceDocumentContentHash)
+            .HasMaxLength(64);
+
+        // Supports WP-052's content-hash-based idempotency lookup without a full
+        // table scan per tenant - the same reasoning as the existing
+        // {TenantId, InvoiceDate} index below, for the pipeline's new dedup key.
+        builder.HasIndex(i => new { i.TenantId, i.SourceDocumentContentHash });
+
         builder.Property(i => i.IsPotentialDuplicate)
             .HasDefaultValue(false);
 

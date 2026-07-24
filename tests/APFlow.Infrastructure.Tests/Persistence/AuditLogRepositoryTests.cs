@@ -44,8 +44,11 @@ public class AuditLogRepositoryTests
             supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
         Assert.True(created.IsSuccess);
 
-        // Before the status-changing UpdateAsync call: no audit entries exist yet.
-        Assert.Empty(await context.AuditLogs.ToListAsync());
+        // CreateAsync itself now also stages an InvoiceCreated entry (WP-052 Part
+        // C) - assert on the specific action this test is about, rather than
+        // assuming zero entries overall (and avoid calling Remove on AuditLog,
+        // which contradicts its own documented immutability - see AuditLog.cs).
+        Assert.DoesNotContain(await context.AuditLogs.ToListAsync(), a => a.Action == AuditActions.InvoiceStatusChanged);
 
         var updateResult = await invoiceService.UpdateAsync(
             created.Value.Id,
@@ -57,9 +60,11 @@ public class AuditLogRepositoryTests
         // The single UpdateAsync call (one SaveChangesAsync) committed BOTH the
         // invoice's new status AND the audit entry describing it - this is the
         // atomic-commit design's whole point, proven against a real DbContext.
+        // (CreateAsync's own InvoiceCreated entry is also present from earlier -
+        // WP-052 Part C - so this asserts two entries total, not one.)
         var auditEntries = await context.AuditLogs.ToListAsync();
-        var entry = Assert.Single(auditEntries);
-        Assert.Equal(AuditActions.InvoiceStatusChanged, entry.Action);
+        Assert.Equal(2, auditEntries.Count);
+        var entry = Assert.Single(auditEntries, a => a.Action == AuditActions.InvoiceStatusChanged);
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
         Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue);

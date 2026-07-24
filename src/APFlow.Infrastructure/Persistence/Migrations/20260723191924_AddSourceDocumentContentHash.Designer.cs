@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace APFlow.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260723090735_AddApprovalPolicy")]
-    partial class AddApprovalPolicy
+    [Migration("20260723191924_AddSourceDocumentContentHash")]
+    partial class AddSourceDocumentContentHash
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -203,6 +203,10 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("nvarchar(1024)");
 
+                    b.Property<string>("SourceDocumentContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("SourceEmailMessageId")
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
@@ -231,6 +235,8 @@ namespace APFlow.Infrastructure.Persistence.Migrations
                     b.HasIndex("SupplierId");
 
                     b.HasIndex("TenantId", "InvoiceDate");
+
+                    b.HasIndex("TenantId", "SourceDocumentContentHash");
 
                     b.HasIndex("TenantId", "Status");
 

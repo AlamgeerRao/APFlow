@@ -78,14 +78,32 @@ public sealed class Invoice : TenantEntity
     /// The logical Blob Storage name (see <c>IBlobStorageService</c>) of the source
     /// PDF this invoice was extracted from, if processed via the WP-012 pipeline.
     /// Traceability only, same shape and reasoning as <see cref="SourceEmailMessageId"/>
-    /// (not a foreign key, not validated against Blob Storage) - with one added
-    /// role: WP-012's pipeline also uses this as its idempotency key (a given
-    /// email+attachment combination maps to a deterministic logical blob name, so a
-    /// re-run that finds an existing invoice with the same value skips reprocessing
-    /// it rather than creating a duplicate). Null for invoices created by other
-    /// means (e.g. manual entry, once that exists).
+    /// (not a foreign key, not validated against Blob Storage) - purely a
+    /// storage-path/traceability field as of WP-052. Previously (WP-012-WP-051)
+    /// this also served as the pipeline's idempotency key; WP-052 moved that role
+    /// to <see cref="SourceDocumentContentHash"/> specifically to close a
+    /// same-filename data-loss risk - two distinct PDF attachments on the same
+    /// email that happened to share a file name collided under the old
+    /// blob-name-based key (a real, known gap - see
+    /// docs/WP-012-Invoice-Processing-Pipeline-Decisions.md item 2) and would
+    /// silently NOT both be processed. Null for invoices created by other means
+    /// (e.g. manual entry, once that exists).
     /// </summary>
     public string? SourceDocumentBlobName { get; set; }
+
+    /// <summary>
+    /// The SHA-256 hash (lowercase hex, 64 characters) of the source PDF's raw
+    /// bytes, if processed via the WP-012 pipeline - computed once during
+    /// extraction (WP-007's output is already an in-memory byte array; no re-read
+    /// of the attachment is needed). WP-052's pipeline idempotency key: unlike
+    /// <see cref="SourceDocumentBlobName"/> (which is derived from the email
+    /// message id and file name, and could collide for two distinct attachments
+    /// that happen to share a file name), this key is derived from the actual
+    /// document content, so two attachments are only ever treated as "the same
+    /// document already processed" if their bytes are identical - regardless of
+    /// what either is named. Null for invoices created by other means.
+    /// </summary>
+    public string? SourceDocumentContentHash { get; set; }
 
     /// <summary>
     /// Whether a duplicate-detection check (<c>IDuplicateDetectionService</c>, WP-010)

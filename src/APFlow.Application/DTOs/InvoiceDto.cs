@@ -15,6 +15,7 @@ public sealed record InvoiceDto(
     string Status,
     string? SourceEmailMessageId,
     string? SourceDocumentBlobName,
+    string? SourceDocumentContentHash,
     bool IsPotentialDuplicate,
     string? DuplicateCheckReason,
     DateTimeOffset CreatedAtUtc);
@@ -30,7 +31,8 @@ public sealed record CreateInvoiceRequest(
     decimal? Vat,
     decimal? GrossTotal,
     string? SourceEmailMessageId,
-    string? SourceDocumentBlobName = null);
+    string? SourceDocumentBlobName = null,
+    string? SourceDocumentContentHash = null);
 
 /// <summary>
 /// Request shape for updating an invoice's editable fields, including

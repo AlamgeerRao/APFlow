@@ -32,4 +32,18 @@ public interface IAuditService
     /// full read shape is needed. See docs/WP-013-Audit-Logging-Decisions.md.
     /// </summary>
     Task<Result<Guid>> LogAsync(RecordAuditLogRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stages AND immediately commits an audit entry - for standalone audit-only
+    /// writes where there is no other change happening in the same request to
+    /// commit it together with (WP-052 Part D: <c>InvoicesController.Download</c>'s
+    /// <c>DocumentViewed</c> entry on an otherwise read-only GET endpoint is the
+    /// concrete case this exists for). <see cref="LogAsync"/> remains the right
+    /// choice whenever there IS another change in flight (e.g.
+    /// <c>InvoiceService.UpdateAsync</c>'s status-change entry) - see its own doc
+    /// comment for why staging-without-saving matters there. This method exists
+    /// precisely because that atomic-commit reasoning does not apply when nothing
+    /// else is being saved.
+    /// </summary>
+    Task<Result<Guid>> LogAndSaveAsync(RecordAuditLogRequest request, CancellationToken cancellationToken = default);
 }
