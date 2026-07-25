@@ -18,6 +18,9 @@ public sealed class InvoiceNoteConfiguration : IEntityTypeConfiguration<InvoiceN
             .IsRequired()
             .HasMaxLength(4000);
 
+        builder.Property(n => n.AuthorDisplayName)
+            .HasMaxLength(256);
+
         builder.HasIndex(n => new { n.TenantId, n.InvoiceId });
     }
 }

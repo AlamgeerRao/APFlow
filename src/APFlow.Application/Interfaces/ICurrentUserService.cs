@@ -21,6 +21,15 @@ public interface ICurrentUserService
     string? Email { get; }
 
     /// <summary>
+    /// The caller's display name (Entra "name" claim), or <c>null</c> if
+    /// unauthenticated or not present. Added for WP-017's <c>InvoiceNote.AuthorDisplayName</c>
+    /// (Chief Technical Architect ruling, 2026-07-25 - resolve server-side from an
+    /// existing token claim, no Graph lookup). Default-implemented as <c>null</c>
+    /// so pre-existing implementers of this interface don't need to change.
+    /// </summary>
+    string? DisplayName => null;
+
+    /// <summary>
     /// The caller's tenant identifier (Entra "tid" claim), for tenant-isolation checks,
     /// or <c>null</c> if unauthenticated.
     /// </summary>

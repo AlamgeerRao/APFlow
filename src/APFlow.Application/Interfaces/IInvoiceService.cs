@@ -30,7 +30,18 @@ public interface IInvoiceService
 
     /// <summary>
     /// Adds a freeform note to an invoice (see <c>InvoiceNote</c>'s doc comment for
-    /// how this differs from the out-of-scope query/dispute workflow).
+    /// how this differs from the out-of-scope query/dispute workflow). Returns the
+    /// created note (id, content, resolved author display name, timestamp) - WP-017
+    /// ruling, 2026-07-25 - so a <c>POST .../notes</c> caller can shape a proper
+    /// <c>201 Created</c> response without a second read.
     /// </summary>
-    Task<Result> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default);
+    Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every note recorded against an invoice, oldest first (WP-017's
+    /// ruled chronological order - see docs/WP-017-Invoice-Notes-Decisions.md
+    /// item 2). Returns an <c>Invoice.NotFound</c> failure if the invoice does
+    /// not exist or is not visible to the current tenant.
+    /// </summary>
+    Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 }

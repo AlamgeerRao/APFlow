@@ -2,12 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { FixtureWorkflowActionClient } from '@/api/workflowActionClient';
 
 describe('FixtureWorkflowActionClient.getAvailableActions', () => {
-  it('returns no actions for the platform-default tenant for any status (task 1: undocumented transition graph — see decisions doc)', async () => {
+  it('returns no actions for the platform-default tenant from AWAITING_REVIEW (task 1: undocumented transition graph — see decisions doc)', async () => {
     const client = new FixtureWorkflowActionClient();
 
     const actions = await client.getAvailableActions('platform-default', 'AWAITING_REVIEW', ['AP_REVIEWER']);
 
     expect(actions).toEqual([]);
+  });
+
+  it('includes the platform-default reopen actions (REJECTED/CANCELLED), gated to FINANCE_MANAGER (WP-018 ruling, 2026-07-25)', async () => {
+    const client = new FixtureWorkflowActionClient();
+
+    const rejectedForReviewer = await client.getAvailableActions('platform-default', 'REJECTED', ['AP_REVIEWER']);
+    const rejectedForManager = await client.getAvailableActions('platform-default', 'REJECTED', ['FINANCE_MANAGER']);
+    const cancelledForManager = await client.getAvailableActions('platform-default', 'CANCELLED', ['FINANCE_MANAGER']);
+
+    expect(rejectedForReviewer).toEqual([]);
+    expect(rejectedForManager.map((a) => a.targetStatusCode)).toContain('AWAITING_REVIEW');
+    expect(cancelledForManager.map((a) => a.targetStatusCode)).toContain('RECEIVED');
   });
 
   it('surfaces "Mark Checked & Ready to Approve" and "Escalate to Febina" for GB Skips from AWAITING_REVIEW (task 2)', async () => {
@@ -35,6 +47,16 @@ describe('FixtureWorkflowActionClient.getAvailableActions', () => {
 
     expect(actions.map((a) => a.targetStatusLabel)).not.toContain('Approve');
     expect(actions.map((a) => a.targetStatusLabel)).toContain('Escalate to Febina');
+  });
+
+  it('excludes Send Query (CHECKED_READY_TO_APPROVE -> NEEDS_QUERY) for an AP_REVIEWER, includes it for FINANCE_MANAGER (WP-018 ruling, 2026-07-25)', async () => {
+    const client = new FixtureWorkflowActionClient();
+
+    const asReviewer = await client.getAvailableActions('gb-skips', 'CHECKED_READY_TO_APPROVE', ['AP_REVIEWER']);
+    const asManager = await client.getAvailableActions('gb-skips', 'CHECKED_READY_TO_APPROVE', ['FINANCE_MANAGER']);
+
+    expect(asReviewer.map((a) => a.targetStatusLabel)).not.toContain('Send Query');
+    expect(asManager.map((a) => a.targetStatusLabel)).toContain('Send Query');
   });
 
   it('returns the three resolution actions from NEEDS_REVIEW_FEBINA', async () => {

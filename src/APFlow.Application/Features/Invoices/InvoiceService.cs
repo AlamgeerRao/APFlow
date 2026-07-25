@@ -279,16 +279,16 @@ public sealed class InvoiceService : IInvoiceService
     }
 
     /// <inheritdoc />
-    public async Task<Result> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default)
+    public async Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
-            return Result.Failure(new Error("Invoice.InvalidNoteContent", "Note content must not be empty."));
+            return Result.Failure<InvoiceNoteDto>(new Error("Invoice.InvalidNoteContent", "Note content must not be empty."));
         }
 
         if (content.Length > FieldLimits.InvoiceNoteContent)
         {
-            return Result.Failure(new Error(
+            return Result.Failure<InvoiceNoteDto>(new Error(
                 "Invoice.InvalidNoteContent",
                 $"Note content must not exceed {FieldLimits.InvoiceNoteContent} characters."));
         }
@@ -296,14 +296,26 @@ public sealed class InvoiceService : IInvoiceService
         var invoice = await _invoiceRepository.GetByIdWithNotesAsync(invoiceId, cancellationToken);
         if (invoice is null)
         {
-            return Result.Failure(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
+            return Result.Failure<InvoiceNoteDto>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
         }
 
-        invoice.Notes.Add(new InvoiceNote
+        // Resolved server-side from the validated token, not client-supplied -
+        // WP-017 ruling, 2026-07-25. Truncated defensively (rather than left to
+        // throw a DbUpdateException) since this claim's length isn't validated
+        // the way user-supplied Content already is above.
+        var authorDisplayName = _currentUserService.DisplayName;
+        if (authorDisplayName is { Length: > FieldLimits.InvoiceNoteAuthorDisplayName })
+        {
+            authorDisplayName = authorDisplayName[..FieldLimits.InvoiceNoteAuthorDisplayName];
+        }
+
+        var note = new InvoiceNote
         {
             InvoiceId = invoiceId,
             Content = content,
-        });
+            AuthorDisplayName = authorDisplayName,
+        };
+        invoice.Notes.Add(note);
 
         _invoiceRepository.Update(invoice);
 
@@ -332,7 +344,24 @@ public sealed class InvoiceService : IInvoiceService
 
         _logger.LogInformation("Added note to invoice {InvoiceId}.", invoiceId);
 
-        return Result.Success();
+        return Result.Success(new InvoiceNoteDto(note.Id, note.Content, note.AuthorDisplayName, note.CreatedAtUtc));
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _invoiceRepository.GetByIdWithNotesAsync(invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return Result.Failure<IReadOnlyList<InvoiceNoteDto>>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
+        }
+
+        IReadOnlyList<InvoiceNoteDto> notes = invoice.Notes
+            .OrderBy(n => n.CreatedAtUtc)
+            .Select(n => new InvoiceNoteDto(n.Id, n.Content, n.AuthorDisplayName, n.CreatedAtUtc))
+            .ToList();
+
+        return Result.Success(notes);
     }
 
     /// <summary>

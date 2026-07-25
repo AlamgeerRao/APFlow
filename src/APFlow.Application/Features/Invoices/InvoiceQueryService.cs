@@ -84,5 +84,7 @@ public sealed class InvoiceQueryService : IInvoiceQueryService
         Currency: invoice.Currency,
         GrossTotal: invoice.GrossTotal,
         Status: invoice.Status,
-        CreatedAtUtc: invoice.CreatedAtUtc);
+        CreatedAtUtc: invoice.CreatedAtUtc,
+        IsPotentialDuplicate: invoice.IsPotentialDuplicate,
+        DuplicateCheckReason: invoice.DuplicateCheckReason);
 }

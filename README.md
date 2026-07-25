@@ -56,14 +56,14 @@ A deployable MVP capable of:
 | WP-008 | Azure AI Document Intelligence Integration | Backend Engineer | Done |
 | WP-009 | Invoice Domain Model & Persistence | Backend Engineer | Done |
 | WP-010 | Duplicate Invoice Detection | Backend Engineer | Done |
-| WP-011 | Invoice Repository & Query Services | Backend Engineer | Done |
+| WP-011 | Invoice Repository & Query Services | Backend Engineer | Done. `IInvoiceQueryService` itself shipped with WP-011, but was never exposed over HTTP until `GET /api/invoices` was added 2026-07-25 while auditing the repo against recorded rulings — see `docs/Backlog.md` |
 | WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done. Ruling (2026-07-25) required switching the idempotency key from `messageId`+`fileName` to a content hash — already satisfied by WP-052 Part B (`SourceDocumentContentHash`) — see `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md` |
 | WP-013 | Audit Logging & Activity History | Backend Engineer | Done. Ruling (2026-07-25) extended automatic audit logging beyond status changes to Create/Delete/AddNote — already satisfied by WP-052 Part C — see `docs/WP-013-Audit-Logging-Decisions.md` |
 | WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done. All decisions approved as delivered — see `docs/WP-014-Dashboard-Shell-Decisions.md` |
-| WP-015 | Invoice Work Queue | Senior React Engineer | Done. Ruling (2026-07-25) approved items 2-6; its fixture-backed `InvoiceClient` must still be reconciled against WP-011's real DTO, using the backend's field names (WP-052 Part D ruling) — tracked in `docs/Backlog.md` — see `docs/WP-015-Invoice-Queue-Decisions.md` |
-| WP-016 | Invoice Review Screen | Senior React Engineer | Done. Ruling (2026-07-25) approved items 1/3/4/5/6; its fixture-backed `InvoiceDetailClient` must still be reconciled against WP-008/009/011/013's real shapes (backend field names authoritative) and `pdfUrl` pointed at the real proxied download endpoint (WP-052 Part D) — tracked in `docs/Backlog.md` — see `docs/WP-016-Invoice-Review-Decisions.md` |
-| WP-017 | Notes & Comments Component | Senior React Engineer | Done. Ruling (2026-07-25) resolved item 1's three open questions — separate `.../notes` resource, server-resolved `AuthorDisplayName`, `AddNoteAsync` return-shape change — items 2-7 approved as delivered. The real API endpoint remains a near-term blocker, tracked in `docs/Backlog.md` — see `docs/WP-017-Invoice-Notes-Decisions.md` |
-| WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Done. Ruling (2026-07-25) approved as delivered overall — the transition-graph/endpoint gap is closed by WP-053/WP-054. Fixture-to-real-client swap remains, with two ruled specifics (full `InvoiceDetail` response; four gated transitions, not one) tracked in `docs/Backlog.md` — see `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` |
+| WP-015 | Invoice Work Queue | Senior React Engineer | Done. Ruling (2026-07-25) approved items 2-6. Its missing backend dependency (`GET /api/invoices`, item 1) was built 2026-07-25; the fixture-to-real-client swap itself is blocked on WP-002 (real frontend auth), tracked in `docs/Backlog.md` — see `docs/WP-015-Invoice-Queue-Decisions.md` |
+| WP-016 | Invoice Review Screen | Senior React Engineer | Done. Ruling (2026-07-25) approved items 1/3/4/5/6; its dependencies were already deployed. The fixture-to-real-client swap is blocked on WP-002 (real frontend auth), tracked in `docs/Backlog.md` — see `docs/WP-016-Invoice-Review-Decisions.md` |
+| WP-017 | Notes & Comments Component | Senior React Engineer | Done. Ruling (2026-07-25) resolved item 1's three open questions; items 2-7 approved as delivered. The real API endpoint (`GET`/`POST /api/invoices/{id}/notes`, `AuthorDisplayName`) was built 2026-07-25; the fixture-to-real-client swap itself is blocked on WP-002 (real frontend auth), tracked in `docs/Backlog.md` — see `docs/WP-017-Invoice-Notes-Decisions.md` |
+| WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Done. Ruling (2026-07-25) approved as delivered overall — the transition-graph/endpoint gap is closed by WP-053/WP-054. The fixture's role gating was corrected 2026-07-25 (four transitions, not one); the fixture-to-real-client swap itself is blocked on WP-002 (real frontend auth), tracked in `docs/Backlog.md` — see `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` |
 | WP-019 | Supplier Folder View | Senior React Engineer | Not started |
 | WP-020 | API Integration & Error Handling | Senior React Engineer | Not started |
 | WP-021 | Azure Infrastructure (App Service, SQL, Storage) | DevOps Engineer | Not started |
@@ -88,6 +88,20 @@ outstanding — these remain tracked in `docs/Backlog.md`, not here:
 `docs/WP-017-Invoice-Notes-Decisions.md`, `docs/WP-018-Invoice-Workflow-Actions-Decisions.md`
 (all four: fixture-to-real-client reconciliation), plus WP-056/WP-057 raised by
 the WP-052/WP-053 rulings below.
+
+**2026-07-25 repo-wide audit against recorded rulings:** closed the backend
+gaps those four rulings assumed were already available — `GET /api/invoices`
+(WP-015's dependency, never actually wired to `InvoicesController` despite
+WP-011 shipping the underlying query service) and the full Notes API
+(WP-017's ruled shape: separate resource, server-resolved
+`AuthorDisplayName`, `AddNoteAsync` returning the created note) — and
+corrected WP-018's fixture to gate all four real role-gated transitions, not
+one. Also **discovered `APFlow.Web` has no real authentication at all** -
+`AuthContext.tsx` is still WP-014's tenant/role picker stub, no MSAL or HTTP
+client exists, and the API requires a real Bearer token unconditionally
+(no dev-auth bypass). This blocks every fixture-to-real-client swap
+(WP-015/016/017/018) regardless of backend readiness - tracked as its own
+`docs/Backlog.md` item ahead of those four.
 
 Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implementation tracked in `docs/Backlog.md`:
 

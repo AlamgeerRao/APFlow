@@ -107,6 +107,49 @@ public class InvoiceQueryServiceTests
     }
 
     [Fact]
+    public async Task SearchAsync_FiltersBySearch_MatchesSupplierNameOrInvoiceNumber()
+    {
+        // WP-015 ruling, 2026-07-25 item 3: search matches supplier name OR
+        // invoice number - a distinct filter from InvoiceNumber-only above.
+        var (service, repo) = CreateService();
+        var acme = new Supplier { Name = "Acme Ltd" };
+        var northwind = new Supplier { Name = "Northwind" };
+        var matchBySupplier = NewInvoice(acme.Id, supplierInvoiceNumber: "INV-001");
+        matchBySupplier.Supplier = acme;
+        var matchByNumber = NewInvoice(northwind.Id, supplierInvoiceNumber: "ACME-777");
+        matchByNumber.Supplier = northwind;
+        var noMatch = NewInvoice(northwind.Id, supplierInvoiceNumber: "INV-999");
+        noMatch.Supplier = northwind;
+        repo.Invoices.AddRange([matchBySupplier, matchByNumber, noMatch]);
+
+        var result = await service.SearchAsync(new InvoiceQueryParameters(Search: "acme"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.TotalCount);
+        Assert.Contains(result.Value.Items, i => i.Id == matchBySupplier.Id);
+        Assert.Contains(result.Value.Items, i => i.Id == matchByNumber.Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ReturnsDuplicateFlagAndReason()
+    {
+        // WP-015 ruling, 2026-07-25: duplicate highlighting needs these fields
+        // directly on the list row.
+        var (service, repo) = CreateService();
+        var invoice = NewInvoice(Guid.NewGuid());
+        invoice.IsPotentialDuplicate = true;
+        invoice.DuplicateCheckReason = "Matches existing invoice on Supplier and Invoice Number.";
+        repo.Invoices.Add(invoice);
+
+        var result = await service.SearchAsync(new InvoiceQueryParameters());
+
+        Assert.True(result.IsSuccess);
+        var dto = Assert.Single(result.Value.Items);
+        Assert.True(dto.IsPotentialDuplicate);
+        Assert.Equal("Matches existing invoice on Supplier and Invoice Number.", dto.DuplicateCheckReason);
+    }
+
+    [Fact]
     public async Task SearchAsync_AppliesPaging()
     {
         var (service, repo) = CreateService();

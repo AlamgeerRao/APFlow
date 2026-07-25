@@ -20,4 +20,15 @@ public sealed class InvoiceNote : TenantEntity
 
     /// <summary>The note's text content.</summary>
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The authoring user's display name at the time the note was written,
+    /// resolved server-side (via Application's <c>ICurrentUserService.DisplayName</c>)
+    /// rather than left as the raw <see cref="AuditEntity.CreatedBy"/> identifier -
+    /// Chief Technical Architect ruling, 2026-07-25, on
+    /// docs/WP-017-Invoice-Notes-Decisions.md item 1. Null for notes written
+    /// before this field existed, or if the acting identity had no resolvable
+    /// name claim at write time.
+    /// </summary>
+    public string? AuthorDisplayName { get; set; }
 }

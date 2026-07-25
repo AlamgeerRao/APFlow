@@ -11,6 +11,9 @@ namespace APFlow.Application.DTOs;
 /// <c>IInvoiceService.GetByIdAsync</c>, which still returns the complete
 /// <see cref="InvoiceDto"/>. This is a presentation-shaping choice, not a business
 /// rule - trivial to widen later if a list view turns out to need more fields.
+/// <see cref="IsPotentialDuplicate"/>/<see cref="DuplicateCheckReason"/> (WP-048)
+/// are included, not omitted, since WP-015's ruled duplicate-highlighting
+/// requirement needs them directly on the list row.
 /// </summary>
 public sealed record InvoiceListItemDto(
     Guid Id,
@@ -22,4 +25,6 @@ public sealed record InvoiceListItemDto(
     string? Currency,
     decimal? GrossTotal,
     string Status,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    bool IsPotentialDuplicate,
+    string? DuplicateCheckReason);

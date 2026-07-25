@@ -74,6 +74,13 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
                                       && i.SupplierInvoiceNumber.Contains(parameters.InvoiceNumber, StringComparison.OrdinalIgnoreCase));
         }
 
+        if (!string.IsNullOrWhiteSpace(parameters.Search))
+        {
+            query = query.Where(i =>
+                (i.SupplierInvoiceNumber is not null && i.SupplierInvoiceNumber.Contains(parameters.Search, StringComparison.OrdinalIgnoreCase))
+                || (i.Supplier is not null && i.Supplier.Name.Contains(parameters.Search, StringComparison.OrdinalIgnoreCase)));
+        }
+
         var totalCount = query.Count();
 
         query = ApplySort(query, parameters.SortBy, parameters.SortDescending);

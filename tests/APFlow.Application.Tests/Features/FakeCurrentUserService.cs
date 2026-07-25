@@ -8,6 +8,7 @@ internal sealed class FakeCurrentUserService : ICurrentUserService
     public bool IsAuthenticated { get; set; } = true;
     public string? UserId { get; set; } = "test-user";
     public string? Email { get; set; }
+    public string? DisplayName { get; set; }
     public string? TenantId { get; set; }
     public List<string> RolesList { get; } = [];
 

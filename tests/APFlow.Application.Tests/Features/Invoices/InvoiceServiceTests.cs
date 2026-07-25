@@ -563,6 +563,55 @@ public class InvoiceServiceTests
     }
 
     [Fact]
+    public async Task AddNoteAsync_ResolvesAuthorDisplayNameFromCurrentUser_AndReturnsCreatedNoteDto()
+    {
+        // WP-017 ruling, 2026-07-25: authorName is resolved server-side from
+        // ICurrentUserService, never client-supplied.
+        var (service, invoiceRepo, currentUserService, _, _) = CreateServiceWithApproval();
+        currentUserService.DisplayName = "Priya Shah";
+        var supplier = new Supplier { Name = "Test Supplier" };
+        invoiceRepo.Invoices.Add(new Invoice { SupplierId = supplier.Id, Status = InvoiceStatusCodes.Received });
+        var invoiceId = invoiceRepo.Invoices[0].Id;
+
+        var result = await service.AddNoteAsync(invoiceId, "Looks correct, approved.");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Looks correct, approved.", result.Value.Content);
+        Assert.Equal("Priya Shah", result.Value.AuthorDisplayName);
+        Assert.NotEqual(Guid.Empty, result.Value.Id);
+    }
+
+    [Fact]
+    public async Task GetNotesAsync_ReturnsNotesOldestFirst()
+    {
+        // WP-017 ruling, 2026-07-25 item 2: chronological (oldest-first) order.
+        var (service, invoiceRepo, supplierRepo) = CreateService();
+        var supplier = new Supplier { Name = "Test Supplier" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
+        await service.AddNoteAsync(created.Value.Id, "First note.");
+        await service.AddNoteAsync(created.Value.Id, "Second note.");
+
+        var result = await service.GetNotesAsync(created.Value.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Count);
+        Assert.Equal("First note.", result.Value[0].Content);
+        Assert.Equal("Second note.", result.Value[1].Content);
+    }
+
+    [Fact]
+    public async Task GetNotesAsync_MissingInvoice_ReturnsFailure()
+    {
+        var (service, _, _) = CreateService();
+
+        var result = await service.GetNotesAsync(Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Invoice.NotFound", result.Error.Code);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_MissingInvoice_ReturnsFailure()
     {
         var (service, _, _) = CreateService();

@@ -101,6 +101,35 @@ public class InvoiceRepositoryQueryTests
     }
 
     [Fact]
+    public async Task QueryAsync_FiltersBySearch_MatchesSupplierNameOrInvoiceNumber()
+    {
+        // WP-015 ruling, 2026-07-25 item 3: search matches supplier name OR
+        // invoice number - a real EF Core translation check, not just the fake.
+        // Casing kept consistent with the search term throughout: the InMemory
+        // provider evaluates Contains via plain (case-sensitive) LINQ-to-Objects,
+        // unlike a real SQL Server's typically case-insensitive collation (see
+        // InvoiceQueryParameters.InvoiceNumber's own doc comment on this
+        // provider-vs-real-database distinction).
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId);
+        var repository = new InvoiceRepository(context);
+        var acme = new Supplier { Name = "Acme Ltd", TenantId = tenantId };
+        var northwind = new Supplier { Name = "Northwind", TenantId = tenantId };
+        context.Suppliers.AddRange(acme, northwind);
+        var matchBySupplier = new Invoice { SupplierId = acme.Id, TenantId = tenantId, SupplierInvoiceNumber = "INV-001" };
+        var matchByNumber = new Invoice { SupplierId = northwind.Id, TenantId = tenantId, SupplierInvoiceNumber = "Acme-777" };
+        var noMatch = new Invoice { SupplierId = northwind.Id, TenantId = tenantId, SupplierInvoiceNumber = "INV-999" };
+        context.Invoices.AddRange(matchBySupplier, matchByNumber, noMatch);
+        await context.SaveChangesAsync();
+
+        var (items, totalCount) = await repository.QueryAsync(new InvoiceQueryParameters(Search: "Acme"));
+
+        Assert.Equal(2, totalCount);
+        Assert.Contains(items, i => i.Id == matchBySupplier.Id);
+        Assert.Contains(items, i => i.Id == matchByNumber.Id);
+    }
+
+    [Fact]
     public async Task QueryAsync_AppliesPaging_TotalCountReflectsFullFilteredSet()
     {
         var tenantId = Guid.NewGuid();

@@ -75,6 +75,14 @@ public sealed class InvoiceRepository : IInvoiceRepository
             query = query.Where(i => i.SupplierInvoiceNumber != null && i.SupplierInvoiceNumber.Contains(parameters.InvoiceNumber));
         }
 
+        if (!string.IsNullOrWhiteSpace(parameters.Search))
+        {
+            var search = parameters.Search;
+            query = query.Where(i =>
+                (i.SupplierInvoiceNumber != null && i.SupplierInvoiceNumber.Contains(search))
+                || (i.Supplier != null && i.Supplier.Name.Contains(search)));
+        }
+
         // Count against the filtered-but-unsorted, unpaged query - this is the total
         // across all pages, not the page size. Executed as a single SQL COUNT(*),
         // not a client-side count of a materialized list.

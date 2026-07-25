@@ -22,6 +22,7 @@ public sealed class CurrentUserService : ICurrentUserService
     private const string TenantIdClaimType = "tid";
     private const string PreferredUsernameClaimType = "preferred_username";
     private const string RoleClaimType = "roles";
+    private const string NameClaimType = "name";
 
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -41,6 +42,9 @@ public sealed class CurrentUserService : ICurrentUserService
 
     /// <inheritdoc />
     public string? Email => FindClaim(PreferredUsernameClaimType) ?? FindClaim(ClaimTypes.Email);
+
+    /// <inheritdoc />
+    public string? DisplayName => FindClaim(NameClaimType) ?? FindClaim(ClaimTypes.Name);
 
     /// <inheritdoc />
     public string? TenantId => FindClaim(TenantIdClaimType);

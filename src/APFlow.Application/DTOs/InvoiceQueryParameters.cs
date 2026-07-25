@@ -53,6 +53,15 @@ public enum InvoiceSortField
 /// string. This is an implementation default, not a business rule - trivial to
 /// change to exact/prefix matching if that turns out to be wrong.
 /// </param>
+/// <param name="Search">
+/// Restrict to invoices whose <c>SupplierInvoiceNumber</c> OR issuing
+/// <c>Supplier.Name</c> contains this text, per WP-015's ruled search scope
+/// ("supplier + invoice number only" - see
+/// docs/WP-015-Invoice-Queue-Decisions.md item 3). Deliberately a separate
+/// parameter from <see cref="InvoiceNumber"/> (an invoice-number-only filter
+/// with its own pre-existing callers/tests) rather than repurposing it, so
+/// this addition is purely additive.
+/// </param>
 /// <param name="Page">1-based page number. Must be 1 or greater.</param>
 /// <param name="PageSize">Rows per page. Must be between 1 and <see cref="MaxPageSize"/>.</param>
 /// <param name="SortBy">Field to sort by. Defaults to <see cref="InvoiceSortField.CreatedAtUtc"/>.</param>
@@ -63,6 +72,7 @@ public sealed record InvoiceQueryParameters(
     DateOnly? InvoiceDateFrom = null,
     DateOnly? InvoiceDateTo = null,
     string? InvoiceNumber = null,
+    string? Search = null,
     int Page = 1,
     int PageSize = 25, // Mirrors DefaultPageSize below - kept as a literal because a
                         // primary constructor parameter default cannot reference a
