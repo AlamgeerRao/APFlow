@@ -18,7 +18,11 @@ public class InvoicesControllerTests
     [Fact]
     public async Task GetById_ExistingInvoice_ReturnsOkWithInvoiceAndAuditHistory()
     {
-        var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto() };
+        var invoiceService = new FakeInvoiceService
+        {
+            InvoiceToReturn = NewInvoiceDto(),
+            ExtractedFieldsToReturn = [new InvoiceExtractedFieldDto(InvoiceExtractedFieldKeys.SupplierName, "Supplier Name", "Acme Ltd", 0.95)],
+        };
         var auditQueryService = new FakeAuditQueryService
         {
             ItemsToReturn = [NewAuditLogDto(AuditActions.InvoiceCreated), NewAuditLogDto(AuditActions.InvoiceStatusChanged)],
@@ -31,7 +35,9 @@ public class InvoicesControllerTests
         var response = Assert.IsType<InvoiceDetailResponse>(okResult.Value);
         Assert.Equal(InvoiceId, response.Invoice.Id);
         Assert.Equal(2, response.RecentAuditEntries.Count);
-        Assert.False(string.IsNullOrWhiteSpace(response.ExtractionConfidenceNote));
+        var extractedField = Assert.Single(response.ExtractedFields);
+        Assert.Equal(InvoiceExtractedFieldKeys.SupplierName, extractedField.FieldKey);
+        Assert.Equal(0.95, extractedField.ConfidenceScore);
 
         // The query was scoped to this specific invoice.
         Assert.Equal(nameof(APFlow.Domain.Entities.Invoice), auditQueryService.LastParameters?.EntityName);
@@ -434,6 +440,10 @@ public class InvoicesControllerTests
         public Error? AddNoteFailureToReturn { get; set; }
         public (Guid InvoiceId, string Content)? LastNoteAdded { get; private set; }
 
+        /// <summary>WP-056: what <see cref="GetExtractedFieldsAsync"/> returns/fails with.</summary>
+        public IReadOnlyList<InvoiceExtractedFieldDto> ExtractedFieldsToReturn { get; set; } = [];
+        public Error? GetExtractedFieldsFailureToReturn { get; set; }
+
         public Task<Result<InvoiceDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(FailureToReturn is { } error ? Result.Failure<InvoiceDto>(error) : Result.Success(InvoiceToReturn!));
 
@@ -466,6 +476,11 @@ public class InvoicesControllerTests
                 ? Result.Failure<InvoiceNoteDto>(error)
                 : Result.Success(AddNoteResultToReturn ?? new InvoiceNoteDto(Guid.NewGuid(), content, "Test User", DateTimeOffset.UtcNow)));
         }
+
+        public Task<Result<IReadOnlyList<InvoiceExtractedFieldDto>>> GetExtractedFieldsAsync(Guid invoiceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(GetExtractedFieldsFailureToReturn is { } error
+                ? Result.Failure<IReadOnlyList<InvoiceExtractedFieldDto>>(error)
+                : Result.Success(ExtractedFieldsToReturn));
     }
 
     /// <summary>Hand-written fake, same pattern as every fake elsewhere in this codebase.</summary>

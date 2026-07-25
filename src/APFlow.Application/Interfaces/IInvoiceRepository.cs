@@ -20,6 +20,9 @@ public interface IInvoiceRepository
     /// <summary>Returns the invoice with the given id including its <see cref="Invoice.Notes"/>, or null if not found.</summary>
     Task<Invoice?> GetByIdWithNotesAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the invoice with the given id including its <see cref="Invoice.ExtractedFields"/> (WP-056), or null if not found.</summary>
+    Task<Invoice?> GetByIdWithExtractedFieldsAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Returns every invoice visible to the current tenant.</summary>
     Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default);
 

@@ -51,6 +51,68 @@ public class InvoiceProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessUnreadEmailsAsync_HappyPath_PersistsPerFieldExtractionConfidence()
+    {
+        // WP-056: closes the gap flagged in WP-052 Part D - the per-field
+        // ExtractedField<T>.Confidence values NewExtraction() sets (0.95 for
+        // every field) must now land on the saved invoice's ExtractedFields,
+        // not be discarded once .Value is copied onto the scalar columns.
+        var (service, deps) = CreateService();
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
+
+        // All 8 InvoiceExtractionResult fields - 7 confidence-scored, plus
+        // Currency with a null ConfidenceScore (Chief Technical Architect
+        // ruling, 2026-07-25: one row per InvoiceExtractionResult field, always).
+        Assert.Equal(8, invoice.ExtractedFields.Count);
+
+        var currencyField = Assert.Single(invoice.ExtractedFields, f => f.FieldKey == InvoiceExtractedFieldKeys.Currency);
+        Assert.Equal("GBP", currencyField.Value);
+        Assert.Null(currencyField.ConfidenceScore);
+
+        Assert.All(invoice.ExtractedFields.Where(f => f.FieldKey != InvoiceExtractedFieldKeys.Currency), f => Assert.Equal(0.95, f.ConfidenceScore));
+
+        var supplierNameField = Assert.Single(invoice.ExtractedFields, f => f.FieldKey == InvoiceExtractedFieldKeys.SupplierName);
+        Assert.Equal("Supplier Name", supplierNameField.Label);
+        Assert.Equal("Acme Ltd", supplierNameField.Value);
+
+        var invoiceDateField = Assert.Single(invoice.ExtractedFields, f => f.FieldKey == InvoiceExtractedFieldKeys.InvoiceDate);
+        Assert.Equal("2026-01-01", invoiceDateField.Value); // formatted, invariant, ISO-style - not locale-dependent
+
+        var netAmountField = Assert.Single(invoice.ExtractedFields, f => f.FieldKey == InvoiceExtractedFieldKeys.NetAmount);
+        Assert.Equal("100", netAmountField.Value); // invariant-culture decimal formatting
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_FieldNotExtracted_PersistsNullValue_NotAnError()
+    {
+        // A field Document Intelligence did not extract is a normal, expected
+        // outcome (ExtractedField<T>'s own doc comment) - must persist as a null
+        // Value, not block processing or fabricate a placeholder.
+        var (service, deps) = CreateService();
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd") with
+        {
+            DueDate = new ExtractedField<DateOnly?>(null, null),
+        };
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
+        var dueDateField = Assert.Single(invoice.ExtractedFields, f => f.FieldKey == InvoiceExtractedFieldKeys.DueDate);
+        Assert.Null(dueDateField.Value);
+        Assert.Null(dueDateField.ConfidenceScore);
+    }
+
+    [Fact]
     public async Task ProcessUnreadEmailsAsync_RunTwiceOverSameInput_SecondRunSkipsAlreadyProcessedAttachment()
     {
         var (service, deps) = CreateService();

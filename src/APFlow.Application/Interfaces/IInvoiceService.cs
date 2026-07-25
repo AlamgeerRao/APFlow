@@ -45,4 +45,16 @@ public interface IInvoiceService
     /// response without a second round-trip to re-fetch it.
     /// </summary>
     Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the Document Intelligence per-field extraction confidence data
+    /// persisted for an invoice (WP-056), in
+    /// <see cref="APFlow.Domain.Common.Constants.InvoiceExtractedFieldKeys.CanonicalOrder"/> -
+    /// exposes <c>IInvoiceRepository.GetByIdWithExtractedFieldsAsync</c> as a
+    /// plain read shape. Empty (not a failure) for an invoice created before
+    /// WP-056, or one not processed via the WP-012 pipeline at all (e.g. created
+    /// manually) - the absence of extraction data is a normal, expected state,
+    /// not an error.
+    /// </summary>
+    Task<Result<IReadOnlyList<InvoiceExtractedFieldDto>>> GetExtractedFieldsAsync(Guid invoiceId, CancellationToken cancellationToken = default);
 }

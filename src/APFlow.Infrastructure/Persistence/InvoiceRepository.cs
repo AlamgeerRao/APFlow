@@ -34,6 +34,13 @@ public sealed class InvoiceRepository : IInvoiceRepository
             .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
 
     /// <inheritdoc/>
+    public Task<Invoice?> GetByIdWithExtractedFieldsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        _context.Invoices
+            .Include(i => i.Supplier)
+            .Include(i => i.ExtractedFields)
+            .FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default) =>
         await _context.Invoices
             .Include(i => i.Supplier)

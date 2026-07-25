@@ -299,11 +299,22 @@ public sealed class InvoicesController : ControllerBase
 
         var recentAuditEntries = auditResult.IsSuccess ? auditResult.Value.Items : Array.Empty<AuditLogDto>();
 
-        return new InvoiceDetailResponse(
-            invoice,
-            recentAuditEntries,
-            ExtractionConfidenceNote:
-                "Per-field extraction confidence is not currently persisted - see docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md.");
+        // WP-056: replaces the WP-052 Part D placeholder note now that the
+        // ingestion pipeline actually persists this. Same "a failure here
+        // doesn't fail the whole request" reasoning as audit history above -
+        // the invoice was found successfully regardless.
+        var extractedFieldsResult = await _invoiceService.GetExtractedFieldsAsync(invoice.Id, cancellationToken);
+
+        if (extractedFieldsResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Failed to load extracted fields for invoice {InvoiceId}: {ErrorCode} - {ErrorMessage}. Returning the invoice with an empty extracted-fields list instead of failing the request.",
+                invoice.Id, extractedFieldsResult.Error.Code, extractedFieldsResult.Error.Message);
+        }
+
+        var extractedFields = extractedFieldsResult.IsSuccess ? extractedFieldsResult.Value : Array.Empty<InvoiceExtractedFieldDto>();
+
+        return new InvoiceDetailResponse(invoice, recentAuditEntries, extractedFields);
     }
 
     private ObjectResult NotFoundProblem(string errorCode, string errorMessage) =>

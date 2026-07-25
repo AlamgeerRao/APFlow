@@ -74,6 +74,9 @@ public class AppDbContext : DbContext
     /// <summary>Invoice notes. Tenant-isolated - see <see cref="_currentTenantId"/>.</summary>
     public DbSet<InvoiceNote> InvoiceNotes => Set<InvoiceNote>();
 
+    /// <summary>Invoice extracted fields (WP-056). Tenant-isolated - see <see cref="_currentTenantId"/>.</summary>
+    public DbSet<InvoiceExtractedField> InvoiceExtractedFields => Set<InvoiceExtractedField>();
+
     /// <summary>
     /// Audit trail entries (WP-013). Tenant-isolated - see <see cref="_currentTenantId"/>.
     /// No corresponding <c>Update</c>/<c>Remove</c> anywhere in this codebase - see

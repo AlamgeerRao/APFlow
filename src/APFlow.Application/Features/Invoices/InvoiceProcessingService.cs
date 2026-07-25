@@ -300,6 +300,18 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
                 SourceDocumentContentHash = contentHash,
             };
 
+            // WP-056: persist the per-field confidence scores WP-008's analysis
+            // already produced (extraction.*.Confidence) - previously discarded
+            // once each field's .Value was copied onto the scalar properties
+            // above. Added to the same not-yet-saved candidate's collection
+            // navigation, so these rows commit atomically with the invoice's own
+            // insert via the single SaveChangesAsync call below - same reasoning
+            // as the duplicate-check fields just above.
+            foreach (var field in BuildExtractedFields(candidate.Id, extraction))
+            {
+                candidate.ExtractedFields.Add(field);
+            }
+
             var duplicateCheckResult = _duplicateDetectionService.Check(candidate, otherInvoices);
             candidate.IsPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
             candidate.DuplicateCheckReason = BuildDuplicateCheckReason(duplicateCheckResult);
@@ -363,6 +375,56 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         result.IsPotentialDuplicate
             ? string.Join(" ", result.Matches.Select(m => m.Reason))
             : null;
+
+    /// <summary>
+    /// Builds one <see cref="InvoiceExtractedField"/> row per field
+    /// <see cref="InvoiceExtractionResult"/> (WP-008) reports (WP-056), including
+    /// <see cref="InvoiceExtractionResult.Currency"/> with a null
+    /// <see cref="InvoiceExtractedField.ConfidenceScore"/> - per Chief Technical
+    /// Architect ruling (2026-07-25): one row per
+    /// <see cref="InvoiceExtractionResult"/> field, always, even though
+    /// <c>Currency</c> is a plain <c>string</c> never wrapped in
+    /// <see cref="ExtractedField{T}"/> (it is reconciled from several monetary
+    /// fields rather than separately extracted/confidence-scored - see that
+    /// record's own doc comment).
+    /// </summary>
+    private static List<InvoiceExtractedField> BuildExtractedFields(Guid invoiceId, InvoiceExtractionResult extraction) =>
+    [
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.SupplierName, "Supplier Name",
+            extraction.SupplierName.Value, extraction.SupplierName.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.SupplierInvoiceNumber, "Supplier Invoice Number",
+            extraction.SupplierInvoiceNumber.Value, extraction.SupplierInvoiceNumber.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.InvoiceDate, "Invoice Date",
+            FormatDate(extraction.InvoiceDate.Value), extraction.InvoiceDate.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.DueDate, "Due Date",
+            FormatDate(extraction.DueDate.Value), extraction.DueDate.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.NetAmount, "Net Amount",
+            FormatDecimal(extraction.NetAmount.Value), extraction.NetAmount.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.Vat, "VAT",
+            FormatDecimal(extraction.Vat.Value), extraction.Vat.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.GrossTotal, "Gross Total",
+            FormatDecimal(extraction.GrossTotal.Value), extraction.GrossTotal.Confidence),
+        NewExtractedField(invoiceId, InvoiceExtractedFieldKeys.Currency, "Currency",
+            extraction.Currency, confidence: null),
+    ];
+
+    private static InvoiceExtractedField NewExtractedField(Guid invoiceId, string fieldKey, string label, string? value, double? confidence) =>
+        new()
+        {
+            InvoiceId = invoiceId,
+            FieldKey = fieldKey,
+            Label = label,
+            Value = value,
+            ConfidenceScore = confidence,
+        };
+
+    // Invariant-culture, unambiguous text representations - this column is
+    // display text only (see InvoiceExtractedField.Value's own doc comment),
+    // never parsed back, so a fixed, locale-independent format is preferable to
+    // whatever the running culture happens to be.
+    private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string? FormatDecimal(decimal? value) => value?.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Resolves the supplier a new invoice should be attached to from its extracted

@@ -26,6 +26,9 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
     public Task<Invoice?> GetByIdWithNotesAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Invoices.FirstOrDefault(i => i.Id == id));
 
+    public Task<Invoice?> GetByIdWithExtractedFieldsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Invoices.FirstOrDefault(i => i.Id == id));
+
     public Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Invoice>>(Invoices);
 

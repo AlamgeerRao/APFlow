@@ -7,10 +7,10 @@ namespace APFlow.Domain.Entities;
 /// WP-008's <c>InvoiceExtractionResult</c> - a natural persistence target for that
 /// service's output - but this entity has no dependency on WP-008 and can be
 /// created/edited independent of it (see <c>IInvoiceService</c>).
-/// Deliberately excludes per-field confidence scores: storing WP-008's extraction
-/// confidence per field would meaningfully grow this entity's shape around a
-/// specific future consumption pattern (e.g. a review UI flagging low-confidence
-/// fields) that hasn't been designed yet. Add if/when that's a real requirement.
+/// Per-field extraction confidence (WP-056) is deliberately NOT columns here -
+/// see <see cref="ExtractedFields"/> - closing the gap this doc comment
+/// originally flagged ("Add if/when that's a real requirement"; WP-052 Part D's
+/// review of the Invoice Detail API was that requirement).
 /// <see cref="SourceDocumentBlobName"/> is the one exception to the "no Blob Storage
 /// linkage" stance WP-009 originally took: WP-009 excluded it because nothing yet
 /// called for it. WP-012 (Invoice Processing Pipeline) now does - the pipeline
@@ -129,4 +129,12 @@ public sealed class Invoice : TenantEntity
 
     /// <summary>Notes/remarks recorded against this invoice.</summary>
     public ICollection<InvoiceNote> Notes { get; set; } = new List<InvoiceNote>();
+
+    /// <summary>
+    /// Document Intelligence's per-field extracted values and confidence scores
+    /// for this invoice (WP-056) - one row per field WP-008's analysis reports,
+    /// not columns on this entity (an open-ended, per-field set, not a fixed
+    /// handful of scalars). See <see cref="InvoiceExtractedField"/>.
+    /// </summary>
+    public ICollection<InvoiceExtractedField> ExtractedFields { get; set; } = new List<InvoiceExtractedField>();
 }

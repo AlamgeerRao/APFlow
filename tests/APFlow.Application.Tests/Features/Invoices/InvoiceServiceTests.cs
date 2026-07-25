@@ -630,6 +630,52 @@ public class InvoiceServiceTests
     }
 
     [Fact]
+    public async Task GetExtractedFieldsAsync_ReturnsFieldsInCanonicalOrder()
+    {
+        // WP-056: EF Core/SQL row order is not guaranteed, so
+        // GetExtractedFieldsAsync must sort explicitly - assert against fields
+        // added in a deliberately scrambled order to actually prove the sort,
+        // not just happen to pass because insertion order was already correct.
+        var (service, invoiceRepo, _) = CreateService();
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.Extracted);
+        invoice.ExtractedFields.Add(new InvoiceExtractedField { InvoiceId = invoice.Id, FieldKey = InvoiceExtractedFieldKeys.GrossTotal, Label = "Gross Total", Value = "120", ConfidenceScore = 0.9 });
+        invoice.ExtractedFields.Add(new InvoiceExtractedField { InvoiceId = invoice.Id, FieldKey = InvoiceExtractedFieldKeys.SupplierName, Label = "Supplier Name", Value = "Acme Ltd", ConfidenceScore = 0.95 });
+        invoice.ExtractedFields.Add(new InvoiceExtractedField { InvoiceId = invoice.Id, FieldKey = InvoiceExtractedFieldKeys.InvoiceDate, Label = "Invoice Date", Value = "2026-01-01", ConfidenceScore = 0.88 });
+
+        var result = await service.GetExtractedFieldsAsync(invoice.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [InvoiceExtractedFieldKeys.SupplierName, InvoiceExtractedFieldKeys.InvoiceDate, InvoiceExtractedFieldKeys.GrossTotal],
+            result.Value.Select(f => f.FieldKey));
+    }
+
+    [Fact]
+    public async Task GetExtractedFieldsAsync_NoExtractedFields_ReturnsEmptyList_NotAFailure()
+    {
+        // Normal for an invoice created before WP-056, or not processed via the
+        // WP-012 pipeline at all (e.g. created manually) - not an error.
+        var (service, invoiceRepo, _) = CreateService();
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.Received);
+
+        var result = await service.GetExtractedFieldsAsync(invoice.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public async Task GetExtractedFieldsAsync_MissingInvoice_ReturnsFailure()
+    {
+        var (service, _, _) = CreateService();
+
+        var result = await service.GetExtractedFieldsAsync(Guid.NewGuid());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Invoice.NotFound", result.Error.Code);
+    }
+
+    [Fact]
     public async Task GetByIdAsync_MissingInvoice_ReturnsFailure()
     {
         var (service, _, _) = CreateService();

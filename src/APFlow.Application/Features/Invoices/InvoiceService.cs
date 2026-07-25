@@ -357,6 +357,26 @@ public sealed class InvoiceService : IInvoiceService
         return Result.Success(ToNoteDto(note));
     }
 
+    /// <inheritdoc />
+    public async Task<Result<IReadOnlyList<InvoiceExtractedFieldDto>>> GetExtractedFieldsAsync(
+        Guid invoiceId, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _invoiceRepository.GetByIdWithExtractedFieldsAsync(invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return Result.Failure<IReadOnlyList<InvoiceExtractedFieldDto>>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
+        }
+
+        // Canonical order, not row/insertion order - EF Core/SQL do not
+        // otherwise guarantee an order for these rows (see
+        // InvoiceExtractedFieldKeys.CanonicalOrder's own doc comment).
+        return Result.Success<IReadOnlyList<InvoiceExtractedFieldDto>>(
+            invoice.ExtractedFields
+                .OrderBy(f => Array.IndexOf(InvoiceExtractedFieldKeys.CanonicalOrder, f.FieldKey))
+                .Select(ToExtractedFieldDto)
+                .ToList());
+    }
+
     /// <summary>
     /// Builds the JSON snapshot used for the InvoiceCreated/InvoiceDeleted audit
     /// entries (WP-052 Part C): Supplier, Invoice Number, Invoice Date, Gross
@@ -403,4 +423,10 @@ public sealed class InvoiceService : IInvoiceService
         Content: note.Content,
         AuthorDisplayName: note.AuthorDisplayName,
         CreatedAtUtc: note.CreatedAtUtc);
+
+    private static InvoiceExtractedFieldDto ToExtractedFieldDto(InvoiceExtractedField field) => new(
+        FieldKey: field.FieldKey,
+        Label: field.Label,
+        Value: field.Value,
+        ConfidenceScore: field.ConfidenceScore);
 }

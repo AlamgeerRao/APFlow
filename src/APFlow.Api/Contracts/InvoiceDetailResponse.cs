@@ -3,13 +3,15 @@ using APFlow.Application.DTOs;
 namespace APFlow.Api.Contracts;
 
 /// <summary>
-/// Response shape for <c>GET /api/invoices/{id}</c> (WP-052 Part D). Deliberately
-/// composes the existing <see cref="InvoiceDto"/> (WP-009) and
-/// <see cref="AuditLogDto"/> (WP-013) as-is, rather than inventing new field
-/// names for data those DTOs already shape - per this task's own "do not
-/// introduce a third, incompatible naming scheme" instruction. Field name/casing
-/// was NOT cross-checked against a WP-015 fixture: no such fixture was available
-/// in this delivery's working context - see docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md.
+/// Response shape for <c>GET /api/invoices/{id}</c> (WP-052 Part D; real
+/// extraction confidence added WP-056). Deliberately composes the existing
+/// <see cref="InvoiceDto"/> (WP-009), <see cref="AuditLogDto"/> (WP-013), and
+/// <see cref="InvoiceExtractedFieldDto"/> (WP-056) as-is, rather than inventing
+/// new field names for data those DTOs already shape - per WP-052 Part D's own
+/// "do not introduce a third, incompatible naming scheme" instruction, which
+/// this later addition follows too. Field name/casing was NOT cross-checked
+/// against a WP-015 fixture: no such fixture was available in this delivery's
+/// working context - see docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md.
 /// JSON serialization uses ASP.NET Core's default camelCase policy for
 /// controller-based APIs (no custom <c>JsonSerializerOptions</c> configured), so
 /// e.g. <see cref="InvoiceDto.SupplierInvoiceNumber"/> serializes as
@@ -26,19 +28,17 @@ namespace APFlow.Api.Contracts;
 /// <see cref="APFlow.Application.DTOs.AuditLogQueryParameters"/>'s default page
 /// size (25) entries, most recent first.
 /// </param>
-/// <param name="ExtractionConfidenceNote">
-/// NOT a real confidence dataset - a fixed, documented placeholder. WP-009's own
-/// entity doc comment explicitly excluded persisting WP-008's per-field
-/// extraction confidence scores, reasoning that doing so should wait for "a real
-/// requirement" for it - this task is precisely that requirement arriving, but
-/// implementing it means extending what the ingestion pipeline PERSISTS (a
-/// schema change to <c>Invoice</c> capturing confidence per field), which is
-/// outside Part D's own scope (an API endpoint over EXISTING data). Confidence
-/// data is therefore not available to return here for any invoice, past or
-/// future, until that persistence gap is closed by a work package scoped to
-/// close it. See docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md.
+/// <param name="ExtractedFields">
+/// Document Intelligence's per-field extraction confidence data (WP-056) -
+/// replaces the WP-052 Part D placeholder note (<c>ExtractionConfidenceNote</c>)
+/// now that the ingestion pipeline actually persists it (see
+/// <c>InvoiceExtractedField</c>). Empty, not missing/null, for an invoice
+/// created before WP-056 or not processed via the WP-012 pipeline at all (e.g.
+/// created manually) - the absence of extraction data is a normal, expected
+/// state for such an invoice, not an error condition for this endpoint to
+/// report.
 /// </param>
 public sealed record InvoiceDetailResponse(
     InvoiceDto Invoice,
     IReadOnlyList<AuditLogDto> RecentAuditEntries,
-    string ExtractionConfidenceNote);
+    IReadOnlyList<InvoiceExtractedFieldDto> ExtractedFields);
