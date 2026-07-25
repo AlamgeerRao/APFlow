@@ -1,8 +1,30 @@
 # WP-015 — Invoice Work Queue — Decisions
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — items 2-6 approved as delivered; item 1 requires action
+before this can be called fully closed — see "## Ruling" below and
+`docs/Backlog.md`.
 **Role:** Senior React Engineer
 **Depends on:** WP-011 (Invoice Repository & Query Services) — implemented on the backend, but its report/API contract was not available when WP-015 was built.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+1. **Fixture-backed `InvoiceClient`, proposed contract:** Not approved to stand
+   as a parallel proposal. WP-011 is already deployed — its actual DTO/endpoint
+   shape already exists in the codebase. This decision doc's framing ("the
+   contract was not available when WP-015 was built") suggests a coordination
+   gap rather than a genuine unknown. Action: before this is considered final,
+   reconcile `FixtureInvoiceClient`'s field names against WP-011's actual
+   shipped DTO, and change the frontend to match the real backend — not the
+   reverse. Tracked in `docs/Backlog.md`. Process note logged in
+   `docs/05_Development_Workflow_Addendum.md`: when a dependency WP is already
+   deployed, its real contract should be attached to the dependent WP's prompt,
+   not left to be independently guessed.
+2. **Unfiltered view = all non-terminal statuses:** Approved. Good reasoning —
+   keeps the Status column/filter meaningful.
+3. **Search: supplier + invoice number only:** Approved.
+4. **Fixed page size 10, Previous/Next:** Approved as MVP default.
+5. **Duplicate highlighting, amber + badge:** Approved.
+6. **Read-only scope maintained:** Confirmed correct.
 
 ---
 

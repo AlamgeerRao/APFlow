@@ -1,8 +1,44 @@
 # WP-013 — Audit Logging & Activity History: Decisions Requiring Sign-Off
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — items 1, 2, and 5 approved as delivered; item 3 was
+extended beyond its original scope — see "## Ruling" below. That extension was
+already implemented independently by
+`docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` Part C before this ruling
+was recorded.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-013 delivery.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+1. **Reuse `AuditEntity.CreatedBy`/`CreatedAtUtc` rather than dedicated columns:**
+   Approved. Good reuse, DTO renaming keeps the consumer-facing shape clear.
+2. **`LogAsync` stages, doesn't save — atomic with caller:** Approved. Correctly
+   mirrors the WP-010 pattern, and the linked test proves it end-to-end rather
+   than just reasoning about it. Good work.
+3. **Scope: status-changes-only vs. "all invoice actions":** Extended to
+   Create/Delete/AddNote. The Objective explicitly says "complete audit trail for
+   all invoice actions," and Core Business Objective #3 makes auditability a
+   first-class product requirement, not a nice-to-have — leaving Create/Delete/
+   Note silently unaudited is a real, foreseeable gap against something already
+   approved, not new scope. Ruling shape:
+   - `CreateAsync` → `Action = "InvoiceCreated"`, `PreviousValue = null`,
+     `NewValue` = a JSON snapshot of Supplier, Invoice Number, Invoice Date,
+     Gross Amount, Currency, and initial Status.
+   - `DeleteAsync` → `Action = "InvoiceDeleted"`, `PreviousValue` = a JSON
+     snapshot of the entity immediately before deletion, `NewValue = null`.
+   - `AddNoteAsync` → `Action = "NoteAdded"`, `PreviousValue = null`, `NewValue`
+     = the full note content (not just "a note was added") — since
+     `InvoiceNote` is already immutable (WP-017 disallows editing/deleting),
+     duplicating the content into the audit trail costs little and makes the
+     audit log self-sufficient without a join.
+
+   **Already implemented** — see
+   `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` Part C
+   (`AuditActions.InvoiceCreated`/`InvoiceDeleted`/`NoteAdded`, staged in
+   `InvoiceService.CreateAsync`/`DeleteAsync`/`AddNoteAsync`).
+5. **No `Update`/`Remove` on `IAuditLogRepository`:** Confirmed correct as-is, no
+   action — an editable audit trail defeats its own purpose. Good instinct to
+   record this as deliberate rather than silently obvious.
 
 ## 1. "User" and "Date/Time" are not dedicated `AuditLog` columns
 

@@ -1,8 +1,25 @@
 # WP-014 — Dashboard Shell & Navigation — Decisions
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — all items approved as delivered.
 **Role:** Senior React Engineer
 **Depends on:** WP-050 (Tenant-Configurable Workflow Engine) — not yet implemented at time of writing.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+2. **Only Invoice Queue expands per-status; Query Queue/Approved deferred:**
+   Approved. Correct call to not invent a categorisation scheme nobody's
+   confirmed. Revisit whether Query Queue needs the same treatment now that
+   WP-018 is built (not "when," as originally worded — WP-018 shipped without
+   revisiting this; if the same-treatment question still matters, raise it as
+   its own follow-up rather than assuming it's settled).
+3. **Fixture-backed `WorkflowTemplateClient`, proposed HTTP contract for
+   WP-050:** Approved as a sound placeholder pattern, and the proposed contract
+   shape is a reasonable starting point — carried into WP-050 as input, not as
+   something binding on WP-050's author.
+4. **Auth stub:** No action needed, correctly scoped as disposable.
+
+Revision history (WP-014a, QA-driven test coverage fix): Noted, no further
+action — this is exactly how a QA finding should get closed out.
 
 ---
 

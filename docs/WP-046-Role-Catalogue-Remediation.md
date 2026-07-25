@@ -1,10 +1,37 @@
 # WP-046 — Role Catalogue Remediation: Report
 
-**Status:** Complete for everything the codebase actually has; two items below need
-Chief Technical Architect confirmation before this can be called fully closed
-against the work package's original wording.
+**Status:** RESOLVED — both flagged items confirmed; this document is now fully
+closed against the work package's original wording. See "## Ruling" below.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-046 delivery.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+- **Interpretation decision (Role Code, not Role Name, as the constant value):**
+  Approved without reservation — correctly anticipates a real Entra
+  policy-matching failure mode. Good catch, and good that it was documented
+  rather than silently decided.
+- **Discrepancy 1 (no `UserRole` table/entity — roles derived entirely from the
+  Entra JWT `roles` claim):** Confirmed correct, not a gap. This is consistent
+  with `01_Project_Context.md` §6 — "Security and identity centralised through
+  Microsoft Entra External ID." Introducing a local `UserRole` persistence
+  layer would duplicate identity data that Entra already owns, with no current
+  requirement driving that duplication. Closed as intentional architecture, not
+  an open item.
+- **Discrepancy 2 (no `db/migrations/*.sql` mechanism; no EF Core migration ever
+  generated for WP-009/WP-012/WP-013's schema changes):** This is the most
+  significant finding across all six documents reviewed in this batch. If no
+  migration had been generated or committed for any prior schema change, there
+  was no repeatable, reviewable mechanism for getting this schema into any
+  environment beyond a local `EnsureCreated`/manual process. **Already
+  resolved** — this became `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md`
+  Part A (Introduce EF Core Migration Workflow), a baseline migration capturing
+  the schema as delivered, committed to source control, with the convention
+  formalized going forward in `docs/05_Development_Workflow_Addendum.md`. Also
+  correcting an earlier error: the `db/migrations/00X_*.sql` deliverable wording
+  originally specified in WP-046/047/048's prompts assumed a raw-SQL convention
+  this codebase doesn't use — retracted, replaced with "generated EF Core
+  migration (`Migrations/` folder)."
 
 ## What was changed
 

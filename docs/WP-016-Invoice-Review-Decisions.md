@@ -1,8 +1,39 @@
 # WP-016 — Invoice Review Screen — Decisions
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — items 1, 3, 4, 5, and 6 approved as delivered; item 2
+requires action before this can be called fully closed — see "## Ruling" below
+and `docs/Backlog.md`.
 **Role:** Senior React Engineer
 **Depends on:** WP-008 (Document Intelligence extraction), WP-009 (Invoice Domain Model), WP-011 (Query Services), WP-013 (Audit Logging) — all implemented on the backend, but none of their report/API contracts were available when WP-016 was built.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+1. **PDF rendering:** Already ruled on, unchanged.
+2. **Fixture-backed `InvoiceDetailClient`:** Same reconciliation note as
+   WP-015 — WP-008, WP-009, WP-011, and WP-013 are all deployed; their real
+   shapes should replace the fixture proposal rather than run in parallel.
+   Tracked in `docs/Backlog.md` alongside WP-015's item 1.
+
+   On the specific open question — `pdfUrl`: direct SAS vs. proxied endpoint.
+   Ruling: **proxied API endpoint, not a raw SAS URL.** A direct SAS URL
+   bypasses the API entirely, which means no tenant-isolation check and no
+   record of who viewed a source document — both of which matter given
+   `01_Project_Context.md` §6's "Auditability built into the data model, not
+   bolted on afterward" and the tenant-isolation principle. Use a proxied
+   endpoint (e.g. `GET /api/invoices/{id}/download`, streaming), logged the
+   same way other invoice actions are. **Already implemented** — see
+   `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` Part D, which stages a
+   `DocumentViewed` audit entry on each download. The frontend fixture's
+   `pdfUrl` still needs to be pointed at this real endpoint as part of the
+   same reconciliation backlog item.
+3. **Confidence thresholds 0.85/0.6:** Approved as a UI default pending real
+   business input — reasonable, cheap to change later.
+4. **Previous/Next ignores active filters:** Approved as MVP scope. Good
+   instinct flagging it as a future enhancement rather than assuming it's
+   wanted.
+5. **Canonical fields vs. extracted fields, two panels:** Approved. Correct
+   modelling of a review pipeline (raw extraction vs. accepted entity).
+6. **Read-only scope maintained:** Confirmed correct.
 
 ---
 

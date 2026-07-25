@@ -49,6 +49,25 @@ included alongside the generated `.cs` migration files for easy review without
 requiring the EF tooling installed, but the `.cs` files are the real, authoritative
 migration - the `.sql` file is a convenience copy, not a substitute.
 
+## Policy addition (Chief Technical Architect ruling, 2026-07-25)
+
+**When a dependency work package is already deployed, its real contract must be
+attached to the dependent work package's prompt — not left for the dependent
+work package's author to independently guess.**
+
+Raised against `docs/WP-015-Invoice-Queue-Decisions.md` item 1 and
+`docs/WP-016-Invoice-Review-Decisions.md` item 2: both were built against a
+fixture client and a proposed, non-binding HTTP contract on the stated grounds
+that the dependency's "report/API contract was not available when built." In
+both cases the dependency (WP-011 for WP-015; WP-008/WP-009/WP-011/WP-013 for
+WP-016) was already deployed at the time — the real DTO/endpoint shape already
+existed in the codebase. That is a coordination gap, not a genuine unknown, and
+the fix is process, not code: a work package prompt for a frontend/consumer
+delivery that depends on an already-shipped backend WP should include that
+WP's actual DTO/endpoint shape directly, rather than letting the author
+propose one in parallel. See `docs/Backlog.md` for the concrete reconciliation
+items this gap produced.
+
 ## Retroactive correction to WP-046's and WP-047's records
 
 - `docs/WP-046-Role-Catalogue-Remediation.md` - its "Files expected" discussion of

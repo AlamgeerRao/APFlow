@@ -57,11 +57,11 @@ A deployable MVP capable of:
 | WP-009 | Invoice Domain Model & Persistence | Backend Engineer | Done |
 | WP-010 | Duplicate Invoice Detection | Backend Engineer | Done |
 | WP-011 | Invoice Repository & Query Services | Backend Engineer | Done |
-| WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done |
-| WP-013 | Audit Logging & Activity History | Backend Engineer | Done |
-| WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done |
-| WP-015 | Invoice Work Queue | Senior React Engineer | Done |
-| WP-016 | Invoice Review Screen | Senior React Engineer | Done |
+| WP-012 | Invoice Processing Pipeline (orchestration only) | Backend Engineer | Done. Ruling (2026-07-25) required switching the idempotency key from `messageId`+`fileName` to a content hash — already satisfied by WP-052 Part B (`SourceDocumentContentHash`) — see `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md` |
+| WP-013 | Audit Logging & Activity History | Backend Engineer | Done. Ruling (2026-07-25) extended automatic audit logging beyond status changes to Create/Delete/AddNote — already satisfied by WP-052 Part C — see `docs/WP-013-Audit-Logging-Decisions.md` |
+| WP-014 | Dashboard Shell & Navigation | Senior React Engineer | Done. All decisions approved as delivered — see `docs/WP-014-Dashboard-Shell-Decisions.md` |
+| WP-015 | Invoice Work Queue | Senior React Engineer | Done. Items 2-6 approved; its fixture-backed `InvoiceClient` must still be reconciled against WP-011's real, already-deployed DTO — needs sign-off, see `docs/WP-015-Invoice-Queue-Decisions.md` |
+| WP-016 | Invoice Review Screen | Senior React Engineer | Done. Items 1/3/4/5/6 approved; its fixture-backed `InvoiceDetailClient` must still be reconciled against WP-008/009/011/013's real, already-deployed shapes, and `pdfUrl` pointed at the real proxied download endpoint (WP-052 Part D) — needs sign-off, see `docs/WP-016-Invoice-Review-Decisions.md` |
 | WP-017 | Notes & Comments Component | Senior React Engineer | Done. No backend API contract for notes exists yet (not even unconfirmed) — implemented against a fixture client and a proposed, non-binding HTTP contract; the API endpoint itself is tracked in `docs/Backlog.md` as a near-term blocker. Needs explicit sign-off — see `docs/WP-017-Invoice-Notes-Decisions.md` |
 | WP-018 | Query / On Query / Approved Workflow UI | Senior React Engineer | Done. Generalised, data-driven action rendering (no hardcoded button set) against a fixture `WorkflowActionClient`; no backend endpoint exists yet to list available actions or change status. Platform-default tenants see zero actions today - its transition graph was undocumented when this WP was authored but has since been fully seeded by WP-053; the frontend fixture itself hasn't been revisited to reflect that. Needs explicit sign-off — see `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` |
 | WP-019 | Supplier Folder View | Senior React Engineer | Not started |
@@ -71,7 +71,7 @@ A deployable MVP capable of:
 | WP-023 | Application Configuration & Secrets (Key Vault) | DevOps Engineer | Not started |
 | WP-024 | Logging, Monitoring & Application Insights | DevOps Engineer | Not started |
 | WP-025 | Sprint 1 QA Review & Regression Testing | Senior QA Engineer | Not started |
-| WP-046 | Role Catalogue Remediation (SA-007 E-05) | Backend Engineer | Done |
+| WP-046 | Role Catalogue Remediation (SA-007 E-05) | Backend Engineer | Done. Both flagged discrepancies confirmed/resolved by ruling (2026-07-25) — no `UserRole` table is intentional architecture; the missing EF Core migration mechanism was already resolved by WP-052 Part A — see `docs/WP-046-Role-Catalogue-Remediation.md` |
 | WP-047 | Duplicate Matching Criteria Reconciliation | Backend Engineer | Done |
 | WP-048 | Persist Duplicate Detection Result; Pure-Compute Detection Service | Backend Engineer | Done |
 | WP-049 | Duplicate Check Auto-Invocation in Processing Pipeline | Backend Engineer | Done. Replaces the prior ad-hoc three-commit adaptation (create → advance status → persist duplicate flag) with a true atomic single-save pipeline — see `docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md` |
@@ -82,14 +82,10 @@ A deployable MVP capable of:
 
 Open architecture decisions pending Chief Technical Architect sign-off (see individual docs for detail):
 
-- `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md`
-- `docs/WP-013-Audit-Logging-Decisions.md`
-- `docs/WP-014-Dashboard-Shell-Decisions.md`
-- `docs/WP-015-Invoice-Queue-Decisions.md`
-- `docs/WP-016-Invoice-Review-Decisions.md`
+- `docs/WP-015-Invoice-Queue-Decisions.md` (ruled 2026-07-25; item 1 — reconcile fixture `InvoiceClient` against WP-011's real, already-deployed DTO — remains a blocking near-term backlog item, see `docs/Backlog.md`)
+- `docs/WP-016-Invoice-Review-Decisions.md` (ruled 2026-07-25; item 2 — reconcile fixture `InvoiceDetailClient` against WP-008/009/011/013's real shapes and point `pdfUrl` at the real download endpoint — remains a blocking near-term backlog item, see `docs/Backlog.md`)
 - `docs/WP-017-Invoice-Notes-Decisions.md` (no backend API contract for notes exists at all yet; proposed contract needs Chief Technical Architect/Backend Engineer sign-off before the fixture client is replaced)
 - `docs/WP-018-Invoice-Workflow-Actions-Decisions.md` (no backend endpoint exists to list/execute workflow actions; the transition-graph gap it flagged is now resolved by WP-053, but the frontend fixture data itself still hardcodes zero actions for platform-default tenants — proposed HTTP contract needs sign-off before the fixture client is replaced, and WP-054 is already building the real endpoint)
-- `docs/WP-046-Role-Catalogue-Remediation.md` (two items flagged for confirmation)
 - `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` (per-field extraction-confidence persistence scope, and reconciliation against WP-015's fixture once available)
 - `docs/WP-053-Transition-Enforcement-Decisions.md` (two non-blocking discrepancies noted between the work package's wording and what was actually confirmed/implemented)
 
@@ -98,6 +94,13 @@ Resolved architecture decisions — ruling recorded 2026-07-20; follow-up implem
 - `docs/WP-004-Graph-Multitenancy-Decision.md`
 - `docs/WP-004-Health-Check-Severity-Decision.md`
 - `docs/WP-010-Duplicate-Flag-Persistence-Decision.md`
+
+Resolved architecture decisions — ruling recorded 2026-07-25:
+
+- `docs/WP-012-Invoice-Processing-Pipeline-Decisions.md` — item 2's idempotency-key change (content hash, not `messageId`+`fileName`) was already independently implemented by WP-052 Part B; item 3's fuzzy-matching gap is tracked as a non-blocking `docs/Backlog.md` item.
+- `docs/WP-013-Audit-Logging-Decisions.md` — item 3's scope extension (audit Create/Delete/AddNote, not just status changes) was already independently implemented by WP-052 Part C.
+- `docs/WP-014-Dashboard-Shell-Decisions.md` — all items approved as delivered.
+- `docs/WP-046-Role-Catalogue-Remediation.md` — both flagged discrepancies confirmed/resolved; the missing EF Core migration mechanism was already independently resolved by WP-052 Part A.
 
 Other resolved architecture decisions (closed independently of the 2026-07-20 ruling batch, via implementation/verification or a later work package's ruling):
 

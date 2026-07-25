@@ -1,8 +1,41 @@
 # WP-012 — Invoice Processing Pipeline: Decisions Requiring Sign-Off
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — items 1/3/4/7 approved as delivered; item 2 (idempotency
+key) was **not** approved as-is and required a content-hash-based key instead —
+see "## Ruling" below. That change was already implemented independently by
+`docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md` Part B before this ruling
+was recorded. Item 3's fuzzy-matching/alias gap is tracked as a non-blocking
+`docs/Backlog.md` entry.
 **Owner:** Chief Technical Architect.
 **Raised:** WP-012 delivery.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+1. **`SourceDocumentBlobName` as a single field:** Approved. Right-sized for MVP —
+   no dedicated `InvoiceDocument` entity needed until there's a second reason to
+   want one (e.g. multiple documents per invoice).
+2. **Idempotency key (`messageId` + `fileName`):** Not approved as-is. The known
+   limitation isn't cosmetic — a same-filename collision on one email causes the
+   second, genuinely distinct invoice to be silently treated as already-processed
+   and never saved at all. That's silent data loss on a system whose Core
+   Business Objective #3 is end-to-end auditability, not a duplicate-handling
+   nuance (`docs/WP-047-Duplicate-Matching-Reconciliation.md` already owns that).
+   Ruling: compute a SHA-256 hash of the PDF bytes already in memory during
+   extraction and use it as the dedup key instead of the blob name. Keep
+   `SourceDocumentBlobName` as the storage-path/traceability field; add a
+   dedicated content-hash field purely for the idempotency check. **Already
+   implemented** — see `docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md`
+   Part B (`Invoice.SourceDocumentContentHash`).
+3. **Supplier resolution (exact-match, auto-create):** Approved for MVP. The
+   fuzzy-matching/alias gap is a backlog item, not a blocker — no fuzzy-matching
+   scheme should be invented speculatively. Logged in `docs/Backlog.md`.
+4. **No supplier name → fail, no placeholder:** Approved. Correct conservative
+   default, consistent with WP-013/WP-010's own reasoning.
+7. **Retry policy (3 attempts, linear backoff, DB save excluded):** Approved as
+   specified. No change needed.
+
+Items 5, 6, and 8 required no ruling — 5 is already resolved (see its own entry
+below), 6 and 8 are informational notes rather than open decisions.
 
 WP-012's task list ("Create InvoiceProcessingService", "Orchestrate: Email Sync,
 PDF Extraction, Blob Storage, Document Intelligence, Duplicate Detection, Database
