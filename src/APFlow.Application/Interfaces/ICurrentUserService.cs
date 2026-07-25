@@ -21,13 +21,14 @@ public interface ICurrentUserService
     string? Email { get; }
 
     /// <summary>
-    /// The caller's display name (Entra "name" claim), or <c>null</c> if
-    /// unauthenticated or not present. Added for WP-017's <c>InvoiceNote.AuthorDisplayName</c>
-    /// (Chief Technical Architect ruling, 2026-07-25 - resolve server-side from an
-    /// existing token claim, no Graph lookup). Default-implemented as <c>null</c>
-    /// so pre-existing implementers of this interface don't need to change.
+    /// The caller's human-readable display name (e.g. "Priya Shah"), derived from
+    /// the validated token's name claim, or <c>null</c> if unauthenticated or not
+    /// present (WP-055). Distinct from <see cref="UserId"/> (a stable, opaque
+    /// identifier) and <see cref="Email"/> (a username/address) - this is the
+    /// specific "who wrote this" label a human-facing feature (e.g. an invoice
+    /// note's author) should display.
     /// </summary>
-    string? DisplayName => null;
+    string? DisplayName { get; }
 
     /// <summary>
     /// The caller's tenant identifier (Entra "tid" claim), for tenant-isolation checks,

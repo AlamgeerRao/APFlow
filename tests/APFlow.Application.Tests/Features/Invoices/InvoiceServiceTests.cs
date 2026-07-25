@@ -563,41 +563,59 @@ public class InvoiceServiceTests
     }
 
     [Fact]
-    public async Task AddNoteAsync_ResolvesAuthorDisplayNameFromCurrentUser_AndReturnsCreatedNoteDto()
+    public async Task AddNoteAsync_ReturnsCreatedNote_WithAuthorDisplayNameFromCurrentUser()
     {
-        // WP-017 ruling, 2026-07-25: authorName is resolved server-side from
-        // ICurrentUserService, never client-supplied.
-        var (service, invoiceRepo, currentUserService, _, _) = CreateServiceWithApproval();
-        currentUserService.DisplayName = "Priya Shah";
-        var supplier = new Supplier { Name = "Test Supplier" };
-        invoiceRepo.Invoices.Add(new Invoice { SupplierId = supplier.Id, Status = InvoiceStatusCodes.Received });
-        var invoiceId = invoiceRepo.Invoices[0].Id;
+        // WP-055: AuthorDisplayName is captured from ICurrentUserService.DisplayName
+        // at creation time - not left null, not derived from CreatedBy (a stable
+        // id, not a display-friendly name - see InvoiceNote.AuthorDisplayName's
+        // own doc comment).
+        var (service, invoiceRepo, currentUser, _, _) = CreateServiceWithApproval();
+        currentUser.DisplayName = "Priya Shah";
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.AwaitingReview);
 
-        var result = await service.AddNoteAsync(invoiceId, "Looks correct, approved.");
+        var result = await service.AddNoteAsync(invoice.Id, "Looks correct, approved.");
 
         Assert.True(result.IsSuccess);
+        Assert.NotEqual(Guid.Empty, result.Value.Id);
         Assert.Equal("Looks correct, approved.", result.Value.Content);
         Assert.Equal("Priya Shah", result.Value.AuthorDisplayName);
-        Assert.NotEqual(Guid.Empty, result.Value.Id);
     }
 
     [Fact]
-    public async Task GetNotesAsync_ReturnsNotesOldestFirst()
+    public async Task AddNoteAsync_NoDisplayNameClaimOnToken_AuthorDisplayNameIsNull()
     {
-        // WP-017 ruling, 2026-07-25 item 2: chronological (oldest-first) order.
-        var (service, invoiceRepo, supplierRepo) = CreateService();
-        var supplier = new Supplier { Name = "Test Supplier" };
-        supplierRepo.Suppliers.Add(supplier);
-        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
-        await service.AddNoteAsync(created.Value.Id, "First note.");
-        await service.AddNoteAsync(created.Value.Id, "Second note.");
+        // Not every validated token is guaranteed to carry a name claim (see
+        // CurrentUserService.DisplayName's own doc comment) - this must not throw
+        // or substitute some other identifier, just leave it null.
+        var (service, invoiceRepo, currentUser, _, _) = CreateServiceWithApproval(); // DisplayName defaults to null
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.AwaitingReview);
 
-        var result = await service.GetNotesAsync(created.Value.Id);
+        var result = await service.AddNoteAsync(invoice.Id, "A note with no display name available.");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.AuthorDisplayName);
+    }
+
+    [Fact]
+    public async Task GetNotesAsync_ReturnsPreviouslyAddedNotes()
+    {
+        // Ordering (most recent first) relies on CreatedAtUtc, which only a real
+        // AppDbContext's SaveChanges stamps (see AuditEntity's own doc comment) -
+        // FakeInvoiceRepository does not, so this test proves presence/shape only.
+        // The real EF Core ordering is proven against a real AppDbContext in
+        // InvoiceNoteRepositoryTests (APFlow.Infrastructure.Tests).
+        var (service, invoiceRepo, currentUser, _, _) = CreateServiceWithApproval();
+        currentUser.DisplayName = "Priya Shah";
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.AwaitingReview);
+        await service.AddNoteAsync(invoice.Id, "First note.");
+        await service.AddNoteAsync(invoice.Id, "Second note.");
+
+        var result = await service.GetNotesAsync(invoice.Id);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count);
-        Assert.Equal("First note.", result.Value[0].Content);
-        Assert.Equal("Second note.", result.Value[1].Content);
+        Assert.Contains(result.Value, n => n.Content == "First note." && n.AuthorDisplayName == "Priya Shah");
+        Assert.Contains(result.Value, n => n.Content == "Second note." && n.AuthorDisplayName == "Priya Shah");
     }
 
     [Fact]

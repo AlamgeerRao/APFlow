@@ -1,0 +1,180 @@
+# WP-055 — Invoice Notes API: Report
+
+**Status:** Complete. One reference-document gap is flagged below (not a business
+requirement gap - the objective itself is fully specified by this work package's
+own task list), and the always-flagged EF migration verification caveat applies
+again (see "Migration" below), same as every schema-changing WP since WP-052.
+
+## What this closes
+
+Exposes the already-implemented `IInvoiceService.AddNoteAsync`/
+`IInvoiceRepository.GetByIdWithNotesAsync` (WP-009) over HTTP, per the objective's
+stated Architect ruling on WP-017 Item 1.
+
+**Reference-document gap, flagged not silently resolved:** no `WP-017` decision
+document exists anywhere in `docs/` (`WP-017` is the frontend "Notes & Comments
+Component" work package - `README.md` lists it as Senior React Engineer /
+"Not started"). The objective's cited "Architect ruling on WP-017 Item 1" could
+not be independently verified against a tracked document. This did not block
+implementation - the task list itself fully specifies the endpoints, shapes,
+validation, and schema change - but the ruling's existence/content should be
+confirmed and, ideally, recorded as a tracked decision doc the way WP-051's ruling
+was, so a future agent isn't in the same position.
+
+## Endpoints
+
+### `GET /api/invoices/{id}/notes`
+
+Thin wrapper over a new `IInvoiceService.GetNotesAsync`, itself a thin wrapper
+over the existing `IInvoiceRepository.GetByIdWithNotesAsync` (WP-009) - no new
+data access. Returns `Invoice.NotFound` (404) if the invoice isn't visible to the
+caller's tenant (the existing repository's own tenant-scoped query already
+enforces this - nothing new added here).
+
+### `POST /api/invoices/{id}/notes`
+
+Thin wrapper over the existing `IInvoiceService.AddNoteAsync` (WP-009). Content
+validation (empty / over `FieldLimits.InvoiceNoteContent` = 4000 chars) is
+entirely `AddNoteAsync`'s own existing logic, reused as-is per task 2's explicit
+instruction - nothing is duplicated in the controller. Returns `201 Created` via
+`CreatedAtAction(nameof(GetNotes), ...)`, with the created note and a `Location`
+header pointing at the notes list, the standard convention for a POST that
+creates a resource.
+
+Both endpoints return/accept the same `InvoiceNoteDto { id, content,
+authorDisplayName, createdAtUtc }` shape task 1's example JSON specifies -
+returned directly from the Application layer, no extra API-layer wrapper record,
+same "reuse the existing DTO's field names" reasoning as `InvoiceDetailResponse`
+(WP-052 Part D).
+
+## `AuthorDisplayName` (task 3)
+
+Added as a new nullable `string` column on `InvoiceNote` (200 chars, matching
+this codebase's existing display-name-column convention - see
+`StatusReferenceConfiguration`/`WorkflowTemplateConfiguration`'s own `.Name`
+columns). Populated **once, at creation**, inside `InvoiceService.AddNoteAsync` -
+not recomputed on every read - so a note continues to show who wrote it even if
+that person's Entra profile display name later changes.
+
+**Source:** a new `ICurrentUserService.DisplayName` property, implemented in
+`CurrentUserService` reading the standard Entra ID v2.0 `"name"` claim (falling
+back to `ClaimTypes.Name` for older-style tokens) - the same
+flag-for-confirmation-once-a-real-App-Registration-exists caveat this class
+already carries for `UserId`/`Email`/`TenantId`/`Roles` applies here too; nothing
+new is being assumed beyond what those properties already assume about this
+project's token shape.
+
+Deliberately **not** derived from `AuditEntity.CreatedBy` (already present on
+every audited entity, `InvoiceNote` included): `CreatedBy` is a stable identifier
+(object id or "system"), not a display-friendly name, and exists for a different
+purpose (audit trail identity, not human-facing UI). Nullable throughout, because
+a caller's token may not carry a name claim at all - this is treated as a normal,
+handled case (persists and round-trips as `null`), not an error.
+
+## Files created
+
+- `src/APFlow.Application/DTOs/InvoiceNoteDto.cs`
+- `src/APFlow.Api/Contracts/CreateInvoiceNoteRequest.cs`
+- `src/APFlow.Infrastructure/Persistence/Migrations/20260725090924_AddInvoiceNoteAuthorDisplayName.cs`
+- `src/APFlow.Infrastructure/Persistence/Migrations/20260725090924_AddInvoiceNoteAuthorDisplayName.Designer.cs`
+- `src/APFlow.Infrastructure/Persistence/Migrations/20260725090924_AddInvoiceNoteAuthorDisplayName.sql`
+  (convenience rendering of just this migration, via `dotnet ef migrations script`)
+- `tests/APFlow.Infrastructure.Tests/Persistence/InvoiceNoteRepositoryTests.cs`
+- `docs/WP-055-Invoice-Notes-Api-Decisions.md` (this file)
+
+## Files modified
+
+- `src/APFlow.Domain/Entities/InvoiceNote.cs` - new `AuthorDisplayName` property
+- `src/APFlow.Infrastructure/Persistence/Configurations/InvoiceNoteConfiguration.cs` -
+  configures the new column (nullable, `HasMaxLength(200)`)
+- `src/APFlow.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs` -
+  regenerated by `dotnet ef migrations add`
+- `src/APFlow.Application/Interfaces/ICurrentUserService.cs` - new `DisplayName` member
+- `src/APFlow.Infrastructure/Security/CurrentUserService.cs` - implements `DisplayName`
+- `src/APFlow.Application/Interfaces/IInvoiceService.cs` - new `GetNotesAsync`;
+  `AddNoteAsync`'s return type changed from `Task<Result>` to
+  `Task<Result<InvoiceNoteDto>>` (task 4)
+- `src/APFlow.Application/Features/Invoices/InvoiceService.cs` - implements
+  `GetNotesAsync`; `AddNoteAsync` now sets `AuthorDisplayName` at creation and
+  returns the created note (`CreatedAtUtc` is read only *after*
+  `SaveChangesAsync`, since `AuditEntity`'s stamping only happens then - reading
+  it before would return the unset default)
+- `src/APFlow.Api/Controllers/InvoicesController.cs` - two new endpoints; class
+  doc comment updated to mention WP-055
+- `tests/APFlow.Application.Tests/Features/Invoices/InvoiceServiceTests.cs` -
+  four new tests (author-name capture, null-claim handling, `GetNotesAsync`
+  presence/shape, `GetNotesAsync` not-found)
+- `tests/APFlow.Application.Tests/Features/FakeCurrentUserService.cs` and
+  `tests/APFlow.Infrastructure.Tests/Storage/FakeCurrentUserService.cs` - added
+  `DisplayName`
+- **Eight** locally-defined `FakeCurrentUserService` classes inside individual
+  `APFlow.Infrastructure.Tests/Persistence/*.cs` files (not a shared fake - each
+  test file has its own) - each given a `DisplayName => null` member so the
+  solution keeps compiling against the extended interface:
+  `InvoiceRepositoryPersistDuplicateCheckResultTests.cs`,
+  `AuditLogRepositoryTests.cs`, `WorkflowTemplateRepositoryTests.cs`,
+  `AppDbContextTenantIsolationTests.cs`,
+  `InvoiceProcessingDuplicateDetectionIntegrationTests.cs`,
+  `AppDbContextTests.cs`, `ApprovalPolicyRepositoryTests.cs`,
+  `InvoiceRepositoryQueryTests.cs`
+- `tests/APFlow.Api.Tests/Controllers/InvoicesControllerTests.cs` -
+  `FakeInvoiceService` extended with `GetNotesAsync`/updated `AddNoteAsync`
+  behaviour; five new controller tests
+- `README.md` - added WP-055 row
+
+## Migration
+
+Generated (not hand-written), per `05_Development_Workflow_Addendum.md`'s
+convention:
+
+```
+dotnet ef migrations add AddInvoiceNoteAuthorDisplayName --project src/APFlow.Infrastructure --startup-project src/APFlow.Infrastructure --output-dir Persistence/Migrations
+```
+
+Single, minimal, additive change - `ALTER TABLE [InvoiceNotes] ADD
+[AuthorDisplayName] nvarchar(200) NULL;` - no data-loss warning from
+`dotnet ef migrations add`, no other tables touched. `.sql` rendering included
+alongside (via `dotnet ef migrations script`) for review without the EF tooling.
+
+**Could not run `dotnet ef database update` against a real, running SQL Server**
+in this sandbox - no Docker, no LocalDB - the same limitation every migration
+since WP-050 has hit and flagged rather than silently skipped. Verified instead
+by: (a) the generated `.cs`/`.sql` output above (real EF Core tooling output, not
+hand-written), and (b) a new Infrastructure-level test
+(`InvoiceNoteRepositoryTests`) against a real `AppDbContext` (InMemory provider)
+proving the column round-trips correctly and that `CreatedAtUtc`-based ordering
+works - this exercises the real `AppDbContext`/`AuditEntity` stamping pipeline,
+just not the real SQL Server column type/constraint enforcement a live
+`database update` would additionally confirm.
+
+## Tests
+
+- `InvoiceServiceTests` (Application): author display name captured from
+  `ICurrentUserService.DisplayName` at creation; null-claim case persists as
+  null, not substituted; `GetNotesAsync` returns previously-added notes with
+  correct shape; `GetNotesAsync` on a missing invoice returns `Invoice.NotFound`.
+  (Ordering-by-recency is *not* asserted at this layer - `FakeInvoiceRepository`
+  doesn't stamp `CreatedAtUtc` the way a real `AppDbContext` does, so an
+  assertion here would be meaningless; see the Infrastructure-level test below
+  for where ordering is actually proven.)
+- `InvoiceNoteRepositoryTests` (Infrastructure, new): `AuthorDisplayName`
+  persists and round-trips through a real `AppDbContext`; two notes saved via
+  separate `SaveChangesAsync` calls get genuinely increasing `CreatedAtUtc`
+  values (the real stamping pipeline, not test-set), proving most-recent-first
+  ordering is meaningful; a `null` `AuthorDisplayName` persists as `null`, not an
+  empty string or substituted value.
+- `InvoicesControllerTests` (Api): `GetNotes` returns the service's notes /
+  propagates `Invoice.NotFound` as 404; `CreateNote` returns `201` with a
+  `Location` header pointing at `GetNotes` and the created note on success;
+  propagates `Invoice.InvalidNoteContent` as 400 and `Invoice.NotFound` as 404
+  (reusing the existing `ErrorProblem` mapping - no new mapping logic was needed,
+  since both codes already fell into its existing 400-default/404-`NotFound`
+  cases).
+
+## Build & Test
+
+- `dotnet build -c Release --no-incremental` - 0 errors, 0 warnings, whole solution.
+- `dotnet test` across all 5 test projects - **312/312 pass**:
+  `APFlow.Domain.Tests` 11, `APFlow.Application.Tests` 142 (+4 new),
+  `APFlow.Api.Tests` 40 (+5 new), `APFlow.Infrastructure.Tests` 74 (+2 new),
+  `APFlow.Integrations.Tests` 45.

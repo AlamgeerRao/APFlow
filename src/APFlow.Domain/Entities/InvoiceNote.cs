@@ -22,13 +22,17 @@ public sealed class InvoiceNote : TenantEntity
     public string Content { get; set; } = string.Empty;
 
     /// <summary>
-    /// The authoring user's display name at the time the note was written,
-    /// resolved server-side (via Application's <c>ICurrentUserService.DisplayName</c>)
-    /// rather than left as the raw <see cref="AuditEntity.CreatedBy"/> identifier -
-    /// Chief Technical Architect ruling, 2026-07-25, on
-    /// docs/WP-017-Invoice-Notes-Decisions.md item 1. Null for notes written
-    /// before this field existed, or if the acting identity had no resolvable
-    /// name claim at write time.
+    /// The human-readable name of the note's author, e.g. "Priya Shah" (WP-055).
+    /// Populated once, at creation, from <c>ICurrentUserService</c>'s name claim on
+    /// the validated Entra token - never recomputed later, so it reflects the
+    /// author's display name AT THE TIME the note was written even if their Entra
+    /// profile name later changes. Deliberately separate from
+    /// <see cref="AuditEntity.CreatedBy"/> (which carries the author's stable
+    /// object id, not a display-friendly name, and exists on every audited entity
+    /// for a different purpose - see that property's own doc comment). Nullable:
+    /// a caller's token may not carry a name claim (see
+    /// <c>CurrentUserService.DisplayName</c>'s own doc comment for the exact claim
+    /// and fallback used).
     /// </summary>
     public string? AuthorDisplayName { get; set; }
 }

@@ -279,6 +279,19 @@ public sealed class InvoiceService : IInvoiceService
     }
 
     /// <inheritdoc />
+    public async Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    {
+        var invoice = await _invoiceRepository.GetByIdWithNotesAsync(invoiceId, cancellationToken);
+        if (invoice is null)
+        {
+            return Result.Failure<IReadOnlyList<InvoiceNoteDto>>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
+        }
+
+        return Result.Success<IReadOnlyList<InvoiceNoteDto>>(
+            invoice.Notes.OrderByDescending(n => n.CreatedAtUtc).Select(ToNoteDto).ToList());
+    }
+
+    /// <inheritdoc />
     public async Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -299,21 +312,14 @@ public sealed class InvoiceService : IInvoiceService
             return Result.Failure<InvoiceNoteDto>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
         }
 
-        // Resolved server-side from the validated token, not client-supplied -
-        // WP-017 ruling, 2026-07-25. Truncated defensively (rather than left to
-        // throw a DbUpdateException) since this claim's length isn't validated
-        // the way user-supplied Content already is above.
-        var authorDisplayName = _currentUserService.DisplayName;
-        if (authorDisplayName is { Length: > FieldLimits.InvoiceNoteAuthorDisplayName })
-        {
-            authorDisplayName = authorDisplayName[..FieldLimits.InvoiceNoteAuthorDisplayName];
-        }
-
+        // WP-055: AuthorDisplayName is captured once, here, at creation - not
+        // recomputed on every read - so it reflects who wrote the note at the
+        // time they wrote it. See InvoiceNote.AuthorDisplayName's own doc comment.
         var note = new InvoiceNote
         {
             InvoiceId = invoiceId,
             Content = content,
-            AuthorDisplayName = authorDisplayName,
+            AuthorDisplayName = _currentUserService.DisplayName,
         };
         invoice.Notes.Add(note);
 
@@ -344,24 +350,11 @@ public sealed class InvoiceService : IInvoiceService
 
         _logger.LogInformation("Added note to invoice {InvoiceId}.", invoiceId);
 
-        return Result.Success(new InvoiceNoteDto(note.Id, note.Content, note.AuthorDisplayName, note.CreatedAtUtc));
-    }
-
-    /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default)
-    {
-        var invoice = await _invoiceRepository.GetByIdWithNotesAsync(invoiceId, cancellationToken);
-        if (invoice is null)
-        {
-            return Result.Failure<IReadOnlyList<InvoiceNoteDto>>(new Error("Invoice.NotFound", $"Invoice '{invoiceId}' was not found."));
-        }
-
-        IReadOnlyList<InvoiceNoteDto> notes = invoice.Notes
-            .OrderBy(n => n.CreatedAtUtc)
-            .Select(n => new InvoiceNoteDto(n.Id, n.Content, n.AuthorDisplayName, n.CreatedAtUtc))
-            .ToList();
-
-        return Result.Success(notes);
+        // CreatedAtUtc is only populated once SaveChangesAsync has actually run
+        // (AuditEntity's own doc comment) - read it AFTER the save above, not
+        // before, so the returned DTO carries the real, server-stamped timestamp
+        // rather than its unset default.
+        return Result.Success(ToNoteDto(note));
     }
 
     /// <summary>
@@ -404,4 +397,10 @@ public sealed class InvoiceService : IInvoiceService
         IsPotentialDuplicate: invoice.IsPotentialDuplicate,
         DuplicateCheckReason: invoice.DuplicateCheckReason,
         CreatedAtUtc: invoice.CreatedAtUtc);
+
+    private static InvoiceNoteDto ToNoteDto(InvoiceNote note) => new(
+        Id: note.Id,
+        Content: note.Content,
+        AuthorDisplayName: note.AuthorDisplayName,
+        CreatedAtUtc: note.CreatedAtUtc);
 }

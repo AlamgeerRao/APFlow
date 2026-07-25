@@ -18,8 +18,12 @@ public sealed class InvoiceNoteConfiguration : IEntityTypeConfiguration<InvoiceN
             .IsRequired()
             .HasMaxLength(4000);
 
+        // Nullable (a token may lack a name claim - see InvoiceNote.AuthorDisplayName's
+        // own doc comment); 200 matches this codebase's existing convention for a
+        // display-style name column (see StatusReferenceConfiguration/
+        // WorkflowTemplateConfiguration's own .Name columns).
         builder.Property(n => n.AuthorDisplayName)
-            .HasMaxLength(256);
+            .HasMaxLength(200);
 
         builder.HasIndex(n => new { n.TenantId, n.InvoiceId });
     }

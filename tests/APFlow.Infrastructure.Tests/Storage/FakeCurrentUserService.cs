@@ -14,6 +14,8 @@ internal sealed class FakeCurrentUserService : ICurrentUserService
 
     public string? Email { get; set; } = "fake-user@example.com";
 
+    public string? DisplayName { get; set; }
+
     public string? TenantId { get; set; } = "11111111-1111-1111-1111-111111111111";
 
     public IReadOnlyCollection<string> Roles { get; set; } = [];

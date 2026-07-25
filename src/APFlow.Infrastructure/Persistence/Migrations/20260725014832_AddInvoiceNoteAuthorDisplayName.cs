@@ -13,8 +13,8 @@ namespace APFlow.Infrastructure.Persistence.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "AuthorDisplayName",
                 table: "InvoiceNotes",
-                type: "nvarchar(256)",
-                maxLength: 256,
+                type: "nvarchar(200)",
+                maxLength: 200,
                 nullable: true);
         }
 

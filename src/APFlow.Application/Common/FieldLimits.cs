@@ -22,9 +22,6 @@ internal static class FieldLimits
     /// <summary>Matches InvoiceNoteConfiguration's Content column.</summary>
     public const int InvoiceNoteContent = 4000;
 
-    /// <summary>Matches InvoiceNoteConfiguration's AuthorDisplayName column.</summary>
-    public const int InvoiceNoteAuthorDisplayName = 256;
-
     /// <summary>Matches AuditLogConfiguration's Action column.</summary>
     public const int AuditLogAction = 100;
 

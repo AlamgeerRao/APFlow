@@ -9,9 +9,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace APFlow.Api.Controllers;
 
 /// <summary>
-/// Invoice read/document/status-transition endpoints (WP-052 Part D; status
-/// transitions added WP-054). The solution-wide fallback authorization policy
-/// (see <c>AuthorizationExtensions.AddApiAuthorization</c>) already requires an
+/// Invoice read/document/status-transition/notes endpoints (WP-052 Part D;
+/// status transitions added WP-054; notes added WP-055). The solution-wide
+/// fallback authorization policy (see
+/// <c>AuthorizationExtensions.AddApiAuthorization</c>) already requires an
 /// authenticated caller for every action here - no <c>[AllowAnonymous]</c>
 /// anywhere in this controller. Tenant isolation and transition/role enforcement
 /// are entirely owned by the underlying services this controller composes
@@ -21,18 +22,17 @@ namespace APFlow.Api.Controllers;
 /// <see cref="IInvoiceWorkflowActionsService"/>'s equivalent read-side
 /// filtering, <see cref="IBlobStorageService"/>'s tenant-prefixed blob names) -
 /// this controller adds no business logic of its own, matching
-/// "APFlow.Api ... contains no business logic" (Solution Structure §1/§5). Both
-/// WP-054 endpoints are thin HTTP wrappers: they call the existing
-/// <see cref="IInvoiceWorkflowActionsService"/>/<see cref="IInvoiceService.UpdateAsync"/>
-/// path directly and translate the <see cref="Result"/> outcome into an HTTP
-/// response - no new transition or role-gating rules are introduced here.
+/// "APFlow.Api ... contains no business logic" (Solution Structure §1/§5). The
+/// WP-054 and WP-055 endpoints are all thin HTTP wrappers: they call an
+/// existing Application-layer service directly and translate the
+/// <see cref="Result"/> outcome into an HTTP response - no new business rule is
+/// introduced in this controller.
 /// </summary>
 [ApiController]
 [Route("api/invoices")]
 public sealed class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;
-    private readonly IInvoiceQueryService _invoiceQueryService;
     private readonly IInvoiceWorkflowActionsService _invoiceWorkflowActionsService;
     private readonly IAuditQueryService _auditQueryService;
     private readonly IAuditService _auditService;
@@ -42,7 +42,6 @@ public sealed class InvoicesController : ControllerBase
     /// <summary>Creates a new <see cref="InvoicesController"/>.</summary>
     public InvoicesController(
         IInvoiceService invoiceService,
-        IInvoiceQueryService invoiceQueryService,
         IInvoiceWorkflowActionsService invoiceWorkflowActionsService,
         IAuditQueryService auditQueryService,
         IAuditService auditService,
@@ -50,52 +49,11 @@ public sealed class InvoicesController : ControllerBase
         ILogger<InvoicesController> logger)
     {
         _invoiceService = invoiceService;
-        _invoiceQueryService = invoiceQueryService;
         _invoiceWorkflowActionsService = invoiceWorkflowActionsService;
         _auditQueryService = auditQueryService;
         _auditService = auditService;
         _blobStorageService = blobStorageService;
         _logger = logger;
-    }
-
-    /// <summary>
-    /// Returns a filtered, sorted, paged list of invoices visible to the
-    /// current tenant (WP-015's work queue) via <see cref="IInvoiceQueryService"/>
-    /// (WP-011). <paramref name="search"/> matches either supplier name or
-    /// invoice number - ruled scope, see
-    /// docs/WP-015-Invoice-Queue-Decisions.md item 3. Field names on each
-    /// returned <see cref="InvoiceListItemDto"/> are the backend's own
-    /// (<c>SupplierInvoiceNumber</c>/<c>GrossTotal</c>/<c>Currency</c>), not
-    /// WP-015's originally-proposed fixture names - ruled in the backend's
-    /// favour by docs/WP-052-Pipeline-And-Api-Hardening-Decisions.md Part D.
-    /// </summary>
-    [HttpGet]
-    [ProducesResponseType(typeof(PagedResult<InvoiceListItemDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetInvoices(
-        [FromQuery] string? search,
-        [FromQuery] string? status,
-        [FromQuery] InvoiceSortField sortBy = InvoiceSortField.CreatedAtUtc,
-        [FromQuery] string? sortDirection = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = InvoiceQueryParameters.DefaultPageSize,
-        CancellationToken cancellationToken = default)
-    {
-        var parameters = new InvoiceQueryParameters(
-            Status: status,
-            Search: search,
-            Page: page,
-            PageSize: pageSize,
-            SortBy: sortBy,
-            SortDescending: !string.Equals(sortDirection, "asc", StringComparison.OrdinalIgnoreCase));
-
-        var result = await _invoiceQueryService.SearchAsync(parameters, cancellationToken);
-        if (result.IsFailure)
-        {
-            return ErrorProblem(result.Error);
-        }
-
-        return Ok(result.Value);
     }
 
     /// <summary>
@@ -208,50 +166,6 @@ public sealed class InvoicesController : ControllerBase
     }
 
     /// <summary>
-    /// Returns every note recorded against this invoice, oldest first (WP-017
-    /// ruling, 2026-07-25 - see docs/WP-017-Invoice-Notes-Decisions.md items 1-2).
-    /// A separate resource rather than folded into <see cref="InvoiceDetailResponse"/>,
-    /// since notes have their own independent write-then-refresh lifecycle.
-    /// </summary>
-    [HttpGet("{id:guid}/notes")]
-    [ProducesResponseType(typeof(IReadOnlyList<InvoiceNoteDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetNotes(Guid id, CancellationToken cancellationToken)
-    {
-        var notesResult = await _invoiceService.GetNotesAsync(id, cancellationToken);
-        if (notesResult.IsFailure)
-        {
-            return NotFoundProblem(notesResult.Error.Code, notesResult.Error.Message);
-        }
-
-        return Ok(notesResult.Value);
-    }
-
-    /// <summary>
-    /// Adds a freeform note to this invoice (WP-017 ruling, 2026-07-25). Author
-    /// identity is never taken from the request body - <see cref="IInvoiceService.AddNoteAsync"/>
-    /// resolves it server-side from the caller's own validated token. Returns the
-    /// created note (id, content, resolved author, timestamp) so the caller can
-    /// render it immediately without a second <see cref="GetNotes"/> round-trip,
-    /// even though WP-017's own frontend ruling still re-fetches the full list
-    /// after a save (see docs/WP-017-Invoice-Notes-Decisions.md item 3).
-    /// </summary>
-    [HttpPost("{id:guid}/notes")]
-    [ProducesResponseType(typeof(InvoiceNoteDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AddNote(Guid id, CreateInvoiceNoteRequest request, CancellationToken cancellationToken)
-    {
-        var noteResult = await _invoiceService.AddNoteAsync(id, request.Content, cancellationToken);
-        if (noteResult.IsFailure)
-        {
-            return ErrorProblem(noteResult.Error);
-        }
-
-        return CreatedAtAction(nameof(GetNotes), new { id }, noteResult.Value);
-    }
-
-    /// <summary>
     /// Streams the invoice's source PDF document, proxied through this API - never
     /// a raw SAS URL handed back to the caller (WP-052 Part D's explicit
     /// instruction). Stages a <see cref="AuditActions.DocumentViewed"/> audit
@@ -312,6 +226,52 @@ public sealed class InvoicesController : ControllerBase
         // is PDF-specific), so this is a safe, documented assumption rather than a
         // guess with unclear grounds.
         return File(downloadResult.Value, "application/pdf");
+    }
+
+    /// <summary>
+    /// Returns every note recorded against an invoice, most recent first
+    /// (WP-055) - a thin wrapper over the existing
+    /// <see cref="IInvoiceService.GetNotesAsync"/>, itself over WP-009's
+    /// <c>IInvoiceRepository.GetByIdWithNotesAsync</c>.
+    /// </summary>
+    [HttpGet("{id:guid}/notes")]
+    [ProducesResponseType(typeof(IReadOnlyList<InvoiceNoteDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetNotes(Guid id, CancellationToken cancellationToken)
+    {
+        var notesResult = await _invoiceService.GetNotesAsync(id, cancellationToken);
+        if (notesResult.IsFailure)
+        {
+            return ErrorProblem(notesResult.Error);
+        }
+
+        return Ok(notesResult.Value);
+    }
+
+    /// <summary>
+    /// Adds a freeform note to an invoice (WP-055) - a thin wrapper over the
+    /// existing <see cref="IInvoiceService.AddNoteAsync"/> (WP-009), which
+    /// already performs the content validation (empty/over-length -&gt;
+    /// <c>Invoice.InvalidNoteContent</c>, mapped to 400 by
+    /// <see cref="ErrorProblem"/>'s default case) this endpoint relies on - no
+    /// validation is duplicated here. Returns <c>201 Created</c> with the
+    /// created note (including its server-assigned id and timestamp) and a
+    /// <c>Location</c> header pointing at <see cref="GetNotes"/>, per the usual
+    /// convention for a POST that creates a resource.
+    /// </summary>
+    [HttpPost("{id:guid}/notes")]
+    [ProducesResponseType(typeof(InvoiceNoteDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateNote(Guid id, CreateInvoiceNoteRequest request, CancellationToken cancellationToken)
+    {
+        var noteResult = await _invoiceService.AddNoteAsync(id, request.Content, cancellationToken);
+        if (noteResult.IsFailure)
+        {
+            return ErrorProblem(noteResult.Error);
+        }
+
+        return CreatedAtAction(nameof(GetNotes), new { id }, noteResult.Value);
     }
 
     /// <summary>

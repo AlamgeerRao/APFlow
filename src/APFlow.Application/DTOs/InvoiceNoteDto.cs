@@ -1,11 +1,10 @@
 namespace APFlow.Application.DTOs;
 
 /// <summary>
-/// Read shape for a single freeform note recorded against an invoice (WP-009's
-/// <c>InvoiceNote</c>). <see cref="AuthorDisplayName"/> is resolved server-side
-/// at write time (WP-017 ruling, 2026-07-25) rather than exposing the raw
-/// <c>CreatedBy</c> identifier - see <c>InvoiceNote.AuthorDisplayName</c>'s own
-/// doc comment.
+/// Read shape for a single invoice note (WP-055). Used both for the list returned
+/// by <c>GET /api/invoices/{id}/notes</c> and for the single created note returned
+/// by <c>POST /api/invoices/{id}/notes</c>, so both endpoints share one shape
+/// rather than two subtly different ones.
 /// </summary>
 public sealed record InvoiceNoteDto(
     Guid Id,

@@ -67,119 +67,6 @@ public class InvoicesControllerTests
     }
 
     [Fact]
-    public async Task GetInvoices_ReturnsPagedResultFromQueryService()
-    {
-        var queryService = new FakeInvoiceQueryService
-        {
-            ResultToReturn = new PagedResult<InvoiceListItemDto>([NewInvoiceListItemDto()], 1, 1, 25),
-        };
-        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
-
-        var actionResult = await controller.GetInvoices(search: "acme", status: null, page: 1, pageSize: 25, cancellationToken: CancellationToken.None);
-
-        var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var response = Assert.IsType<PagedResult<InvoiceListItemDto>>(okResult.Value);
-        Assert.Equal(1, response.TotalCount);
-        Assert.Equal("acme", queryService.LastParameters?.Search);
-    }
-
-    [Fact]
-    public async Task GetInvoices_SortDirectionAsc_MapsToSortDescendingFalse()
-    {
-        var queryService = new FakeInvoiceQueryService();
-        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
-
-        await controller.GetInvoices(search: null, status: null, sortDirection: "asc", cancellationToken: CancellationToken.None);
-
-        Assert.False(queryService.LastParameters?.SortDescending);
-    }
-
-    [Fact]
-    public async Task GetInvoices_InvalidQuery_ReturnsBadRequestWithCode()
-    {
-        var queryService = new FakeInvoiceQueryService { FailureToReturn = new Error("InvoiceQuery.InvalidPageSize", "bad") };
-        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
-
-        var actionResult = await controller.GetInvoices(search: null, status: null, cancellationToken: CancellationToken.None);
-
-        var problemResult = Assert.IsType<ObjectResult>(actionResult);
-        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
-        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
-        Assert.Equal("InvoiceQuery.InvalidPageSize", problem.Extensions["code"]);
-    }
-
-    [Fact]
-    public async Task GetNotes_ExistingInvoice_ReturnsOkWithNotes()
-    {
-        var invoiceService = new FakeInvoiceService
-        {
-            NotesToReturn = [new InvoiceNoteDto(Guid.NewGuid(), "First note.", "Priya Shah", DateTimeOffset.UtcNow)],
-        };
-        var controller = CreateController(invoiceService, new FakeAuditQueryService());
-
-        var actionResult = await controller.GetNotes(InvoiceId, CancellationToken.None);
-
-        var okResult = Assert.IsType<OkObjectResult>(actionResult);
-        var notes = Assert.IsAssignableFrom<IReadOnlyList<InvoiceNoteDto>>(okResult.Value);
-        Assert.Single(notes);
-        Assert.Equal("Priya Shah", notes[0].AuthorDisplayName);
-    }
-
-    [Fact]
-    public async Task GetNotes_UnknownInvoice_ReturnsNotFound()
-    {
-        var invoiceService = new FakeInvoiceService { GetNotesFailureToReturn = new Error("Invoice.NotFound", "not found") };
-        var controller = CreateController(invoiceService, new FakeAuditQueryService());
-
-        var actionResult = await controller.GetNotes(InvoiceId, CancellationToken.None);
-
-        var problemResult = Assert.IsType<ObjectResult>(actionResult);
-        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
-    }
-
-    [Fact]
-    public async Task AddNote_ValidContent_ReturnsCreatedWithNoteDto()
-    {
-        var expectedNote = new InvoiceNoteDto(Guid.NewGuid(), "Approved after review.", "Priya Shah", DateTimeOffset.UtcNow);
-        var invoiceService = new FakeInvoiceService { AddNoteResultToReturn = expectedNote };
-        var controller = CreateController(invoiceService, new FakeAuditQueryService());
-
-        var actionResult = await controller.AddNote(InvoiceId, new CreateInvoiceNoteRequest("Approved after review."), CancellationToken.None);
-
-        var createdResult = Assert.IsType<CreatedAtActionResult>(actionResult);
-        var note = Assert.IsType<InvoiceNoteDto>(createdResult.Value);
-        Assert.Equal(expectedNote.Id, note.Id);
-        Assert.Equal(nameof(InvoicesController.GetNotes), createdResult.ActionName);
-        Assert.Equal((InvoiceId, "Approved after review."), invoiceService.LastNoteAdded);
-    }
-
-    [Fact]
-    public async Task AddNote_EmptyContent_ReturnsBadRequestWithCode()
-    {
-        var invoiceService = new FakeInvoiceService { AddNoteFailureToReturn = new Error("Invoice.InvalidNoteContent", "empty") };
-        var controller = CreateController(invoiceService, new FakeAuditQueryService());
-
-        var actionResult = await controller.AddNote(InvoiceId, new CreateInvoiceNoteRequest(""), CancellationToken.None);
-
-        var problemResult = Assert.IsType<ObjectResult>(actionResult);
-        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
-        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
-        Assert.Equal("Invoice.InvalidNoteContent", problem.Extensions["code"]);
-    }
-
-    [Fact]
-    public async Task AddNote_UnknownInvoice_ReturnsNotFoundWithCode()
-    {
-        var invoiceService = new FakeInvoiceService { AddNoteFailureToReturn = new Error("Invoice.NotFound", "not found") };
-        var controller = CreateController(invoiceService, new FakeAuditQueryService());
-
-        var actionResult = await controller.AddNote(InvoiceId, new CreateInvoiceNoteRequest("test"), CancellationToken.None);
-
-        var problemResult = Assert.IsType<ObjectResult>(actionResult);
-        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
-    }
-
-    [Fact]
     public async Task Download_ExistingInvoiceWithDocument_StreamsFileAndStagesDocumentViewedAuditEntry()
     {
         var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto(blobName: "invoices/msg-1/invoice.pdf") };
@@ -257,6 +144,88 @@ public class InvoicesControllerTests
         // The document is still returned even though the audit entry failed - a
         // missing audit entry does not block an already-authorized document view.
         Assert.IsType<FileStreamResult>(actionResult);
+    }
+
+    [Fact]
+    public async Task GetNotes_ReturnsNotesFromInvoiceService()
+    {
+        var invoiceService = new FakeInvoiceService
+        {
+            NotesToReturn = [new InvoiceNoteDto(Guid.NewGuid(), "A note.", "Priya Shah", DateTimeOffset.UtcNow)],
+        };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.GetNotes(InvoiceId, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsAssignableFrom<IReadOnlyList<InvoiceNoteDto>>(okResult.Value);
+        var note = Assert.Single(response);
+        Assert.Equal("A note.", note.Content);
+        Assert.Equal("Priya Shah", note.AuthorDisplayName);
+    }
+
+    [Fact]
+    public async Task GetNotes_UnknownInvoice_ReturnsNotFoundWithCode()
+    {
+        var invoiceService = new FakeInvoiceService { GetNotesFailureToReturn = new Error("Invoice.NotFound", "not found") };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.GetNotes(InvoiceId, CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.NotFound", problem.Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task CreateNote_ValidContent_ReturnsCreatedWithNoteAndLocationHeader()
+    {
+        var createdNote = new InvoiceNoteDto(Guid.NewGuid(), "Looks correct.", "Priya Shah", DateTimeOffset.UtcNow);
+        var invoiceService = new FakeInvoiceService { AddNoteResultToReturn = createdNote };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.CreateNote(InvoiceId, new CreateInvoiceNoteRequest("Looks correct."), CancellationToken.None);
+
+        var createdResult = Assert.IsType<CreatedAtActionResult>(actionResult);
+        Assert.Equal(nameof(InvoicesController.GetNotes), createdResult.ActionName);
+        var response = Assert.IsType<InvoiceNoteDto>(createdResult.Value);
+        Assert.Equal("Looks correct.", response.Content);
+        Assert.Equal("Priya Shah", response.AuthorDisplayName);
+        Assert.Equal((InvoiceId, "Looks correct."), invoiceService.LastNoteAdded);
+    }
+
+    [Fact]
+    public async Task CreateNote_EmptyContent_ReturnsBadRequestWithCode()
+    {
+        // Reuses IInvoiceService.AddNoteAsync's existing validation - not
+        // duplicated in the controller.
+        var invoiceService = new FakeInvoiceService
+        {
+            AddNoteFailureToReturn = new Error("Invoice.InvalidNoteContent", "Note content must not be empty."),
+        };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.CreateNote(InvoiceId, new CreateInvoiceNoteRequest(""), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.InvalidNoteContent", problem.Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task CreateNote_UnknownInvoice_ReturnsNotFoundWithCode()
+    {
+        var invoiceService = new FakeInvoiceService { AddNoteFailureToReturn = new Error("Invoice.NotFound", "not found") };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.CreateNote(InvoiceId, new CreateInvoiceNoteRequest("A note."), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.NotFound", problem.Extensions["code"]);
     }
 
     [Fact]
@@ -402,11 +371,9 @@ public class InvoicesControllerTests
         FakeAuditQueryService auditQueryService,
         FakeAuditService? auditService = null,
         FakeBlobStorageService? blobStorageService = null,
-        FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null,
-        FakeInvoiceQueryService? invoiceQueryService = null) =>
+        FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null) =>
         new(
             invoiceService,
-            invoiceQueryService ?? new FakeInvoiceQueryService(),
             invoiceWorkflowActionsService ?? new FakeInvoiceWorkflowActionsService(),
             auditQueryService,
             auditService ?? new FakeAuditService(),
@@ -431,20 +398,6 @@ public class InvoicesControllerTests
         IsPotentialDuplicate: false,
         DuplicateCheckReason: null,
         CreatedAtUtc: DateTimeOffset.UtcNow);
-
-    private static InvoiceListItemDto NewInvoiceListItemDto() => new(
-        Id: Guid.NewGuid(),
-        SupplierId: Guid.NewGuid(),
-        SupplierName: "Acme Ltd",
-        SupplierInvoiceNumber: "INV-1",
-        InvoiceDate: new DateOnly(2026, 1, 1),
-        DueDate: new DateOnly(2026, 2, 1),
-        Currency: "GBP",
-        GrossTotal: 120m,
-        Status: InvoiceStatusCodes.Extracted,
-        CreatedAtUtc: DateTimeOffset.UtcNow,
-        IsPotentialDuplicate: false,
-        DuplicateCheckReason: null);
 
     private static AuditLogDto NewAuditLogDto(string action) => new(
         Id: Guid.NewGuid(),
@@ -472,12 +425,14 @@ public class InvoicesControllerTests
         public Error? UpdateFailureToReturn { get; set; }
         public UpdateInvoiceRequest? LastUpdateRequest { get; private set; }
 
-        public Error? AddNoteFailureToReturn { get; set; }
-        public (Guid InvoiceId, string Content)? LastNoteAdded { get; private set; }
-        public InvoiceNoteDto? AddNoteResultToReturn { get; set; }
-
+        /// <summary>WP-055: what <see cref="GetNotesAsync"/> returns/fails with.</summary>
         public IReadOnlyList<InvoiceNoteDto> NotesToReturn { get; set; } = [];
         public Error? GetNotesFailureToReturn { get; set; }
+
+        /// <summary>WP-055: what <see cref="AddNoteAsync"/> returns/fails with.</summary>
+        public InvoiceNoteDto? AddNoteResultToReturn { get; set; }
+        public Error? AddNoteFailureToReturn { get; set; }
+        public (Guid InvoiceId, string Content)? LastNoteAdded { get; private set; }
 
         public Task<Result<InvoiceDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(FailureToReturn is { } error ? Result.Failure<InvoiceDto>(error) : Result.Success(InvoiceToReturn!));
@@ -499,32 +454,17 @@ public class InvoicesControllerTests
         public Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not used by InvoicesController.");
 
+        public Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(GetNotesFailureToReturn is { } error
+                ? Result.Failure<IReadOnlyList<InvoiceNoteDto>>(error)
+                : Result.Success(NotesToReturn));
+
         public Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default)
         {
             LastNoteAdded = (invoiceId, content);
             return Task.FromResult(AddNoteFailureToReturn is { } error
                 ? Result.Failure<InvoiceNoteDto>(error)
                 : Result.Success(AddNoteResultToReturn ?? new InvoiceNoteDto(Guid.NewGuid(), content, "Test User", DateTimeOffset.UtcNow)));
-        }
-
-        public Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(GetNotesFailureToReturn is { } error
-                ? Result.Failure<IReadOnlyList<InvoiceNoteDto>>(error)
-                : Result.Success(NotesToReturn));
-    }
-
-    private sealed class FakeInvoiceQueryService : IInvoiceQueryService
-    {
-        public PagedResult<InvoiceListItemDto>? ResultToReturn { get; set; }
-        public Error? FailureToReturn { get; set; }
-        public InvoiceQueryParameters? LastParameters { get; private set; }
-
-        public Task<Result<PagedResult<InvoiceListItemDto>>> SearchAsync(InvoiceQueryParameters parameters, CancellationToken cancellationToken = default)
-        {
-            LastParameters = parameters;
-            return Task.FromResult(FailureToReturn is { } error
-                ? Result.Failure<PagedResult<InvoiceListItemDto>>(error)
-                : Result.Success(ResultToReturn ?? new PagedResult<InvoiceListItemDto>([], 0, parameters.Page, parameters.PageSize)));
         }
     }
 

@@ -151,6 +151,7 @@ public class AppDbContextTenantIsolationTests
         public bool IsAuthenticated => UserId is not null;
         public string? UserId { get; }
         public string? Email => null;
+        public string? DisplayName => null;
         public string? TenantId { get; }
         public IReadOnlyCollection<string> Roles => [];
         public bool IsInRole(string role) => false;

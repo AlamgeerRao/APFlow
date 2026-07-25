@@ -29,19 +29,20 @@ public interface IInvoiceService
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Adds a freeform note to an invoice (see <c>InvoiceNote</c>'s doc comment for
-    /// how this differs from the out-of-scope query/dispute workflow). Returns the
-    /// created note (id, content, resolved author display name, timestamp) - WP-017
-    /// ruling, 2026-07-25 - so a <c>POST .../notes</c> caller can shape a proper
-    /// <c>201 Created</c> response without a second read.
-    /// </summary>
-    Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Returns every note recorded against an invoice, oldest first (WP-017's
-    /// ruled chronological order - see docs/WP-017-Invoice-Notes-Decisions.md
-    /// item 2). Returns an <c>Invoice.NotFound</c> failure if the invoice does
-    /// not exist or is not visible to the current tenant.
+    /// Returns every note recorded against an invoice, most recent first (WP-055) -
+    /// exposes <c>IInvoiceRepository.GetByIdWithNotesAsync</c> (WP-009) as a plain
+    /// read shape.
     /// </summary>
     Task<Result<IReadOnlyList<InvoiceNoteDto>>> GetNotesAsync(Guid invoiceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds a freeform note to an invoice (see <c>InvoiceNote</c>'s doc comment for
+    /// how this differs from the out-of-scope query/dispute workflow). Returns the
+    /// created note (WP-055) - including its server-assigned
+    /// <see cref="APFlow.Domain.Entities.BaseEntity.Id"/> and
+    /// <see cref="APFlow.Domain.Entities.AuditEntity.CreatedAtUtc"/> - so a caller
+    /// (e.g. the WP-055 <c>POST</c> endpoint) can shape a <c>201 Created</c>
+    /// response without a second round-trip to re-fetch it.
+    /// </summary>
+    Task<Result<InvoiceNoteDto>> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default);
 }

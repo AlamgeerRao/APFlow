@@ -74,6 +74,7 @@ public class ApprovalPolicyRepositoryTests
         public bool IsAuthenticated => true;
         public string? UserId => "test-user";
         public string? Email => null;
+        public string? DisplayName => null;
         public string? TenantId { get; }
         public IReadOnlyCollection<string> Roles => [];
         public bool IsInRole(string role) => false;
