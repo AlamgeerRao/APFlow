@@ -1,8 +1,37 @@
 # WP-049 — Wire Duplicate Detection into Ingestion Pipeline: Report
 
-**Status:** Complete. One implementation-detail tension against the work
-package's literal wording is flagged below, not silently resolved.
+**Status:** RESOLVED. Chief Technical Architect ruling confirms the atomicity
+design and clarifies `RECEIVED`/`PROCESSING`'s status as reachable-in-general
+(just skipped by this pipeline) — see "## Ruling" below.
 **Dependency:** WP-048 (complete - see docs/WP-048-Persist-Duplicate-Detection-Result.md).
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+**`RECEIVED` and `PROCESSING` are never observed states for ingested
+invoices — this is correct, not a defect.** Task 2's own wording ("an invoice
+must never be visible in a state where duplicate-checking hasn't yet run") is
+genuinely incompatible with a multi-commit "create at `RECEIVED`, advance
+later" design. Collapsing to one atomic write landing directly at `EXTRACTED`
+is the only way to actually satisfy that requirement.
+
+**Clarification for the record:** `RECEIVED`/`PROCESSING` remain legitimate
+`StatusReference` rows and valid graph edges — a reopened/reprocessed invoice
+or a future non-pipeline entry path could still land there via `UpdateAsync`.
+This is different from `DUPLICATE_SUSPECTED`, which was retired because
+nothing ever reaches it. The pipeline skipping these two states for its own
+atomicity reasons doesn't make them unreachable in general — no catalogue
+change needed.
+
+Everything else — all approved, no changes: not using
+`PersistDuplicateCheckResultAsync` for this call site (structurally
+incompatible with atomicity against a not-yet-saved entity, while leaving the
+method in place for a future caller); the missing `Received → Extracted`
+audit entry (confirmed a natural consequence, not an oversight);
+`InvoiceFieldValidation` extraction to avoid duplicating `CreateAsync`'s
+validation; task 3's scoped try/catch around the one I/O step that can't
+return a `Result`; the integration test using a real `AppDbContext`
+specifically to prove atomicity, rather than a hand-written fake that
+couldn't have caught a regression here.
 
 ## Terminology carry-over from before WP-048
 

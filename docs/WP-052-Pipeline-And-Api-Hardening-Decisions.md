@@ -1,8 +1,40 @@
 # WP-052 — Pipeline & API Hardening: Report
 
-**Status:** Complete. Two genuine gaps are flagged for sign-off, not silently
-resolved (Part D's extraction-confidence requirement; the WP-015 fixture was
-unavailable).
+**Status:** RESOLVED. Parts A/B/C approved exactly as delivered; Part D's two
+flagged gaps are ruled below — see "## Ruling".
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+**Part A (EF Core migration squash):** Approved. No real database ever had
+the three prior migrations applied, so squashing to one clean baseline is
+correct, not history-destroying. Verification against a real, running SQL
+Server instance (not just generated script inspection) is the standard going
+forward, not a one-off.
+
+**Part B (content-hash idempotency):** Approved exactly as delivered.
+
+**Part C (extended audit logging):** Approved exactly as delivered. The
+shared `InvoiceAuditSnapshot` shape for create/delete is a good touch.
+
+**Part D — two flagged items:**
+
+- **Per-field extraction confidence not persisted** — confirmed as genuinely
+  new schema scope, correctly not silently added. Tracked as WP-056 in
+  `docs/Backlog.md`.
+- **Field-name mismatch against WP-015's proposed contract** —
+  `SupplierInvoiceNumber`/`GrossTotal`/`Currency` (backend, as implemented)
+  vs. `invoiceNumber`/`amount`/`currencyCode` (WP-015's proposal). Ruling:
+  **keep the backend's names** — `SupplierInvoiceNumber` is more precise
+  (it's the supplier's own invoice number, not an AP Flow-internal one) and
+  matches SA-002's own terminology. Frontend adapts, not the reverse. This
+  applies directly to the WP-015/WP-016 fixture-reconciliation backlog items
+  already tracked in `docs/Backlog.md`.
+
+**Process finding, not a WP-052 defect:** `05_Development_Workflow.md` was
+confirmed not present in the actual repository — only ever supplied as chat
+context. This is now fixed at the process level (see the process directive
+recorded against this ruling batch) and is the same root cause behind
+WP-053's Discrepancy 2.
 
 ## Part A — EF Core Migration Workflow
 

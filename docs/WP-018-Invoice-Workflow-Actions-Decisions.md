@@ -1,11 +1,39 @@
 # WP-018 — Invoice Workflow Actions — Decisions
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — approved as delivered overall. The fixture-to-real-client
+swap remains, tracked in `docs/Backlog.md` with two specifics called out below
+so it doesn't land under-gated.
 **Role:** Senior React Engineer
 **Dependencies stated:** WP-050 (Tenant-Configurable Workflow Engine), WP-051
 (Role-Gated Approval Policy Extension) — both complete on the backend, but see
 §1: this delivery found a materially larger gap than either WP-017 or any of
 WP-014/015/016 hit.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+**Overall: approved as delivered.** Building the general rendering mechanism,
+reusing WP-050's own already-recorded proposal rather than inventing new
+business rules, and making the platform-default gap (zero actions) visibly
+honest rather than papered over — all correct calls under real ambiguity.
+WP-018a's field renaming to match WP-054 the moment it became available was
+exactly right.
+
+The core gap (no backend endpoint, undocumented platform-default graph,
+unconfirmed GB Skips edges) is closed by WP-053/WP-054. The fixture-to-real
+client swap remains, already correctly tracked in `docs/Backlog.md` as
+blocking/near-term. Two specifics for whoever picks that item up:
+
+- WP-054 returns the full updated `InvoiceDetail`, not just
+  `{ newStatusCode }` — use it directly to update local state rather than
+  triggering a second `retry()` round-trip.
+- Role gating now covers **four** transitions
+  (`CHECKED_READY_TO_APPROVE → APPROVED`, `CHECKED_READY_TO_APPROVE →
+  NEEDS_QUERY`, `REJECTED → AWAITING_REVIEW`, `CANCELLED → RECEIVED`), not the
+  one WP-018's fixture currently marks — the fixture needs updating or the
+  reconciliation will look complete while under-gating three actions.
+
+Confirmation-UI style (inline banner vs. modal) is a UX call, not an
+architecture one — not blocking on it.
 
 ---
 

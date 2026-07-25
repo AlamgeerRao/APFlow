@@ -1,10 +1,28 @@
 # WP-017 — Invoice Notes & Collaboration — Decisions
 
-**Status:** OPEN — implemented with reasoned defaults; needs explicit sign-off.
+**Status:** RESOLVED — items 2-7 approved as delivered; item 1's three open
+sub-questions are ruled below. Implementation (the real backend endpoint) is
+tracked in `docs/Backlog.md`, not done as part of recording this ruling.
 **Role:** Senior React Engineer
 **Depends on:** WP-009 (Invoice Domain Model, incl. `InvoiceNote`), WP-052 Part C
 (automatic `NoteAdded` audit logging for `InvoiceService.AddNoteAsync`) — both
 implemented on the backend, but no API contract for notes exists yet (see §1).
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+1. **Route shape:** a separate resource — `GET`/`POST /api/invoices/{id}/notes`
+   — not folded into `InvoiceDetailResponse`. Notes have an independent
+   write-then-refresh lifecycle the rest of the detail response doesn't;
+   folding them in would force a full detail re-fetch just to see a new note.
+2. **`authorName`:** resolve server-side to a display name, not a raw
+   identifier. Add a lightweight `AuthorDisplayName` field on `InvoiceNote`,
+   populated at write time from a claim already present on the validated
+   Entra token via `ICurrentUserService` — no Graph lookup, no new dependency.
+3. **`AddNoteAsync`'s return shape** must change to return the created note's
+   id and timestamp, to support a proper `201` response.
+
+Items 2-7 (chronological order, refetch-after-save, self-contained panel,
+dual validation, no edit/delete): all approved as delivered. No changes.
 
 ---
 

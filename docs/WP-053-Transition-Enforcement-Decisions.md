@@ -1,7 +1,38 @@
 # WP-053 — Seed & Enable Workflow Transition Enforcement: Report
 
-**Status:** Complete. Two discrepancies between the work package's wording and the
-actual confirmed reference data are flagged below, not silently resolved.
+**Status:** RESOLVED. Both discrepancies ruled below — see "## Ruling". Role
+gating, enforcement wiring, seed-data ID strategy, and test coverage approved
+as delivered, no changes.
+
+## Ruling (Chief Technical Architect, 2026-07-25)
+
+**Discrepancy 1** — my own error, corrected. I wrote "Received → Extracted is
+in the confirmed baseline graph" in WP-053's task text; the confirmed graph
+only has the two-step `RECEIVED → PROCESSING → EXTRACTED`. The team's
+handling — stepping the regression test through both real transitions
+instead of inventing a shortcut edge — was exactly right, and the deeper
+question it surfaced is resolved by the WP-049 ruling (see
+`docs/WP-049-Wire-Duplicate-Detection-Into-Pipeline.md`).
+
+**Discrepancy 2** — resolved; not a WP-053 defect. The current, correct
+`06_Domain_Reference_Data.md` is intended to already have `DUPLICATE_SUSPECTED`
+fully removed (per the Product Owner's Decision Log #2 ruling). **Flagged
+back, not silently accepted:** the actual tracked copy of
+`docs/AI/06_Domain_Reference_Data.md` in this repository still lists
+`DUPLICATE_SUSPECTED` in its §2 table as of 2026-07-25, with its revision
+history still describing the status as "under review... not yet resolved" —
+it has not actually been updated to match this ruling yet. The version WP-053
+was handed was stale — a symptom of the docs-not-committed-to-repo problem,
+not an error in WP-053's own handling, which correctly followed the document
+it was given over the work package's own claim about it.
+
+What remains: the `StatusReference` row itself hasn't been deleted from the
+database yet (unreachable, but still present). Tracked as WP-057 in
+`docs/Backlog.md`.
+
+**Independent verification:** 25 platform-default + 32 GB Skips transitions
+matches exactly what the confirmed graph table works out to once its
+shorthand ranges are expanded — confirms faithful implementation.
 
 ## What this closes
 
