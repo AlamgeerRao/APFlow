@@ -146,12 +146,157 @@ public class InvoicesControllerTests
         Assert.IsType<FileStreamResult>(actionResult);
     }
 
+    [Fact]
+    public async Task GetAvailableActions_ReturnsActionsFromWorkflowActionsService()
+    {
+        var actionsService = new FakeInvoiceWorkflowActionsService
+        {
+            ActionsToReturn = [new AvailableActionDto(InvoiceStatusCodes.Approved, "Approved")],
+        };
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceWorkflowActionsService: actionsService);
+
+        var actionResult = await controller.GetAvailableActions(InvoiceId, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsAssignableFrom<IReadOnlyList<AvailableActionResponse>>(okResult.Value);
+        var action = Assert.Single(response);
+        Assert.Equal(InvoiceStatusCodes.Approved, action.TargetStatusCode);
+        Assert.Equal("Approved", action.TargetStatusLabel);
+        Assert.Equal(InvoiceId, actionsService.LastRequestedInvoiceId);
+    }
+
+    [Fact]
+    public async Task GetAvailableActions_UnknownInvoice_ReturnsNotFoundWithCode()
+    {
+        var actionsService = new FakeInvoiceWorkflowActionsService { FailureToReturn = new Error("Invoice.NotFound", "not found") };
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceWorkflowActionsService: actionsService);
+
+        var actionResult = await controller.GetAvailableActions(InvoiceId, CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.NotFound", problem.Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ValidTransition_ReturnsOkWithInvoiceDetail_AndPreservesOtherFields()
+    {
+        var currentInvoice = NewInvoiceDto();
+        var updatedInvoice = currentInvoice with { Status = InvoiceStatusCodes.Approved };
+        var invoiceService = new FakeInvoiceService { InvoiceToReturn = currentInvoice, UpdateResultToReturn = updatedInvoice };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<InvoiceDetailResponse>(okResult.Value);
+        Assert.Equal(InvoiceStatusCodes.Approved, response.Invoice.Status);
+
+        // Every other editable field was resubmitted unchanged - UpdateAsync's
+        // contract is a full field replace, not a partial patch.
+        Assert.NotNull(invoiceService.LastUpdateRequest);
+        Assert.Equal(currentInvoice.SupplierInvoiceNumber, invoiceService.LastUpdateRequest!.SupplierInvoiceNumber);
+        Assert.Equal(currentInvoice.Currency, invoiceService.LastUpdateRequest.Currency);
+        Assert.Equal(currentInvoice.GrossTotal, invoiceService.LastUpdateRequest.GrossTotal);
+        Assert.Equal(InvoiceStatusCodes.Approved, invoiceService.LastUpdateRequest.Status);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_WithNotes_AddsNoteAfterSuccessfulStatusChange()
+    {
+        var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto(), UpdateResultToReturn = NewInvoiceDto() };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: "Approved after review"), CancellationToken.None);
+
+        Assert.Equal((InvoiceId, "Approved after review"), invoiceService.LastNoteAdded);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_NoNotes_DoesNotCallAddNoteAsync()
+    {
+        var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto(), UpdateResultToReturn = NewInvoiceDto() };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
+
+        Assert.Null(invoiceService.LastNoteAdded);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_UnknownInvoice_ReturnsNotFoundWithCode()
+    {
+        var invoiceService = new FakeInvoiceService { FailureToReturn = new Error("Invoice.NotFound", "not found") };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status404NotFound, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.NotFound", problem.Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_TransitionNotAllowed_ReturnsBadRequestWithCode()
+    {
+        var invoiceService = new FakeInvoiceService
+        {
+            InvoiceToReturn = NewInvoiceDto(),
+            UpdateFailureToReturn = new Error("Workflow.TransitionNotAllowed", "not an allowed transition"),
+        };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Paid, Notes: null), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Workflow.TransitionNotAllowed", problem.Extensions["code"]);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_RoleNotPermitted_ReturnsForbiddenWithCode()
+    {
+        // The real code IApprovalAuthorizationService produces for "your role
+        // doesn't satisfy this gated transition's policy" is Approval.Unauthorized
+        // - see ErrorProblem's own doc comment for why this endpoint maps that
+        // (not an invented "Workflow.RoleNotPermitted") to 403.
+        var invoiceService = new FakeInvoiceService
+        {
+            InvoiceToReturn = NewInvoiceDto(),
+            UpdateFailureToReturn = new Error("Approval.Unauthorized", "This action requires the 'FINANCE_MANAGER' role."),
+        };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status403Forbidden, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Approval.Unauthorized", problem.Extensions["code"]);
+    }
+
     private static InvoicesController CreateController(
         FakeInvoiceService invoiceService,
         FakeAuditQueryService auditQueryService,
         FakeAuditService? auditService = null,
-        FakeBlobStorageService? blobStorageService = null) =>
-        new(invoiceService, auditQueryService, auditService ?? new FakeAuditService(), blobStorageService ?? new FakeBlobStorageService(), NullLogger<InvoicesController>.Instance);
+        FakeBlobStorageService? blobStorageService = null,
+        FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null) =>
+        new(
+            invoiceService,
+            invoiceWorkflowActionsService ?? new FakeInvoiceWorkflowActionsService(),
+            auditQueryService,
+            auditService ?? new FakeAuditService(),
+            blobStorageService ?? new FakeBlobStorageService(),
+            NullLogger<InvoicesController>.Instance);
 
     private static InvoiceDto NewInvoiceDto(string? blobName = "invoices/msg-1/invoice.pdf") => new(
         Id: InvoiceId,
@@ -187,6 +332,20 @@ public class InvoicesControllerTests
         public InvoiceDto? InvoiceToReturn { get; set; }
         public Error? FailureToReturn { get; set; }
 
+        /// <summary>
+        /// WP-054: what <see cref="UpdateAsync"/> returns/fails with, kept
+        /// separate from <see cref="FailureToReturn"/> (which governs
+        /// <see cref="GetByIdAsync"/>) so a test can make the initial lookup
+        /// succeed but the update itself fail (e.g. a rejected transition), or
+        /// vice versa.
+        /// </summary>
+        public InvoiceDto? UpdateResultToReturn { get; set; }
+        public Error? UpdateFailureToReturn { get; set; }
+        public UpdateInvoiceRequest? LastUpdateRequest { get; private set; }
+
+        public Error? AddNoteFailureToReturn { get; set; }
+        public (Guid InvoiceId, string Content)? LastNoteAdded { get; private set; }
+
         public Task<Result<InvoiceDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(FailureToReturn is { } error ? Result.Failure<InvoiceDto>(error) : Result.Success(InvoiceToReturn!));
 
@@ -196,14 +355,38 @@ public class InvoicesControllerTests
         public Task<Result<InvoiceDto>> CreateAsync(CreateInvoiceRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not used by InvoicesController.");
 
-        public Task<Result<InvoiceDto>> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Not used by InvoicesController.");
+        public Task<Result<InvoiceDto>> UpdateAsync(Guid id, UpdateInvoiceRequest request, CancellationToken cancellationToken = default)
+        {
+            LastUpdateRequest = request;
+            return Task.FromResult(UpdateFailureToReturn is { } error
+                ? Result.Failure<InvoiceDto>(error)
+                : Result.Success(UpdateResultToReturn ?? InvoiceToReturn!));
+        }
 
         public Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Not used by InvoicesController.");
 
-        public Task<Result> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Not used by InvoicesController.");
+        public Task<Result> AddNoteAsync(Guid invoiceId, string content, CancellationToken cancellationToken = default)
+        {
+            LastNoteAdded = (invoiceId, content);
+            return Task.FromResult(AddNoteFailureToReturn is { } error ? Result.Failure(error) : Result.Success());
+        }
+    }
+
+    /// <summary>Hand-written fake, same pattern as every fake elsewhere in this codebase.</summary>
+    private sealed class FakeInvoiceWorkflowActionsService : IInvoiceWorkflowActionsService
+    {
+        public IReadOnlyList<AvailableActionDto> ActionsToReturn { get; set; } = [];
+        public Error? FailureToReturn { get; set; }
+        public Guid? LastRequestedInvoiceId { get; private set; }
+
+        public Task<Result<IReadOnlyList<AvailableActionDto>>> GetAvailableActionsAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+        {
+            LastRequestedInvoiceId = invoiceId;
+            return Task.FromResult(FailureToReturn is { } error
+                ? Result.Failure<IReadOnlyList<AvailableActionDto>>(error)
+                : Result.Success(ActionsToReturn));
+        }
     }
 
     private sealed class FakeAuditQueryService : IAuditQueryService

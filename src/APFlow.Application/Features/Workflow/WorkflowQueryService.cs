@@ -46,5 +46,12 @@ public sealed class WorkflowQueryService : IWorkflowQueryService
         Statuses: template.Statuses
             .OrderBy(s => s.SortOrder)
             .Select(s => new WorkflowStatusDto(s.Code, s.Name, s.IsTerminal, s.SortOrder))
+            .ToList(),
+        // WP-054: exposed so IInvoiceWorkflowActionsService can enumerate the
+        // edges leaving an invoice's current status without a second repository
+        // dependency of its own - this service already loads them via
+        // IWorkflowTemplateRepository.GetActiveTemplateAsync.
+        Transitions: template.Transitions
+            .Select(t => new WorkflowTransitionDto(t.FromStatusCode, t.ToStatusCode))
             .ToList());
 }

@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
         services.AddScoped<IWorkflowValidationService, WorkflowValidationService>();
         services.AddScoped<IApprovalAuthorizationService, ApprovalAuthorizationService>();
+        services.AddScoped<IInvoiceWorkflowActionsService, InvoiceWorkflowActionsService>();
 
         // Further feature registrations, validators, and mapping profiles are added
         // here as they are implemented.
