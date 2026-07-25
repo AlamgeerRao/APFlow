@@ -119,17 +119,25 @@ rows). No code path sets `Invoice.Status` to this value anywhere in this
 codebase (confirmed by the grep above) - only the seed data referenced it, and
 that reference is now gone.
 
-## Consequence flagged, not acted on unilaterally
+## Consequence flagged, then resolved (2026-07-25)
 
-`docs/AI/06_Domain_Reference_Data.md` §2 still lists `DUPLICATE_SUSPECTED` in
-its platform-default status table - this repository's copy of that canonical,
-"Approved — Permanent Reference" document was **not** edited as part of this
-work package. Per that document's own AI Agent Rules, changes to it are the
-Chief Technical Architect's/Product Owner's to make (this project's established
-pattern: when `EXTRACTED` needed adding, an updated copy of the document was
-supplied directly, with its own Revision History entry recording why - not
-edited unilaterally by an agent). Flagged in `README.md`'s open-decisions list
-so whoever maintains the master copy can remove the row the same way.
+`docs/AI/06_Domain_Reference_Data.md` §2 still listed `DUPLICATE_SUSPECTED` in
+its platform-default status table at the time this work package closed - this
+repository's copy of that canonical, "Approved — Permanent Reference" document
+was **not** edited as part of this work package. Per that document's own AI
+Agent Rules, changes to it are the Chief Technical Architect's/Product Owner's
+to make. Flagged in the WP-057 status report to the Chief Technical Architect
+rather than edited unilaterally.
+
+**Resolution:** the Architect's own maintained copy of the document already
+had `DUPLICATE_SUSPECTED` removed and a fuller Revision History (three entries,
+not one) - this repository's tracked copy was simply lagging behind, the exact
+same stale-copy problem `docs/WP-053-Transition-Enforcement-Decisions.md` hit
+against this same document. The Architect's copy was committed into the repo
+verbatim (one cosmetic fix applied on the Architect's end first: the two
+original revision-history entries were mashed onto one line without a break).
+See `README.md`'s WP-057 row and the commit that lands this fix for
+confirmation.
 
 ## Files modified
 

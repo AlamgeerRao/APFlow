@@ -34,6 +34,20 @@ database yet (unreachable, but still present). Tracked as WP-057 in
 matches exactly what the confirmed graph table works out to once its
 shorthand ranges are expanded — confirms faithful implementation.
 
+**Follow-up (2026-07-25, same stale-copy problem recurred):** the
+`StatusReference` row deletion above was completed by WP-057. Its own status
+report re-flagged this repo's tracked `06_Domain_Reference_Data.md` copy as
+still stale (§2 still listing `DUPLICATE_SUSPECTED`) — the Architect confirmed
+the maintained copy had always had it removed, and the repo's tracked copy has
+now been committed to match (see `README.md`'s WP-057 row and
+`docs/WP-057-Retire-Duplicate-Suspected-Status-Decisions.md`). This is the
+second time this exact document has gone stale in the repo despite being
+correct at the source; per the Architect, a written directive in
+`05_Development_Workflow.md` (the Architect's own master copy - not a file
+tracked in this repo, see `docs/05_Development_Workflow_Addendum.md`'s own
+note on why) already addressed this once and evidently wasn't strong enough -
+a reinforced version is expected to follow.
+
 ## What this closes
 
 WP-050's central open item. That work package built and fully tested

@@ -41,7 +41,6 @@ The baseline, platform-default invoice state list (SA-002 §5), applicable to ev
 | `RECEIVED` | Received | No |
 | `PROCESSING` | Processing | No |
 | `EXTRACTED` | Extracted | No |
-| `DUPLICATE_SUSPECTED` | Duplicate Suspected | No |
 | `AWAITING_REVIEW` | Awaiting Review | No |
 | `NEEDS_QUERY` | Needs Query | No |
 | `QUERY_RAISED` | Query Raised | No |
@@ -68,7 +67,9 @@ These two states are **tenant-scoped data**, not part of the global default cata
 
 ## 3. Revision History
 
-- **2026-07-23 — Added `EXTRACTED` to §2.** Discovered via WP-050's review: `EXTRACTED` was already a real, shipped, tested status (produced by the WP-012/WP-049 ingestion pipeline on successful Document Intelligence analysis) that predated this document and was never cross-checked against it. This document was corrected to match the already-deployed pipeline, rather than changing shipped pipeline behaviour to match a documentation gap. `DUPLICATE_SUSPECTED`'s continued relevance is under review separately (see WP-050 decision log) following the WP-047 ruling that duplicate handling is now a flag/reason on `Invoice`, not a status transition — do not assume `DUPLICATE_SUSPECTED` is still reachable until that is resolved.
+- **2026-07-23 — Added `EXTRACTED` to §2.** Discovered via WP-050's review: `EXTRACTED` was already a real, shipped, tested status (produced by the WP-012/WP-049 ingestion pipeline on successful Document Intelligence analysis) that predated this document and was never cross-checked against it. This document was corrected to match the already-deployed pipeline, rather than changing shipped pipeline behaviour to match a documentation gap.
+- **2026-07-23 — Removed `DUPLICATE_SUSPECTED`, superseded by `IsPotentialDuplicate`/`DuplicateCheckReason` flag fields (WP-047).** Product Owner ruling (Decision Log #2, Item 1): duplicate handling is a warning flag on an invoice moving through its normal lifecycle, not a separate status/queue — GB Skips' own five-folder workflow description never included one. Removed rather than left unused, per the same reasoning that caused rework on Decision Log #1, Item 3.
+- **2026-07-25 — Confirmed against WP-057's implementation.** WP-057 deleted the `StatusReference` row from the database itself (migration `RemoveDuplicateSuspectedStatus`), matching the removal already recorded above. `InvoiceStatusCodes.DuplicateSuspected` (C# constant) is deliberately retained, not removed, for any historical `Invoice.Status` value already in a database from before this change.
 
 ---
 
