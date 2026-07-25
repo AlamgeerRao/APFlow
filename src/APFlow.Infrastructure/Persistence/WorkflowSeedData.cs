@@ -57,13 +57,18 @@ public static class WorkflowSeedData
     /// discrepancy this WP surfaces rather than silently resolves; it is kept
     /// because removing it would break the already-shipped, tested WP-012/WP-049
     /// ingestion pipeline, which relies on it as a real status.
+    /// "DUPLICATE_SUSPECTED" is NOT included (WP-057 retirement) - see
+    /// docs/WP-057-Retire-Duplicate-Suspected-Status-Decisions.md. WP-047 moved
+    /// duplicate handling to a flag/reason on Invoice, not a status; WP-053
+    /// confirmed zero transitions reference this status in either template; this
+    /// work package completes the retirement WP-053 deferred (a StatusReference
+    /// deletion was explicitly outside that WP's own scope).
     /// </summary>
     public static readonly IReadOnlyList<StatusSeedRow> PlatformDefaultStatuses =
     [
         new(Guid.Parse("00000000-0000-0000-0002-000000000001"), PlatformDefaultTemplateId, InvoiceStatusCodes.Received, "Received", false, 10),
         new(Guid.Parse("00000000-0000-0000-0002-000000000002"), PlatformDefaultTemplateId, InvoiceStatusCodes.Extracted, "Extracted", false, 15),
         new(Guid.Parse("00000000-0000-0000-0002-000000000003"), PlatformDefaultTemplateId, InvoiceStatusCodes.Processing, "Processing", false, 20),
-        new(Guid.Parse("00000000-0000-0000-0002-000000000004"), PlatformDefaultTemplateId, InvoiceStatusCodes.DuplicateSuspected, "Duplicate Suspected", false, 30),
         new(Guid.Parse("00000000-0000-0000-0002-000000000005"), PlatformDefaultTemplateId, InvoiceStatusCodes.AwaitingReview, "Awaiting Review", false, 40),
         new(Guid.Parse("00000000-0000-0000-0002-000000000006"), PlatformDefaultTemplateId, InvoiceStatusCodes.NeedsQuery, "Needs Query", false, 50),
         new(Guid.Parse("00000000-0000-0000-0002-000000000007"), PlatformDefaultTemplateId, InvoiceStatusCodes.QueryRaised, "Query Raised", false, 60),
@@ -92,7 +97,6 @@ public static class WorkflowSeedData
         new(Guid.Parse("00000000-0000-0000-0003-000000000001"), GbSkipsTemplateId, InvoiceStatusCodes.Received, "Received", false, 10),
         new(Guid.Parse("00000000-0000-0000-0003-000000000002"), GbSkipsTemplateId, InvoiceStatusCodes.Extracted, "Extracted", false, 15),
         new(Guid.Parse("00000000-0000-0000-0003-000000000003"), GbSkipsTemplateId, InvoiceStatusCodes.Processing, "Processing", false, 20),
-        new(Guid.Parse("00000000-0000-0000-0003-000000000004"), GbSkipsTemplateId, InvoiceStatusCodes.DuplicateSuspected, "Duplicate Suspected", false, 30),
         new(Guid.Parse("00000000-0000-0000-0003-000000000005"), GbSkipsTemplateId, InvoiceStatusCodes.AwaitingReview, "Awaiting Review", false, 40),
         new(Guid.Parse("00000000-0000-0000-0003-000000000006"), GbSkipsTemplateId, InvoiceStatusCodes.CheckedReadyToApprove, "Checked & Ready to Approve", false, 45),
         new(Guid.Parse("00000000-0000-0000-0003-000000000007"), GbSkipsTemplateId, InvoiceStatusCodes.NeedsReviewFebina, "Needs Review by Febina", false, 46),

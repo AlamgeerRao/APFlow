@@ -1,0 +1,17 @@
+﻿BEGIN TRANSACTION;
+DELETE FROM [StatusReferences]
+WHERE [Id] = '00000000-0000-0000-0002-000000000004';
+SELECT @@ROWCOUNT;
+
+
+DELETE FROM [StatusReferences]
+WHERE [Id] = '00000000-0000-0000-0003-000000000004';
+SELECT @@ROWCOUNT;
+
+
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20260725112900_RemoveDuplicateSuspectedStatus', N'9.0.18');
+
+COMMIT;
+GO
+

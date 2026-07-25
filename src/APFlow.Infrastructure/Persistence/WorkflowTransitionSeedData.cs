@@ -30,13 +30,17 @@ namespace APFlow.Infrastructure.Persistence;
 /// </para>
 ///
 /// <para>
-/// <b>DUPLICATE_SUSPECTED has no transitions.</b> It remains a seeded, valid
-/// <c>StatusReference</c> row in both templates (removing it would be a schema/data
-/// change nobody has approved - <c>06_Domain_Reference_Data.md</c> §2 still lists
-/// it, marked "under review... do not assume it is still reachable until that is
-/// resolved"), but WP-053's confirmed graphs contain no edge into or out of it, so
-/// it is now genuinely unreachable in practice. See
-/// docs/WP-053-Transition-Enforcement-Decisions.md.
+/// <b>DUPLICATE_SUSPECTED has no transitions - and, as of WP-057, no longer
+/// exists as a <c>StatusReference</c> row at all.</b> WP-053 (this class)
+/// deliberately did not delete the row - <c>06_Domain_Reference_Data.md</c> §2
+/// then still listed it, marked "under review... do not assume it is still
+/// reachable until that is resolved", and a <c>StatusReference</c> deletion was
+/// explicitly outside WP-053's own scope. It was, however, already fully
+/// unreachable in practice: WP-053's confirmed graphs never contained an edge
+/// into or out of it. WP-057 completes the retirement WP-053 deferred - see
+/// docs/WP-057-Retire-Duplicate-Suspected-Status-Decisions.md. This paragraph is
+/// kept (not deleted) as a historical note for why no
+/// DUPLICATE_SUSPECTED-related transition rows exist here, now or previously.
 /// </para>
 /// </summary>
 public static class WorkflowTransitionSeedData
@@ -55,8 +59,9 @@ public static class WorkflowTransitionSeedData
     /// Statuses an invoice may be CANCELLED from ("RECEIVED … AWAITING_SUPPLIER_RESPONSE"
     /// in WP-053's table) - i.e. every pre-decision status in lifecycle order, up to
     /// and including AWAITING_SUPPLIER_RESPONSE. Deliberately excludes
-    /// DUPLICATE_SUSPECTED (see this class's own doc comment) and every
-    /// post-decision status (APPROVED onwards), which have their own explicit rows.
+    /// DUPLICATE_SUSPECTED (retired entirely as of WP-057 - see this class's own
+    /// doc comment) and every post-decision status (APPROVED onwards), which have
+    /// their own explicit rows.
     /// </summary>
     private static readonly string[] CancellableStatuses =
     [

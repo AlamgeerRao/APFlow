@@ -26,13 +26,16 @@ public class WorkflowTemplateRepositoryTests
 
         Assert.NotNull(template);
         Assert.Null(template!.TenantId);
-        // 06_Domain_Reference_Data.md §2's 13 statuses, plus EXTRACTED - see
-        // InvoiceStatusCodes.Extracted's doc comment for why that one extra status
-        // is included despite not being in that document.
-        Assert.Equal(14, template.Statuses.Count);
+        // 06_Domain_Reference_Data.md §2's 13 statuses, plus EXTRACTED, minus
+        // DUPLICATE_SUSPECTED (retired - WP-057) = 13. See
+        // InvoiceStatusCodes.Extracted's doc comment for why EXTRACTED is
+        // included despite not being in that document, and
+        // docs/WP-057-Retire-Duplicate-Suspected-Status-Decisions.md for the removal.
+        Assert.Equal(13, template.Statuses.Count);
         Assert.Contains(template.Statuses, s => s.Code == InvoiceStatusCodes.Extracted);
         Assert.DoesNotContain(template.Statuses, s => s.Code == InvoiceStatusCodes.CheckedReadyToApprove);
         Assert.DoesNotContain(template.Statuses, s => s.Code == InvoiceStatusCodes.NeedsReviewFebina);
+        Assert.DoesNotContain(template.Statuses, s => s.Code == InvoiceStatusCodes.DuplicateSuspected);
         // WP-053 seeded the full confirmed graph. Platform-default specifically
         // INCLUDES direct reviewer approval (AWAITING_REVIEW -> APPROVED), which GB
         // Skips' template deliberately omits.
@@ -41,7 +44,8 @@ public class WorkflowTemplateRepositoryTests
             t.FromStatusCode == InvoiceStatusCodes.AwaitingReview && t.ToStatusCode == InvoiceStatusCodes.Approved);
         Assert.DoesNotContain(template.Transitions, t =>
             t.ToStatusCode == InvoiceStatusCodes.CheckedReadyToApprove || t.ToStatusCode == InvoiceStatusCodes.NeedsReviewFebina);
-        // DUPLICATE_SUSPECTED remains a valid status but has no edges (WP-053).
+        // DUPLICATE_SUSPECTED no longer exists as a status at all (WP-057) - so
+        // by construction it cannot appear in any transition either.
         Assert.DoesNotContain(template.Transitions, t =>
             t.FromStatusCode == InvoiceStatusCodes.DuplicateSuspected || t.ToStatusCode == InvoiceStatusCodes.DuplicateSuspected);
     }
@@ -95,6 +99,33 @@ public class WorkflowTemplateRepositoryTests
 
         Assert.NotNull(template);
         Assert.Null(template!.TenantId);
+    }
+
+    [Fact]
+    public async Task DuplicateSuspectedStatus_NoLongerExistsInEitherTemplate_AfterWP057Removal()
+    {
+        // WP-057 task 2's confirmation query, expressed as a re-runnable test
+        // rather than a one-off manual query - re-verifies AFTER removal (not
+        // just trusting the pre-removal grep this work package's own report
+        // documents), against the real seeded data both templates resolve to.
+        using var platformDefaultContext = CreateContext(tenantId: Guid.NewGuid());
+        var platformDefaultTemplate = await new WorkflowTemplateRepository(platformDefaultContext)
+            .GetActiveTemplateAsync(WorkflowDomains.Invoice);
+
+        using var gbSkipsContext = CreateContext(WorkflowSeedData.GbSkipsPlaceholderTenantId);
+        var gbSkipsTemplate = await new WorkflowTemplateRepository(gbSkipsContext)
+            .GetActiveTemplateAsync(WorkflowDomains.Invoice);
+
+        Assert.NotNull(platformDefaultTemplate);
+        Assert.NotNull(gbSkipsTemplate);
+
+        Assert.DoesNotContain(platformDefaultTemplate!.Statuses, s => s.Code == InvoiceStatusCodes.DuplicateSuspected);
+        Assert.DoesNotContain(gbSkipsTemplate!.Statuses, s => s.Code == InvoiceStatusCodes.DuplicateSuspected);
+
+        Assert.DoesNotContain(platformDefaultTemplate.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.DuplicateSuspected || t.ToStatusCode == InvoiceStatusCodes.DuplicateSuspected);
+        Assert.DoesNotContain(gbSkipsTemplate.Transitions, t =>
+            t.FromStatusCode == InvoiceStatusCodes.DuplicateSuspected || t.ToStatusCode == InvoiceStatusCodes.DuplicateSuspected);
     }
 
     private static AppDbContext CreateContext(Guid? tenantId)
