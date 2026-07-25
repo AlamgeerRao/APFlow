@@ -70,12 +70,14 @@ public static class InvoiceStatusCodes
     public const string Extracted = "EXTRACTED";
 
     // GB Skips tenant-specific additions (docs/06_Domain_Reference_Data.md §2) -
-    // valid status VALUES, confirmed by that document. Their TRANSITIONS are NOT
-    // yet confirmed - see docs/WP-050-Workflow-Engine-Decisions.md. Do not use
-    // these as if they were reachable via any enforced transition yet.
-    /// <summary>GB Skips tenant-specific: reviewed and checked, awaiting Full/Approver sign-off. Transitions not yet confirmed - see docs/WP-050-Workflow-Engine-Decisions.md.</summary>
+    // valid status VALUES, confirmed by that document. Their TRANSITIONS were
+    // confirmed and enabled by WP-053 - see
+    // docs/WP-053-Transition-Enforcement-Decisions.md - and are now enforced by
+    // InvoiceService.UpdateAsync against the seeded graph
+    // (WorkflowTransitionSeedData) and role gating (RoleGatedTransitions).
+    /// <summary>GB Skips tenant-specific: reviewed and checked, awaiting Full/Approver sign-off. Transitions confirmed and enforced - see docs/WP-053-Transition-Enforcement-Decisions.md.</summary>
     public const string CheckedReadyToApprove = "CHECKED_READY_TO_APPROVE";
 
-    /// <summary>GB Skips tenant-specific: escalated for Febina's review. Transitions not yet confirmed - see docs/WP-050-Workflow-Engine-Decisions.md.</summary>
+    /// <summary>GB Skips tenant-specific: escalated for Febina's review. Transitions confirmed and enforced - see docs/WP-053-Transition-Enforcement-Decisions.md.</summary>
     public const string NeedsReviewFebina = "NEEDS_REVIEW_FEBINA";
 }

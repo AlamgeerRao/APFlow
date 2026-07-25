@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace APFlow.Api.Controllers;
 
 /// <summary>
-/// Invoice read/document/status-transition/notes endpoints (WP-052 Part D;
-/// status transitions added WP-054; notes added WP-055). The solution-wide
-/// fallback authorization policy (see
+/// Invoice list/read/document/status-transition/notes endpoints (WP-052 Part D;
+/// status transitions added WP-054; notes added WP-055; list added WP-058). The
+/// solution-wide fallback authorization policy (see
 /// <c>AuthorizationExtensions.AddApiAuthorization</c>) already requires an
 /// authenticated caller for every action here - no <c>[AllowAnonymous]</c>
 /// anywhere in this controller. Tenant isolation and transition/role enforcement
@@ -22,16 +22,16 @@ namespace APFlow.Api.Controllers;
 /// <see cref="IInvoiceWorkflowActionsService"/>'s equivalent read-side
 /// filtering, <see cref="IBlobStorageService"/>'s tenant-prefixed blob names) -
 /// this controller adds no business logic of its own, matching
-/// "APFlow.Api ... contains no business logic" (Solution Structure §1/§5). The
-/// WP-054 and WP-055 endpoints are all thin HTTP wrappers: they call an
-/// existing Application-layer service directly and translate the
-/// <see cref="Result"/> outcome into an HTTP response - no new business rule is
-/// introduced in this controller.
+/// "APFlow.Api ... contains no business logic" (Solution Structure §1/§5). Every
+/// endpoint here is a thin HTTP wrapper: each calls an existing Application-layer
+/// service directly and translates the <see cref="Result"/> outcome into an HTTP
+/// response - no new business rule is introduced in this controller.
 /// </summary>
 [ApiController]
 [Route("api/invoices")]
 public sealed class InvoicesController : ControllerBase
 {
+    private readonly IInvoiceQueryService _invoiceQueryService;
     private readonly IInvoiceService _invoiceService;
     private readonly IInvoiceWorkflowActionsService _invoiceWorkflowActionsService;
     private readonly IAuditQueryService _auditQueryService;
@@ -41,6 +41,7 @@ public sealed class InvoicesController : ControllerBase
 
     /// <summary>Creates a new <see cref="InvoicesController"/>.</summary>
     public InvoicesController(
+        IInvoiceQueryService invoiceQueryService,
         IInvoiceService invoiceService,
         IInvoiceWorkflowActionsService invoiceWorkflowActionsService,
         IAuditQueryService auditQueryService,
@@ -48,12 +49,61 @@ public sealed class InvoicesController : ControllerBase
         IBlobStorageService blobStorageService,
         ILogger<InvoicesController> logger)
     {
+        _invoiceQueryService = invoiceQueryService;
         _invoiceService = invoiceService;
         _invoiceWorkflowActionsService = invoiceWorkflowActionsService;
         _auditQueryService = auditQueryService;
         _auditService = auditService;
         _blobStorageService = blobStorageService;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Returns a filtered, sorted, paged list of invoices visible to the current
+    /// tenant (WP-058) - a thin wrapper over the existing, already-tested
+    /// <see cref="IInvoiceQueryService"/> (WP-011); no query/filter/sort/paging
+    /// logic is decided in this controller. Query parameter names match
+    /// <see cref="InvoiceQueryParameters"/>'s own property names exactly (same
+    /// "reuse the existing DTO's names" reasoning as every other endpoint in this
+    /// controller) - binding is case-insensitive, so e.g. <c>?status=</c> and
+    /// <c>?Status=</c> both work. Returns <see cref="PagedResult{T}"/> of
+    /// <see cref="InvoiceListItemDto"/> directly, with no additional response
+    /// wrapper - task 1's own wording ("no service-layer changes needed") extends
+    /// naturally to not inventing a new response shape either.
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<InvoiceListItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? status,
+        [FromQuery] Guid? supplierId,
+        [FromQuery] DateOnly? invoiceDateFrom,
+        [FromQuery] DateOnly? invoiceDateTo,
+        [FromQuery] string? invoiceNumber,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = InvoiceQueryParameters.DefaultPageSize,
+        [FromQuery] InvoiceSortField sortBy = InvoiceSortField.CreatedAtUtc,
+        [FromQuery] bool sortDescending = true,
+        CancellationToken cancellationToken = default)
+    {
+        var parameters = new InvoiceQueryParameters(
+            Status: status,
+            SupplierId: supplierId,
+            InvoiceDateFrom: invoiceDateFrom,
+            InvoiceDateTo: invoiceDateTo,
+            InvoiceNumber: invoiceNumber,
+            Page: page,
+            PageSize: pageSize,
+            SortBy: sortBy,
+            SortDescending: sortDescending);
+
+        var result = await _invoiceQueryService.SearchAsync(parameters, cancellationToken);
+        if (result.IsFailure)
+        {
+            return ErrorProblem(result.Error);
+        }
+
+        return Ok(result.Value);
     }
 
     /// <summary>

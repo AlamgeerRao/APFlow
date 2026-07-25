@@ -16,6 +16,97 @@ public class InvoicesControllerTests
     private static readonly Guid InvoiceId = Guid.NewGuid();
 
     [Fact]
+    public async Task GetAll_ReturnsPagedResultFromQueryService()
+    {
+        var listItem = new InvoiceListItemDto(
+            Id: InvoiceId, SupplierId: Guid.NewGuid(), SupplierName: "Acme Ltd", SupplierInvoiceNumber: "INV-1",
+            InvoiceDate: new DateOnly(2026, 1, 1), DueDate: new DateOnly(2026, 2, 1), Currency: "GBP",
+            GrossTotal: 120m, Status: InvoiceStatusCodes.AwaitingReview, CreatedAtUtc: DateTimeOffset.UtcNow,
+            IsPotentialDuplicate: false, DuplicateCheckReason: null);
+        var queryService = new FakeInvoiceQueryService { ResultToReturn = new([listItem], TotalCount: 1, Page: 1, PageSize: 25) };
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
+
+        var actionResult = await controller.GetAll(
+            status: null, supplierId: null, invoiceDateFrom: null, invoiceDateTo: null, invoiceNumber: null,
+            page: 1, pageSize: 25, sortBy: InvoiceSortField.CreatedAtUtc, sortDescending: true, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var response = Assert.IsType<PagedResult<InvoiceListItemDto>>(okResult.Value);
+        Assert.Equal(1, response.TotalCount);
+        var item = Assert.Single(response.Items);
+        Assert.Equal(InvoiceId, item.Id);
+        Assert.Equal("Acme Ltd", item.SupplierName);
+    }
+
+    [Fact]
+    public async Task GetAll_DefaultQueryParameters_MatchInvoiceQueryParametersDefaults()
+    {
+        // The contract the controller must actually honour: ASP.NET Core's
+        // parameter defaults when no query string values are supplied must match
+        // InvoiceQueryParameters' own defaults exactly (WP-011), not silently
+        // diverge from them.
+        var queryService = new FakeInvoiceQueryService();
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
+
+        await controller.GetAll(
+            status: null, supplierId: null, invoiceDateFrom: null, invoiceDateTo: null, invoiceNumber: null,
+            page: 1, pageSize: InvoiceQueryParameters.DefaultPageSize, sortBy: InvoiceSortField.CreatedAtUtc, sortDescending: true,
+            CancellationToken.None);
+
+        var expectedDefaults = new InvoiceQueryParameters();
+        Assert.NotNull(queryService.LastParameters);
+        Assert.Equal(expectedDefaults.Page, queryService.LastParameters!.Page);
+        Assert.Equal(expectedDefaults.PageSize, queryService.LastParameters.PageSize);
+        Assert.Equal(expectedDefaults.SortBy, queryService.LastParameters.SortBy);
+        Assert.Equal(expectedDefaults.SortDescending, queryService.LastParameters.SortDescending);
+        Assert.Null(queryService.LastParameters.Status);
+        Assert.Null(queryService.LastParameters.SupplierId);
+    }
+
+    [Fact]
+    public async Task GetAll_PassesFilterParametersThroughUnchanged()
+    {
+        var queryService = new FakeInvoiceQueryService();
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
+        var supplierId = Guid.NewGuid();
+
+        await controller.GetAll(
+            status: InvoiceStatusCodes.NeedsQuery, supplierId: supplierId,
+            invoiceDateFrom: new DateOnly(2026, 1, 1), invoiceDateTo: new DateOnly(2026, 1, 31),
+            invoiceNumber: "INV", page: 2, pageSize: 10, sortBy: InvoiceSortField.GrossTotal, sortDescending: false,
+            CancellationToken.None);
+
+        Assert.NotNull(queryService.LastParameters);
+        Assert.Equal(InvoiceStatusCodes.NeedsQuery, queryService.LastParameters!.Status);
+        Assert.Equal(supplierId, queryService.LastParameters.SupplierId);
+        Assert.Equal(new DateOnly(2026, 1, 1), queryService.LastParameters.InvoiceDateFrom);
+        Assert.Equal(new DateOnly(2026, 1, 31), queryService.LastParameters.InvoiceDateTo);
+        Assert.Equal("INV", queryService.LastParameters.InvoiceNumber);
+        Assert.Equal(2, queryService.LastParameters.Page);
+        Assert.Equal(10, queryService.LastParameters.PageSize);
+        Assert.Equal(InvoiceSortField.GrossTotal, queryService.LastParameters.SortBy);
+        Assert.False(queryService.LastParameters.SortDescending);
+    }
+
+    [Fact]
+    public async Task GetAll_InvalidPage_ReturnsBadRequestWithCode()
+    {
+        // Validation is entirely IInvoiceQueryService's own (WP-011) - not
+        // duplicated in the controller.
+        var queryService = new FakeInvoiceQueryService { FailureToReturn = new Error("InvoiceQuery.InvalidPage", "Page must be 1 or greater.") };
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
+
+        var actionResult = await controller.GetAll(
+            status: null, supplierId: null, invoiceDateFrom: null, invoiceDateTo: null, invoiceNumber: null,
+            page: 0, pageSize: 25, sortBy: InvoiceSortField.CreatedAtUtc, sortDescending: true, CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("InvoiceQuery.InvalidPage", problem.Extensions["code"]);
+    }
+
+    [Fact]
     public async Task GetById_ExistingInvoice_ReturnsOkWithInvoiceAndAuditHistory()
     {
         var invoiceService = new FakeInvoiceService
@@ -377,8 +468,10 @@ public class InvoicesControllerTests
         FakeAuditQueryService auditQueryService,
         FakeAuditService? auditService = null,
         FakeBlobStorageService? blobStorageService = null,
-        FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null) =>
+        FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null,
+        FakeInvoiceQueryService? invoiceQueryService = null) =>
         new(
+            invoiceQueryService ?? new FakeInvoiceQueryService(),
             invoiceService,
             invoiceWorkflowActionsService ?? new FakeInvoiceWorkflowActionsService(),
             auditQueryService,
@@ -496,6 +589,22 @@ public class InvoicesControllerTests
             return Task.FromResult(FailureToReturn is { } error
                 ? Result.Failure<IReadOnlyList<AvailableActionDto>>(error)
                 : Result.Success(ActionsToReturn));
+        }
+    }
+
+    /// <summary>WP-058: hand-written fake, same pattern as every fake elsewhere in this codebase.</summary>
+    private sealed class FakeInvoiceQueryService : IInvoiceQueryService
+    {
+        public PagedResult<InvoiceListItemDto> ResultToReturn { get; set; } = new([], 0, 1, InvoiceQueryParameters.DefaultPageSize);
+        public Error? FailureToReturn { get; set; }
+        public InvoiceQueryParameters? LastParameters { get; private set; }
+
+        public Task<Result<PagedResult<InvoiceListItemDto>>> SearchAsync(InvoiceQueryParameters parameters, CancellationToken cancellationToken = default)
+        {
+            LastParameters = parameters;
+            return Task.FromResult(FailureToReturn is { } error
+                ? Result.Failure<PagedResult<InvoiceListItemDto>>(error)
+                : Result.Success(ResultToReturn));
         }
     }
 
