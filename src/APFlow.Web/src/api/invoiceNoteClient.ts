@@ -1,6 +1,7 @@
 import type { InvoiceNote } from '@/types/invoiceNote';
 import { INVOICE_NOTE_CONTENT_MAX_LENGTH } from '@/types/invoiceNote';
 import { invoiceNoteFixturesById } from '@/api/fixtures/invoiceNotes.fixture';
+import { httpClient } from '@/api/httpClient';
 
 /**
  * Client-side contract for reading and adding notes on a single invoice
@@ -85,8 +86,54 @@ export class FixtureInvoiceNoteClient implements InvoiceNoteClient {
 }
 
 /**
- * The client instance the app uses. Swap this single line for a real
- * HTTP-backed implementation once the backend contract is confirmed — no
- * other file needs to change.
+ * Real DTO for a note as returned by `GET`/`POST
+ * /api/invoices/{id}/notes` — confirmed 2026-07-27 by QA against the real
+ * WP-055 `InvoiceNoteDto` directly: `(Id, Content, AuthorDisplayName,
+ * CreatedAtUtc)`, camelCased on the wire. This delivery originally used
+ * `author`/`timestamp` (a paraphrase from a status report's prose
+ * description, "id/content/author/timestamp" — never independently
+ * verified, and wrong). Fixed here — see
+ * docs/WP-020-Real-Auth-And-Api-Integration-Decisions.md §7.
  */
-export const invoiceNoteClient: InvoiceNoteClient = new FixtureInvoiceNoteClient();
+interface InvoiceNoteDto {
+  id: string;
+  content: string;
+  authorDisplayName: string;
+  createdAtUtc: string;
+}
+
+function fromDto(dto: InvoiceNoteDto): InvoiceNote {
+  return { id: dto.id, content: dto.content, authorName: dto.authorDisplayName, createdAtUtc: dto.createdAtUtc };
+}
+
+/**
+ * Real HTTP-backed implementation (WP-020 task 5), calling WP-055's
+ * `GET`/`POST /api/invoices/{id}/notes`.
+ *
+ * `authorName` is accepted (for interface/call-site compatibility with
+ * `useInvoiceNotes`, unchanged) but deliberately never sent in the POST
+ * body — per WP-055's ruling (status-postwb-057.md §2.4),
+ * `AuthorDisplayName` is resolved server-side from
+ * `ICurrentUserService.DisplayName`, not supplied by the client. Trusting
+ * a client-supplied author name for an audit-relevant field would be a
+ * spoofing risk this real client specifically avoids, unlike the fixture
+ * client (which has no real audit trail to protect).
+ */
+export class HttpInvoiceNoteClient implements InvoiceNoteClient {
+  async getNotes(_tenantId: string, invoiceId: string): Promise<InvoiceNote[]> {
+    const dtos = await httpClient.get<InvoiceNoteDto[]>(`/api/invoices/${invoiceId}/notes`);
+    return dtos.map(fromDto);
+  }
+
+  async addNote(_tenantId: string, invoiceId: string, content: string): Promise<InvoiceNote> {
+    const dto = await httpClient.post<InvoiceNoteDto>(`/api/invoices/${invoiceId}/notes`, { content });
+    return fromDto(dto);
+  }
+}
+
+/**
+ * The client instance the app uses. `HttpInvoiceNoteClient` as of
+ * WP-020 — swap this single line back to `new FixtureInvoiceNoteClient()`
+ * if the real API becomes unreachable during local development.
+ */
+export const invoiceNoteClient: InvoiceNoteClient = new HttpInvoiceNoteClient();

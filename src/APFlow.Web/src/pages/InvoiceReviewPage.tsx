@@ -24,7 +24,7 @@ import {
  */
 export function InvoiceReviewPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
-  const { invoice, isLoading, error, notFound, retry } = useInvoiceDetail(invoiceId);
+  const { invoice, isLoading, error, notFound, retry, applyUpdatedInvoice } = useInvoiceDetail(invoiceId);
   const { previousId, nextId, position, total } = useInvoiceNavigation(invoiceId);
 
   if (isLoading) {
@@ -68,7 +68,7 @@ export function InvoiceReviewPage() {
         </div>
 
         <div className="order-1 flex flex-col gap-6 lg:order-2">
-          <WorkflowActionsPanel invoice={invoice} onStatusChanged={retry} />
+          <WorkflowActionsPanel invoice={invoice} onStatusChanged={applyUpdatedInvoice} />
           <InvoiceHeaderSummary invoice={invoice} />
           <ExtractedFieldsPanel fields={invoice.extractedFields} />
           <AuditSummaryPanel entries={invoice.auditEntries} />

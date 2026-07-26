@@ -1,69 +1,37 @@
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
-import type { ActingUser } from '@/auth/authContextDefinition';
 
 /**
- * Sign-in stub. Real authentication (Microsoft Entra External ID) is owned
- * by WP-002 and is out of scope for WP-014 ("No business functionality").
- *
- * Offers a choice across tenant AND role fixtures — extended by WP-018 to
- * cover both a `FINANCE_MANAGER` and an `AP_REVIEWER` GB Skips user
- * specifically, since its acceptance criteria requires confirming Approve
- * is visible/usable for the former and not the latter. Replaced wholesale
- * once WP-002's real sign-in flow lands.
+ * Sign-in page (WP-020): triggers real Entra External ID sign-in via
+ * MSAL, replacing WP-014's demo-tenant/role picker entirely. Redirects
+ * away automatically once authenticated (e.g. after MSAL's redirect flow
+ * returns here), to whichever route was originally requested.
  */
-const DEMO_USERS: ActingUser[] = [
-  {
-    tenantId: 'platform-default',
-    tenantName: 'Platform Default Tenant',
-    displayName: 'Alex Reviewer',
-    roles: ['AP_REVIEWER'],
-  },
-  {
-    tenantId: 'gb-skips',
-    tenantName: 'GB Skips',
-    displayName: 'Patrick (GB Skips — Finance Manager)',
-    roles: ['FINANCE_MANAGER'],
-  },
-  {
-    tenantId: 'gb-skips',
-    tenantName: 'GB Skips',
-    displayName: 'Priya Shah (GB Skips — AP Reviewer)',
-    roles: ['AP_REVIEWER'],
-  },
-];
-
 export function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard';
 
-  function handleSignIn(user: ActingUser) {
-    signIn(user);
-    navigate(redirectTo, { replace: true });
-  }
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(redirectTo, { replace: true });
+    }
+  }, [isAuthenticated, navigate, redirectTo]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
         <h1 className="text-lg font-semibold text-ink-900">Sign in to AP Flow</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Select a tenant to continue. (Temporary stand-in for Entra sign-in — see WP-002.)
-        </p>
-        <div className="mt-6 space-y-2">
-          {DEMO_USERS.map((user) => (
-            <button
-              key={user.displayName}
-              type="button"
-              onClick={() => handleSignIn(user)}
-              className="w-full rounded-md border border-slate-200 px-4 py-2 text-left text-sm font-medium text-ink-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600"
-            >
-              {user.tenantName}
-              <span className="block text-xs font-normal text-slate-400">{user.displayName}</span>
-            </button>
-          ))}
-        </div>
+        <p className="mt-1 text-sm text-slate-600">Use your organisation account to continue.</p>
+        <button
+          type="button"
+          onClick={signIn}
+          className="mt-6 w-full rounded-md bg-ink-900 px-4 py-2 text-sm font-medium text-white hover:bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600"
+        >
+          Sign in with Microsoft
+        </button>
       </div>
     </div>
   );

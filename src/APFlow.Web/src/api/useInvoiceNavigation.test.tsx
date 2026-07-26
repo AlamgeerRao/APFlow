@@ -1,9 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { useInvoiceNavigation } from '@/api/useInvoiceNavigation';
 import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition';
-import { invoiceClient } from '@/api/invoiceClient';
+import { httpClient } from '@/api/httpClient';
+import type { InvoiceListItem } from '@/types/invoice';
+
+// WP-020: invoiceClient is now HTTP-backed; mock httpClient.get directly
+// with a fixed, deterministic ordered page so the navigation math can be
+// asserted precisely.
+vi.mock('@/api/httpClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/httpClient')>();
+  return { ...actual, httpClient: { ...actual.httpClient, get: vi.fn() } };
+});
+
+const orderedItems: InvoiceListItem[] = Array.from({ length: 5 }, (_, i) => ({
+  id: `inv-${i + 1}`,
+  supplierName: `Supplier ${i + 1}`,
+  invoiceNumber: `INV-${i + 1}`,
+  invoiceDate: `2026-07-0${5 - i}`,
+  amount: 100 * (i + 1),
+  currencyCode: 'GBP',
+  status: 'AWAITING_REVIEW',
+  isPotentialDuplicate: false,
+  duplicateCheckReason: null,
+}));
 
 const authValue: AuthContextValue = {
   user: { tenantId: 'platform-default', tenantName: 'Platform Default Tenant', displayName: 'Test User', roles: ['AP_REVIEWER'] },
@@ -16,57 +37,43 @@ function wrapper({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={authValue}>{children}</AuthContext.Provider>;
 }
 
+beforeEach(() => {
+  vi.mocked(httpClient.get).mockReset();
+  vi.mocked(httpClient.get).mockResolvedValue({
+    items: orderedItems,
+    totalCount: orderedItems.length,
+    page: 1,
+    pageSize: 1000,
+  });
+});
+
 describe('useInvoiceNavigation', () => {
-  it('returns previous/next ids and position matching the invoiceClient default order', async () => {
-    const fullOrder = await invoiceClient.queryInvoices({
-      tenantId: 'platform-default',
-      sortBy: 'invoiceDate',
-      sortDirection: 'desc',
-      page: 1,
-      pageSize: 1000,
-    });
-    const middleId = fullOrder.items[Math.floor(fullOrder.items.length / 2)].id;
-    const expectedIndex = fullOrder.items.findIndex((item) => item.id === middleId);
+  it('returns previous/next ids and position matching the mocked order', async () => {
+    const middleId = orderedItems[2].id;
 
     const { result } = renderHook(() => useInvoiceNavigation(middleId), { wrapper });
 
-    await waitFor(() => expect(result.current.total).toBe(fullOrder.totalCount));
+    await waitFor(() => expect(result.current.total).toBe(orderedItems.length));
 
-    expect(result.current.position).toBe(expectedIndex + 1);
-    expect(result.current.previousId).toBe(fullOrder.items[expectedIndex - 1].id);
-    expect(result.current.nextId).toBe(fullOrder.items[expectedIndex + 1].id);
+    expect(result.current.position).toBe(3);
+    expect(result.current.previousId).toBe(orderedItems[1].id);
+    expect(result.current.nextId).toBe(orderedItems[3].id);
   });
 
   it('returns a null previousId for the first invoice in the order', async () => {
-    const fullOrder = await invoiceClient.queryInvoices({
-      tenantId: 'platform-default',
-      sortBy: 'invoiceDate',
-      sortDirection: 'desc',
-      page: 1,
-      pageSize: 1000,
-    });
-    const firstId = fullOrder.items[0].id;
+    const { result } = renderHook(() => useInvoiceNavigation(orderedItems[0].id), { wrapper });
 
-    const { result } = renderHook(() => useInvoiceNavigation(firstId), { wrapper });
-
-    await waitFor(() => expect(result.current.total).toBe(fullOrder.totalCount));
+    await waitFor(() => expect(result.current.total).toBe(orderedItems.length));
     expect(result.current.previousId).toBeNull();
     expect(result.current.nextId).not.toBeNull();
   });
 
   it('returns a null nextId for the last invoice in the order', async () => {
-    const fullOrder = await invoiceClient.queryInvoices({
-      tenantId: 'platform-default',
-      sortBy: 'invoiceDate',
-      sortDirection: 'desc',
-      page: 1,
-      pageSize: 1000,
-    });
-    const lastId = fullOrder.items[fullOrder.items.length - 1].id;
+    const lastId = orderedItems[orderedItems.length - 1].id;
 
     const { result } = renderHook(() => useInvoiceNavigation(lastId), { wrapper });
 
-    await waitFor(() => expect(result.current.total).toBe(fullOrder.totalCount));
+    await waitFor(() => expect(result.current.total).toBe(orderedItems.length));
     expect(result.current.nextId).toBeNull();
     expect(result.current.previousId).not.toBeNull();
   });

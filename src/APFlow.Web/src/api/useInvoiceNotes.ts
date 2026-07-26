@@ -61,7 +61,6 @@ export function useInvoiceNotes(invoiceId: string | undefined): InvoiceNotesStat
     }
 
     const signal = { cancelled: false };
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadNotes(user.tenantId, invoiceId, signal);
 
     return () => {

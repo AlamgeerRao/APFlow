@@ -18,8 +18,15 @@ export interface ExtractedField {
   fieldKey: string;
   label: string;
   value: string;
-  /** 0–1 confidence score for this specific field, as returned by Azure AI Document Intelligence. */
-  confidenceScore: number;
+  /**
+   * 0–1 confidence score for this specific field, as returned by Azure AI
+   * Document Intelligence — or null. Confirmed null for the `Currency`
+   * field specifically, per WP-056's Chief Technical Architect ruling
+   * (Currency is included as its own extracted-field row, with an
+   * always-null ConfidenceScore, not excluded) — see
+   * status-postwb-057.md §2.4.
+   */
+  confidenceScore: number | null;
 }
 
 /** A single entry in the invoice's audit/activity history (WP-013). */
@@ -40,7 +47,15 @@ export interface InvoiceDetail extends InvoiceListItem {
   /** ISO 8601 timestamp the invoice was first received. */
   receivedAt: string;
   extractedFields: ExtractedField[];
-  /** 0–1 overall confidence score for the Document Intelligence extraction as a whole. */
+  /**
+   * 0–1 overall confidence score for the Document Intelligence extraction
+   * as a whole. NOT a confirmed server field — status-postwb-057.md's
+   * live API surface only documents per-field `extractedFields` data
+   * (WP-056), no aggregate score. The real client computes this
+   * client-side (mean of non-null field scores) rather than expecting the
+   * server to supply it; the fixture client supplies it directly. See
+   * docs/WP-020-Real-Auth-And-Api-Integration-Decisions.md §3.
+   */
   overallConfidenceScore: number;
   auditEntries: AuditEntry[];
 }

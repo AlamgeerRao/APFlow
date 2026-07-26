@@ -14,6 +14,21 @@ import { workflowTemplateClient } from '@/api/workflowTemplateClient';
  * (useSupplierFolderView) depend on this interface, not the fixture
  * implementation below, so swapping in a real HTTP client is a one-line
  * change (`supplierFolderClient` below).
+ *
+ * STILL ON FIXTURES AS OF WP-020: unlike WP-015/016/017/018, no backend
+ * endpoint exists anywhere for this WP's three operations
+ * (folder-count summary, supplier-name listing, or supplier-grouped
+ * invoice listing) — status-postwb-057.md §2.2's live API surface table
+ * lists only `GET /api/invoices` (list), `GET /api/invoices/{id}`
+ * (detail), `available-actions`, `status`, `download`, and `notes`.
+ * Nothing supports grouping-by-supplier or a folder-count summary at all.
+ * WP-020 task 5 asked to swap this WP's client too, but doing so would
+ * mean inventing the very endpoints this client's own proposed contract
+ * (see docs/WP-019-Supplier-Folder-Views-Decisions.md §1) only proposed
+ * non-bindingly — exactly the kind of business/API-contract invention
+ * `02_Project_Standards.md` §7 prohibits. Flagged as a new backlog item
+ * (docs/WP-020-Real-Auth-And-Api-Integration-Decisions.md §4) rather than
+ * silently left unswapped without explanation.
  */
 export interface SupplierFolderClient {
   /** Per-folder invoice counts for the tenant's non-terminal statuses, honouring the current search text. */

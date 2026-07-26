@@ -9,15 +9,13 @@ import { ConfirmActionDialog } from '@/components/invoiceReview/ConfirmActionDia
 interface WorkflowActionsPanelProps {
   invoice: InvoiceDetail;
   /**
-   * Called after a status change is successfully executed. The panel's own
-   * `useWorkflowActions` only knows about the ACTIONS available for a
-   * status — reloading the INVOICE itself (so the new status shows up
-   * everywhere it's displayed: this panel, the header summary badge, and
-   * eventually the queue) is the invoice detail page's own responsibility,
-   * via whatever reload mechanism it already has (`useInvoiceDetail`'s
-   * `retry`) — task 6, "Refresh UI after update."
+   * Called after a status change is successfully executed, with the full
+   * updated invoice (WP-020: WP-054's PATCH endpoint already returns the
+   * updated `InvoiceDetail`, so the caller applies it directly via
+   * `useInvoiceDetail`'s `applyUpdatedInvoice` — no second network round
+   * trip, unlike WP-018's original `retry()`-based design).
    */
-  onStatusChanged: () => void;
+  onStatusChanged: (updated: InvoiceDetail) => void;
 }
 
 /**
@@ -40,11 +38,14 @@ export function WorkflowActionsPanel({ invoice, onStatusChanged }: WorkflowActio
     if (!pendingAction) return;
 
     setSuccessMessage(null);
-    const succeeded = await executeAction(pendingAction);
-    if (succeeded) {
+    const updated = await executeAction(pendingAction);
+    if (updated) {
       setSuccessMessage(`Invoice marked as "${pendingAction.targetStatusLabel}" successfully.`);
       setPendingAction(null);
-      onStatusChanged();
+      // The PATCH response never carries pdfUrl (see
+      // invoiceDetailMapping.ts) — the document hasn't changed, so reuse
+      // the already-resolved blob URL rather than re-fetching the PDF.
+      onStatusChanged({ ...updated, pdfUrl: invoice.pdfUrl });
     }
     // On failure, leave the confirmation open with executeError displayed
     // (from the hook) so the user can see why and decide whether to retry.

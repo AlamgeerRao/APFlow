@@ -46,17 +46,11 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
   const [reloadToken, setReloadToken] = useState(0);
 
   // Keep the status filter in sync if the route param changes (e.g. the
-  // user clicks a different Invoice Queue sub-link in the nav). Adjusting
-  // state in response to a prop change during render (React docs: "You
-  // Might Not Need an Effect") rather than in a useEffect, since this is
-  // the "reset derived state when a prop changes" case, not a
-  // synchronization-with-an-external-system case.
-  const [prevInitialStatus, setPrevInitialStatus] = useState(initialStatus);
-  if (initialStatus !== prevInitialStatus) {
-    setPrevInitialStatus(initialStatus);
+  // user clicks a different Invoice Queue sub-link in the nav).
+  useEffect(() => {
     setStatus(initialStatus);
     setPage(1);
-  }
+  }, [initialStatus]);
 
   function setSearch(value: string) {
     setSearchInternal(value);
@@ -96,18 +90,12 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
 
   useEffect(() => {
     if (!queryKey.tenantId) {
-      // No tenant to query yet - the hook's return value below overrides
-      // result/isLoading/error directly rather than this effect resetting
-      // them, so there is nothing to synchronize here.
+      setResult(null);
+      setIsLoading(false);
       return;
     }
 
     let cancelled = false;
-    // Standard cancellable-fetch pattern (React docs: "You Might Not Need an
-    // Effect"): resetting isLoading/error before the async call is the effect
-    // synchronizing with the external API, not derivable during render. Same
-    // justification as useWorkflowTemplate.ts's identical case.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
@@ -139,8 +127,6 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
     };
   }, [queryKey]);
 
-  const noTenant = !queryKey.tenantId;
-
   return {
     search,
     setSearch,
@@ -155,9 +141,9 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
     page,
     setPage,
     pageSize: DEFAULT_PAGE_SIZE,
-    result: noTenant ? null : result,
-    isLoading: noTenant ? false : isLoading,
-    error: noTenant ? null : error,
+    result,
+    isLoading,
+    error,
     retry: () => setReloadToken((previous) => previous + 1),
   };
 }

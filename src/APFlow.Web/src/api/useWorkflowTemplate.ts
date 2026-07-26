@@ -24,14 +24,11 @@ export function useWorkflowTemplate(): WorkflowTemplateState {
 
   useEffect(() => {
     if (!user) {
+      setState({ template: null, isLoading: false, error: null });
       return;
     }
 
     let cancelled = false;
-    // Standard cancellable-fetch pattern (React docs: "You Might Not Need an
-    // Effect"): resetting isLoading/error before the async call is the effect
-    // synchronizing with the external API, not derivable during render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState((previous) => ({ ...previous, isLoading: true, error: null }));
 
     workflowTemplateClient
@@ -55,10 +52,6 @@ export function useWorkflowTemplate(): WorkflowTemplateState {
       cancelled = true;
     };
   }, [user]);
-
-  if (!user) {
-    return { template: null, isLoading: false, error: null };
-  }
 
   return state;
 }

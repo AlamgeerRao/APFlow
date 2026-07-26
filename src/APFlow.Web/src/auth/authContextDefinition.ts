@@ -1,14 +1,14 @@
 import { createContext } from 'react';
 
 /**
- * Minimal acting-user/tenant shape needed by WP-014 (shell + nav).
+ * Acting-user/tenant shape consumed throughout the app (nav, queue,
+ * review screen, notes, workflow actions, supplier views).
  *
- * PROVISIONAL: real authentication is Microsoft Entra External ID
- * (01_Project_Context.md §6/§5). WP-002 (Authentication & RBAC) owns the
- * real sign-in flow; that is out of scope here — "No business
- * functionality" per the WP-014 brief. This context stands in for it so
- * ProtectedRoute and the nav have something real to consume, and is
- * documented as an open item in docs/WP-014-Dashboard-Shell-Decisions.md.
+ * Backed by real Microsoft Entra External ID sign-in as of WP-020 (see
+ * `AuthContext.tsx`) — real role assignment and tenant identity come from
+ * the signed-in user's Entra account. See `deriveActingUser.ts` for the
+ * exact claim-to-field mapping and its unconfirmed-against-a-real-token
+ * caveats.
  */
 export interface ActingUser {
   tenantId: string;
@@ -18,11 +18,8 @@ export interface ActingUser {
    * Application roles held by the acting user (see
    * `06_Domain_Reference_Data.md` §1 for the approved catalogue —
    * `PLATFORM_ADMIN`, `AP_REVIEWER`, `FINANCE_MANAGER`, `CREDIT_CONTROLLER`,
-   * `ACCOUNTS_ADMIN`, `READ_ONLY`). Added for WP-018: role-gated workflow
-   * actions (e.g. Approve) need to know which role(s) the acting user holds.
-   * Real role assignment is owned by WP-002 (Entra) — this stand-in lets
-   * WP-018 be verified against both a `FINANCE_MANAGER` and an
-   * `AP_REVIEWER` acting user locally, per its own acceptance criteria.
+   * `ACCOUNTS_ADMIN`, `READ_ONLY`). Sourced from Entra's `roles` app-roles
+   * claim as of WP-020.
    */
   roles: string[];
 }
@@ -30,7 +27,8 @@ export interface ActingUser {
 export interface AuthContextValue {
   user: ActingUser | null;
   isAuthenticated: boolean;
-  signIn: (user: ActingUser) => void;
+  /** Triggers Entra sign-in. Takes no parameters — unlike WP-014's demo stub, real sign-in doesn't let the caller choose who they are. */
+  signIn: () => void;
   signOut: () => void;
 }
 

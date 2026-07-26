@@ -112,18 +112,14 @@ export function useSupplierFolderView(): SupplierFolderViewState {
 
   useEffect(() => {
     if (!queryKey.tenantId) {
-      // No tenant to query yet - the hook's return value below overrides
-      // result/folderCounts/supplierOptions/isLoading directly rather than
-      // this effect resetting them, so there is nothing to synchronize here.
+      setResult(null);
+      setFolderCounts([]);
+      setSupplierOptions([]);
+      setIsLoading(false);
       return;
     }
 
     let cancelled = false;
-    // Standard cancellable-fetch pattern (React docs: "You Might Not Need an
-    // Effect"): resetting isLoading/error before the async call is the effect
-    // synchronizing with the external API, not derivable during render. Same
-    // justification as useInvoiceQueue.ts's identical case.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
@@ -158,8 +154,6 @@ export function useSupplierFolderView(): SupplierFolderViewState {
     };
   }, [queryKey]);
 
-  const noTenant = !queryKey.tenantId;
-
   return {
     search: searchInput,
     setSearch,
@@ -170,11 +164,11 @@ export function useSupplierFolderView(): SupplierFolderViewState {
     page,
     setPage,
     pageSize: DEFAULT_PAGE_SIZE,
-    folderCounts: noTenant ? [] : folderCounts,
-    supplierOptions: noTenant ? [] : supplierOptions,
-    result: noTenant ? null : result,
-    isLoading: noTenant ? false : isLoading,
-    error: noTenant ? null : error,
+    folderCounts,
+    supplierOptions,
+    result,
+    isLoading,
+    error,
     retry: () => setReloadToken((t) => t + 1),
   };
 }

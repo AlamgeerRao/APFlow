@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { FixtureInvoiceClient } from '@/api/invoiceClient';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { FixtureInvoiceClient, HttpInvoiceClient } from '@/api/invoiceClient';
 import type { InvoiceQueryParams } from '@/types/invoice';
+import { httpClient } from '@/api/httpClient';
+
+vi.mock('@/api/httpClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/httpClient')>();
+  return { ...actual, httpClient: { ...actual.httpClient, get: vi.fn() } };
+});
 
 function paramsFor(overrides: Partial<InvoiceQueryParams>): InvoiceQueryParams {
   return {
@@ -94,5 +100,81 @@ describe('FixtureInvoiceClient', () => {
 
     expect(duplicate?.isPotentialDuplicate).toBe(true);
     expect(duplicate?.duplicateCheckReason).toBeTruthy();
+  });
+});
+
+describe('HttpInvoiceClient', () => {
+  beforeEach(() => {
+    vi.mocked(httpClient.get).mockReset();
+  });
+
+  it('sends invoiceNumber (not search) and sortDescending (not sortDirection) as query params, matching WP-058\'s real GetAll endpoint', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(
+      paramsFor({ search: 'northwind', sortBy: 'invoiceDate', sortDirection: 'desc', page: 2, pageSize: 10 }),
+    );
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/invoices', {
+      params: {
+        invoiceNumber: 'northwind',
+        status: undefined,
+        sortBy: 'invoiceDate',
+        sortDescending: 'true',
+        page: 2,
+        pageSize: 10,
+      },
+    });
+  });
+
+  it('sends sortDescending: "false" for ascending sort', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ sortDirection: 'asc' }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ sortDescending: 'false' }) }),
+    );
+  });
+
+  it('maps the real InvoiceDto field names (supplierInvoiceNumber/grossTotal/currency) to our InvoiceListItem shape', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      items: [
+        {
+          id: 'inv-1',
+          supplierName: 'Northwind Traders Ltd',
+          supplierInvoiceNumber: 'NW-1001',
+          invoiceDate: '2026-07-01',
+          grossTotal: 1240.5,
+          currency: 'GBP',
+          status: 'AWAITING_REVIEW',
+          isPotentialDuplicate: false,
+          duplicateCheckReason: null,
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 10,
+    });
+    const client = new HttpInvoiceClient();
+
+    const result = await client.queryInvoices(paramsFor({}));
+
+    expect(result.items).toEqual([
+      {
+        id: 'inv-1',
+        supplierName: 'Northwind Traders Ltd',
+        invoiceNumber: 'NW-1001',
+        invoiceDate: '2026-07-01',
+        amount: 1240.5,
+        currencyCode: 'GBP',
+        status: 'AWAITING_REVIEW',
+        isPotentialDuplicate: false,
+        duplicateCheckReason: null,
+      },
+    ]);
   });
 });

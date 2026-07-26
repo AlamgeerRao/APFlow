@@ -1,5 +1,6 @@
 import type { InvoiceListItem, InvoiceQueryParams, InvoiceQueryResult } from '@/types/invoice';
 import { invoiceFixtures } from '@/api/fixtures/invoices.fixture';
+import { httpClient } from '@/api/httpClient';
 
 /**
  * Client-side contract for querying a page of the acting tenant's Invoice
@@ -77,8 +78,92 @@ export class FixtureInvoiceClient implements InvoiceClient {
 }
 
 /**
- * The client instance the app uses. Swap this single line for a real
- * HTTP-backed implementation once WP-011's contract is confirmed — no
- * other file needs to change.
+ * Real DTOs for `GET /api/invoices` (WP-058), confirmed 2026-07-27 by QA
+ * against the real backend source directly (`InvoiceDto.cs`, and WP-058's
+ * `GetAll` endpoint parameters). This delivery originally guessed
+ * `search`/`sortDirection` and `invoiceNumber`/`amount`/`currencyCode` —
+ * all wrong. Fixed here — see
+ * docs/WP-020-Real-Auth-And-Api-Integration-Decisions.md §7 for the full
+ * correction, including the capability this fix newly exposes: the real
+ * endpoint only substring-matches `invoiceNumber`, with no supplier-name
+ * search at all, unlike this client's original (fixture-only) search
+ * semantics.
  */
-export const invoiceClient: InvoiceClient = new FixtureInvoiceClient();
+interface InvoiceListItemResponseDto {
+  id: string;
+  supplierName: string;
+  supplierInvoiceNumber: string;
+  invoiceDate: string;
+  grossTotal: number;
+  currency: string;
+  status: string;
+  isPotentialDuplicate: boolean;
+  duplicateCheckReason: string | null;
+}
+
+interface InvoiceQueryResponseDto {
+  items: InvoiceListItemResponseDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+function mapListItem(dto: InvoiceListItemResponseDto): InvoiceListItem {
+  return {
+    id: dto.id,
+    supplierName: dto.supplierName,
+    invoiceNumber: dto.supplierInvoiceNumber,
+    invoiceDate: dto.invoiceDate,
+    amount: dto.grossTotal,
+    currencyCode: dto.currency,
+    status: dto.status,
+    isPotentialDuplicate: dto.isPotentialDuplicate,
+    duplicateCheckReason: dto.duplicateCheckReason,
+  };
+}
+
+/**
+ * Real HTTP-backed implementation, calling WP-058's `GET /api/invoices`
+ * (WP-020 task 5). `tenantId` is deliberately NOT sent as a query
+ * parameter — the API resolves the acting tenant from the caller's own
+ * Bearer token (`ICurrentUserService`), never from client-supplied input;
+ * accepting a client-chosen tenant would be a cross-tenant data leak.
+ *
+ * `params.search` is sent as `invoiceNumber` — the real endpoint has no
+ * separate free-text/supplier-name search parameter, only an
+ * invoice-number substring match. Supplier-name search (part of this
+ * client's original, fixture-only search semantics — see
+ * `matchesInvoiceSearch` above) is NOT possible through this endpoint as
+ * it exists today; this is a real capability reduction versus the
+ * fixture, not a bug in this mapping. `sortBy` is sent as-is (unconfirmed
+ * but not contradicted by anything reviewed); `sortDirection` maps to the
+ * real `sortDescending: boolean` parameter.
+ */
+export class HttpInvoiceClient implements InvoiceClient {
+  async queryInvoices(params: InvoiceQueryParams): Promise<InvoiceQueryResult> {
+    const response = await httpClient.get<InvoiceQueryResponseDto>('/api/invoices', {
+      params: {
+        invoiceNumber: params.search,
+        status: params.status,
+        sortBy: params.sortBy,
+        sortDescending: params.sortDirection === 'desc' ? 'true' : 'false',
+        page: params.page,
+        pageSize: params.pageSize,
+      },
+    });
+
+    return {
+      items: response.items.map(mapListItem),
+      totalCount: response.totalCount,
+      page: response.page,
+      pageSize: response.pageSize,
+    };
+  }
+}
+
+/**
+ * The client instance the app uses. `HttpInvoiceClient` as of WP-020 —
+ * swap this single line back to `new FixtureInvoiceClient()` if the real
+ * API becomes unreachable during local development.
+ */
+export const invoiceClient: InvoiceClient = new HttpInvoiceClient();

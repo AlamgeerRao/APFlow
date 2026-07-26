@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/auth/useAuth';
 import { workflowActionClient } from '@/api/workflowActionClient';
 import type { WorkflowAction } from '@/types/workflowAction';
+import type { InvoiceDetail } from '@/types/invoiceDetail';
 
 interface WorkflowActionsState {
   actions: WorkflowAction[];
@@ -12,24 +13,25 @@ interface WorkflowActionsState {
   /** Rejection message from the most recent execute attempt, if any (WP-018 task 7). */
   executeError: string | null;
   /**
-   * Executes an action. Returns true on success — the caller is
-   * responsible for triggering "refresh UI after update" (task 6), e.g. by
-   * calling the invoice detail page's own `retry()`, since re-fetching the
-   * invoice itself (not just this hook's own action list) is what needs to
-   * happen; this hook re-loads its own action list automatically once its
-   * `fromStatusCode` prop changes as a result of that outer refresh.
+   * Executes an action. Returns the full updated invoice detail (minus
+   * `pdfUrl` — see invoiceDetailMapping.ts) on success, or null on
+   * failure (see `executeError` for the message). WP-020: the real
+   * PATCH endpoint already returns the updated invoice, so the caller no
+   * longer needs to trigger a separate `retry()` — see
+   * `WorkflowActionsPanel`'s `onStatusChanged`.
    */
-  executeAction: (action: WorkflowAction) => Promise<boolean>;
+  executeAction: (action: WorkflowAction) => Promise<Omit<InvoiceDetail, 'pdfUrl'> | null>;
 }
 
 /**
- * Loads the actions available to the acting user for an invoice currently
- * in `fromStatusCode`, and exposes a way to execute one (WP-018).
- * Re-fetches automatically whenever `fromStatusCode` changes — including
- * after a successful execution causes the invoice's status (and therefore
- * this prop, once the caller refetches the invoice) to change, which is
- * what naturally reveals the new status's own available actions without
- * this hook needing any direct knowledge of the invoice detail fetch.
+ * Loads the actions available to the acting user for a given invoice
+ * currently in `fromStatusCode`, and exposes a way to execute one
+ * (WP-018). Re-fetches automatically whenever `fromStatusCode` changes —
+ * including after a successful execution causes the invoice's status
+ * (and therefore this prop, once the caller applies the returned detail)
+ * to change, which is what naturally reveals the new status's own
+ * available actions without this hook needing any direct knowledge of
+ * the invoice detail fetch.
  */
 export function useWorkflowActions(invoiceId: string | undefined, fromStatusCode: string | undefined): WorkflowActionsState {
   const { user } = useAuth();
@@ -40,17 +42,16 @@ export function useWorkflowActions(invoiceId: string | undefined, fromStatusCode
   const [executeError, setExecuteError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !fromStatusCode) {
+    if (!user || !invoiceId || !fromStatusCode) {
       return;
     }
 
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
     setError(null);
 
     workflowActionClient
-      .getAvailableActions(user.tenantId, fromStatusCode, user.roles)
+      .getAvailableActions(user.tenantId, invoiceId, fromStatusCode, user.roles)
       .then((result) => {
         if (cancelled) return;
         setActions(result);
@@ -66,20 +67,25 @@ export function useWorkflowActions(invoiceId: string | undefined, fromStatusCode
     return () => {
       cancelled = true;
     };
-  }, [user, fromStatusCode]);
+  }, [user, invoiceId, fromStatusCode]);
 
   const executeAction = useCallback(
-    async (action: WorkflowAction): Promise<boolean> => {
-      if (!user || !invoiceId || !fromStatusCode) return false;
+    async (action: WorkflowAction): Promise<Omit<InvoiceDetail, 'pdfUrl'> | null> => {
+      if (!user || !invoiceId || !fromStatusCode) return null;
 
       setIsExecuting(true);
       setExecuteError(null);
       try {
-        await workflowActionClient.executeAction(user.tenantId, invoiceId, fromStatusCode, action.targetStatusCode, user.roles);
-        return true;
+        return await workflowActionClient.executeAction(
+          user.tenantId,
+          invoiceId,
+          fromStatusCode,
+          action.targetStatusCode,
+          user.roles,
+        );
       } catch (err) {
         setExecuteError(err instanceof Error ? err.message : 'Unable to perform this action. Please try again.');
-        return false;
+        return null;
       } finally {
         setIsExecuting(false);
       }
