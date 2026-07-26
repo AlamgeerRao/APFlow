@@ -114,7 +114,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     invoiceDate: '2026-07-10',
     amount: 410.4,
     currencyCode: 'GBP',
-    status: 'DUPLICATE_SUSPECTED',
+    status: 'AWAITING_REVIEW',
     isPotentialDuplicate: true,
     duplicateCheckReason: 'Invoice number and amount matched an existing invoice from the same supplier.',
   },

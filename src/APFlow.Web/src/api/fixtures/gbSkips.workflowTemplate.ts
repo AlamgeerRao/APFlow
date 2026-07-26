@@ -8,6 +8,10 @@ import type { WorkflowTemplate } from '@/types/workflowTemplate';
  * These two states are tenant-scoped data, not part of the shared/global
  * catalogue — modelled here purely as this tenant's WorkflowTemplate rows,
  * per the Domain Reference Data AI Agent Rules.
+ *
+ * Re-synced 2026-07-25 alongside the platform-default fixture (see that
+ * file's comment): `EXTRACTED` added, `DUPLICATE_SUSPECTED` removed. 15
+ * statuses, matching the live database per status-postwb-057.md §2.6.
  */
 export const gbSkipsWorkflowTemplate: WorkflowTemplate = {
   tenantId: 'gb-skips',
@@ -15,7 +19,7 @@ export const gbSkipsWorkflowTemplate: WorkflowTemplate = {
   statuses: [
     { code: 'RECEIVED', name: 'Received', isTerminal: false, order: 1 },
     { code: 'PROCESSING', name: 'Processing', isTerminal: false, order: 2 },
-    { code: 'DUPLICATE_SUSPECTED', name: 'Duplicate Suspected', isTerminal: false, order: 3 },
+    { code: 'EXTRACTED', name: 'Extracted', isTerminal: false, order: 3 },
     { code: 'AWAITING_REVIEW', name: 'Awaiting Review', isTerminal: false, order: 4 },
     { code: 'CHECKED_READY_TO_APPROVE', name: 'Checked & Ready to Approve', isTerminal: false, order: 5 },
     { code: 'NEEDS_REVIEW_FEBINA', name: 'Needs Review by Febina', isTerminal: false, order: 6 },

@@ -15,7 +15,8 @@ export interface InvoiceClient {
   queryInvoices(params: InvoiceQueryParams): Promise<InvoiceQueryResult>;
 }
 
-function matchesSearch(invoice: InvoiceListItem, search: string): boolean {
+/** Exported for reuse by other fixture clients needing the same search semantics (e.g. WP-019's supplierFolderClient). */
+export function matchesInvoiceSearch(invoice: InvoiceListItem, search: string): boolean {
   const term = search.trim().toLowerCase();
   if (!term) return true;
   return (
@@ -53,7 +54,7 @@ export class FixtureInvoiceClient implements InvoiceClient {
 
     const filtered = tenantInvoices
       .filter((invoice) => (params.status ? invoice.status === params.status : true))
-      .filter((invoice) => matchesSearch(invoice, params.search ?? ''));
+      .filter((invoice) => matchesInvoiceSearch(invoice, params.search ?? ''));
 
     const sorted = [...filtered].sort((a, b) => compareInvoices(a, b, params));
 
