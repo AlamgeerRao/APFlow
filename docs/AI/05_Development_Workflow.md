@@ -48,6 +48,13 @@ Reviews implementation and prepares test cases.
 - Small incremental changes.
 - Build before commit.
 - Test before commit.
+- Every work package that changes the EF Core model must include a generated migration (`dotnet ef migrations add`) as a deliverable — never a hand-written SQL file. (Added following WP-046/WP-052's discovery that no migration mechanism existed at all; see WP-052 Part A.)
+
+---
+
+## 8a. Source of Truth for `docs/AI/*.md`
+
+`01_Project_Context.md` through `06_Domain_Reference_Data.md` must be committed to the repository as tracked files — not supplied only as chat context, and not shadowed by parallel addendum files. If a document needs updating, edit it directly and commit the change; do not create a `*_Addendum.md` alongside it. A stale, uncommitted copy of `06_Domain_Reference_Data.md` was the direct cause of an incorrect assumption in WP-053 — this section exists so that doesn't recur.
 
 ---
 

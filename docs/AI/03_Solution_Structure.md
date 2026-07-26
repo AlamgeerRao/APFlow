@@ -1,8 +1,21 @@
 # AP Flow — Solution Structure
 
-**Status:** Approved — Permanent Reference
+**Status:** Approved — Permanent Reference, subject to an active, formally-recorded deviation (see §0 below)
 **Audience:** All AI development agents and human engineers
 **Purpose:** This document defines the permanent solution structure for AP Flow. It must be read before placing any new code in the solution.
+
+---
+
+## 0. Active Deviation Notice — ADR-SA011-DEV-001
+
+**The seven-project structure in this document is a deliberate, time-boxed deviation from the approved target architecture, not the permanent design.** SA-011 (Application Architecture) specifies one project per SA-004 logical module (a 28-module layout, CI-enforced boundaries) as the correct, target structure for AP Flow. This document's seven-horizontal-layer structure was authored before SA-011 existed and diverges from it.
+
+This deviation is formally approved (Solution Architect, `ADR-SA011-DEV-001`, 2026-07-26) and remains in effect until either part of the following trigger condition is met — at which point the 28-module restructure becomes required, scheduled work, not optional:
+
+- **(a) Technical trigger** (owned by the Chief Technical Architect): a second engineering team is added to the codebase, or a defined static-analysis heuristic detects module-boundary erosion in the current structure — see the Chief Technical Architect's heuristic definition, tracked in `docs/Second_Tenant_Readiness_Gate.md`.
+- **(b) Business trigger** (Product Owner confirmation outstanding as of this notice): if a second tenant requires a genuinely new accounting-system module rather than a new connector on the existing shape, this deviation also ends and attaches to the Second-Tenant Readiness gate.
+
+Do not treat this structure's continuation as tacit endorsement of a permanent departure from SA-011. Full detail: `ADR-SA011-DEV-001`, `docs/Second_Tenant_Readiness_Gate.md`.
 
 ---
 
