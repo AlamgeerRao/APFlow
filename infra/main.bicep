@@ -14,8 +14,8 @@ targetScope = 'subscription'
 ])
 param environmentName string = 'dev'
 
-@description('Azure region for all resources')
-param location string = 'uksouth'
+@description('Azure region for all resources. Defaults to ukwest — uksouth was tried first but hit a subscription compute quota wall (SubscriptionIsOverQuotaForSku) during actual deployment; ukwest had quota available and keeps data in the UK for compliance.')
+param location string = 'ukwest'
 
 @description('Short prefix used to build resource names')
 param namePrefix string = 'apflow'

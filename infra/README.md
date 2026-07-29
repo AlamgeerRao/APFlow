@@ -135,6 +135,21 @@ Covered under "STOP / escalation items" above — `APFlow.Web`'s SQL and Key
 Vault grants have been removed. Not repeated here to avoid two sources of
 truth on the same decision.
 
+## What changed in wp-021b (bug found during actual deployment)
+
+`az deployment sub create` against a real subscription (UK West, per the
+Chief Technical Architect's data-residency preference — UK South hit a
+subscription compute quota limit and was abandoned) surfaced a genuine
+template bug: the generated Key Vault name (`kv-apflow-dev-<13-char-suffix>`)
+came out to 27 characters, 3 over Azure's hard 24-character limit for vault
+names. Fixed by shortening the uniqueness suffix used in that one name from
+13 to 6 characters (`kv-apflow-dev-<6-char-suffix>` = 20 chars) — no other
+resource name was affected; all were re-checked against their real Azure
+length limits and are within bounds (storage account sits exactly at its
+24-character limit with the default `apflow`/`dev` naming — flagged as a
+code comment for anyone lengthening those defaults later, not currently a
+problem).
+
 ## What changed from WP1
 
 - **Static Web App → App Service** for the frontend, per this WP's explicit
@@ -175,12 +190,23 @@ az login
 az account set --subscription "<subscription-id-or-name>"
 
 az deployment sub create \
-  --location uksouth \
+  --location ukwest \
   --template-file infra/main.bicep \
   --parameters \
+      location="ukwest" \
       sqlAadAdminObjectId="<object-id-from-step-0>" \
       sqlAadAdminLogin="<display-name-of-that-user-or-group>"
 ```
+
+Note there are **two separate `--location`-type values here, both needed**:
+the `az deployment sub create --location` flag just tells Azure where to
+store the *deployment record* itself and can technically be any region; the
+`location=` **template parameter** is what actually controls where the App
+Service Plan, SQL Server, Storage Account, etc. get created — this is the
+one that matters for data residency and quota. `uksouth` was tried first for
+this environment and hit a subscription compute quota wall
+(`SubscriptionIsOverQuotaForSku`); `ukwest` had quota available and keeps
+data in the UK.
 
 Capture the outputs — you'll need `apiAppServiceUrl`, `webAppServiceUrl`,
 `sqlServerFqdn`, `sqlDatabaseName`, `keyVaultName` for the next steps:
@@ -227,9 +253,10 @@ scope) — see the table below, already partly filled in.
 
 ```bash
 az deployment sub create \
-  --location uksouth \
+  --location ukwest \
   --template-file infra/main.bicep \
   --parameters \
+      location="ukwest" \
       sqlAadAdminObjectId="<object-id-from-step-0>" \
       sqlAadAdminLogin="<display-name-of-that-user-or-group>" \
       entraTenantId="641fc267-7902-48d0-8e1c-1d3d0166c8ac" \
@@ -315,7 +342,7 @@ confirmed (see STOP items above / `docs/M365-Dev-Mailbox-Tenant.md`).
 
 ---
 
-## Cost notes (dev defaults, `uksouth`, approximate)
+## Cost notes (dev defaults, `ukwest`, approximate)
 
 - App Service Plan `B1` (shared by both apps): ~£10/month
 - SQL Database `Basic`: ~£4/month

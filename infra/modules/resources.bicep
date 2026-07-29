@@ -45,9 +45,13 @@ var apiAppServiceName = 'app-${baseName}-api-${uniqueSuffix}'
 var webAppServiceName = 'app-${baseName}-web-${uniqueSuffix}'
 var sqlServerName = 'sql-${baseName}-${uniqueSuffix}'
 var sqlDatabaseName = 'sqldb-${baseName}'
+// NOTE: this name sits exactly at Azure's 24-character storage account limit
+// with the default namePrefix/environmentName ('apflow'/'dev'). Lengthening
+// either would push it over — no headroom left, flagged here for whoever
+// changes those defaults later.
 var storageAccountName = toLower('st${namePrefix}${environmentName}${uniqueSuffix}')
 var blobContainerName = 'documents'
-var keyVaultName = 'kv-${namePrefix}-${environmentName}-${uniqueSuffix}'
+var keyVaultName = 'kv-${namePrefix}-${environmentName}-${substring(uniqueSuffix, 0, 6)}'
 var logAnalyticsName = 'log-${baseName}-${uniqueSuffix}'
 var appInsightsName = 'appi-${baseName}-${uniqueSuffix}'
 
