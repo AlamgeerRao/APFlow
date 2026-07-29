@@ -118,6 +118,41 @@ confirmed as over-provisioning against `02_Project_Standards.md` §4
 Vault access to `APFlow.Api` only. `APFlow.Web`'s Storage grant is
 unaffected (not flagged, no server-side storage access pattern was raised).
 
+## WP-021c — Key Vault secret naming correction (2026-07-29)
+
+A wp-021c source drop attempted to rename the live Graph client secret from
+`gbskipdev` to `graph-cred-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`, citing "the
+convention ruled on earlier (WP-023 / Backlog per-tenant-readiness item)" as
+justification. That citation didn't hold up on inspection: WP-023
+("Application Configuration & Secrets (Key Vault)") is still **Not started**
+per `README.md`, and the only actual documented convention
+(`docs/WP-004-Graph-Multitenancy-Decision.md`, echoed in
+`docs/Backlog.md`'s Per-Tenant Graph Configuration item) is
+**`graph-secret-{tenantId}`**, not `graph-cred-{tenantId}`. This was
+surfaced to the Chief Technical Architect before merging rather than merged
+on trust.
+
+**Root cause, confirmed by the Chief Technical Architect:** the
+`graph-cred-{tenantId}` naming had appeared in some of the Architect's own
+later guidance by mistake — not an engineer error introduced during a
+merge, and not a discrepancy in `docs/WP-004-Graph-Multitenancy-Decision.md`
+or `docs/Backlog.md` themselves, which were already correct and were left
+untouched. The Architect corrected the source guidance directly (see
+`infra/docs/M365-Dev-Mailbox-Tenant.md`'s "Graph Client Secret" row, updated
+independently of this repo).
+
+**Resolution:** the live Key Vault secret (`kv-apflow-dev-ryd3y6`) was
+renamed a second time, to the correct
+`graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` — value copied across,
+length-verified, old `graph-cred-*` name soft-deleted. wp-021c's own doc
+changes (`infra/README.md`, `infra/docs/M365-Dev-Mailbox-Tenant.md`) were
+**not merged into this repo** — this repo's docs continue to reference the
+secret under its pre-wp-021c name (`gbskipdev`) pending a follow-up drop
+that documents the `graph-secret-{tenantId}` name correctly; the live Azure
+state is now ahead of the repo's docs on this one field only. Anyone
+touching this secret next should use `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`,
+not either prior name.
+
 ## Also carried over from the WP's own README (not new decisions, recorded for visibility)
 
 - **Interim assumption, not escalated:** the API app registration doubles as
