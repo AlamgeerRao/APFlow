@@ -146,12 +146,19 @@ renamed a second time, to the correct
 `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` — value copied across,
 length-verified, old `graph-cred-*` name soft-deleted. wp-021c's own doc
 changes (`infra/README.md`, `infra/docs/M365-Dev-Mailbox-Tenant.md`) were
-**not merged into this repo** — this repo's docs continue to reference the
-secret under its pre-wp-021c name (`gbskipdev`) pending a follow-up drop
-that documents the `graph-secret-{tenantId}` name correctly; the live Azure
-state is now ahead of the repo's docs on this one field only. Anyone
-touching this secret next should use `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`,
-not either prior name.
+**not merged into this repo** at the time — this repo's docs briefly
+continued to reference the secret under its pre-wp-021c name (`gbskipdev`),
+lagging behind the already-corrected live Azure state on this one field.
+
+**Closed by wp-021d (2026-07-29):** an independent, QA-caught correction
+drop that reconciles `infra/README.md` and
+`infra/docs/M365-Dev-Mailbox-Tenant.md` to the verified
+`graph-secret-{tenantId}` name and history, and fixes the stray "e.g.
+`graph-cred-{tenantId}`" example in
+`infra/scripts/create-entra-app-registrations.sh`'s comment that had misled
+wp-021c in the first place. Its remediation commands matched the live rename
+already performed above exactly — merged as-is, no further Azure action
+needed. Repo docs and live Key Vault state are now consistent.
 
 ## Also carried over from the WP's own README (not new decisions, recorded for visibility)
 

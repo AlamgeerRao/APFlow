@@ -16,7 +16,7 @@
 | Tenant ID | `1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` |
 | Mailbox to poll (UPN) | `invoices@acoounts01.onmicrosoft.com` |
 | Graph App (Client) ID | `40d63c64-ff18-4028-ba92-01ca93c1c432` |
-| Graph Client Secret | Rotated after initial capture; stored in Key Vault only — not recorded here or anywhere else in plain text. Key Vault secret name: `gbskipdev`. Expires ~1 month from creation (created 2026-07-29) — acceptable for dev, but rotate before it lapses; there is no automated rotation reminder configured. |
+| Graph Client Secret | Rotated after initial capture; stored in Key Vault only — not recorded here or anywhere else in plain text. Key Vault secret name: `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`, per the `graph-secret-{tenantId}` convention documented in `docs/WP-004-Graph-Multitenancy-Decision.md`/`docs/Backlog.md`. (History: initially stored as non-conforming `gbskipdev`; a first rename to `graph-cred-{tenantId}` cited a convention that turned out not to exist — QA caught this before merge, and the Chief Technical Architect confirmed the `graph-cred-` form had appeared in the Architect's own later guidance by mistake, not an engineering error. Renamed a second time to the actually-correct `graph-secret-{tenantId}` form — see WP-021's README "What changed in wp-021d".) Expires ~1 month from creation (created 2026-07-29) — acceptable for dev, but rotate before it lapses; there is no automated rotation reminder configured. |
 | `Mail.ReadWrite` permission | Application permission added, admin consent granted |
 | Billing | Business Basic, monthly commitment, monthly payment (cancel-anytime) |
 

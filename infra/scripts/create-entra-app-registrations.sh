@@ -119,7 +119,8 @@ if [[ "$MAIL_TENANT_ID" == "$TENANT_ID" ]]; then
 fi
 
 # The Key Vault secret's NAME is a separate, already-scoped task (naming
-# convention e.g. graph-cred-{tenantId}) — this script provisions the value,
+# convention, per docs/WP-004-Graph-Multitenancy-Decision.md: e.g.
+# graph-secret-{tenantId}) — this script provisions the value,
 # not the naming decision. Only relevant when this script is generating a NEW
 # Graph app secret (i.e. --graph-client-id was NOT supplied).
 if [[ -z "$EXISTING_GRAPH_CLIENT_ID" && -n "$KEY_VAULT_NAME" && -z "$SECRET_NAME" ]]; then

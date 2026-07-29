@@ -38,7 +38,7 @@ reference for standing up an equivalent tenant later.
 | Mailbox to poll (UPN) | `invoices@acoounts01.onmicrosoft.com` |
 | Graph app (created manually) | `apflow-graph-dev`, Client ID `40d63c64-ff18-4028-ba92-01ca93c1c432` |
 | `Mail.ReadWrite` (Application) | Granted, admin consent confirmed |
-| Client secret | Stored in Key Vault as `gbskipdev`; expires ~1 month from creation (2026-07-29) — acceptable for dev, but **flag for rotation before it lapses; no automated reminder exists** |
+| Client secret | Stored in Key Vault as `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` (renamed post-deployment from an initial non-conforming `gbskipdev` — see "What changed in wp-021c" below); expires ~1 month from creation (2026-07-29) — acceptable for dev, but **flag for rotation before it lapses; no automated reminder exists** |
 
 `scripts/create-entra-app-registrations.sh` accepts `--graph-client-id` to
 reuse this already-created Graph app rather than creating a duplicate — see
@@ -134,6 +134,70 @@ permanent record:
 Covered under "STOP / escalation items" above — `APFlow.Web`'s SQL and Key
 Vault grants have been removed. Not repeated here to avoid two sources of
 truth on the same decision.
+
+## What changed in wp-021c (post-deployment Chief Technical Architect review)
+
+Two items raised after WP-021b's actual Azure deployment, both fixed
+directly against the live environment (no redeploy needed — docs-only
+change here to match):
+
+1. **Key Vault secret naming convention.** The Graph client secret was
+   initially stored as `gbskipdev` — not following an established naming
+   convention. Renamed directly in Key Vault at the time to
+   `graph-cred-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`, citing "WP-023 /
+   Backlog per-tenant-readiness item" as the source of a
+   `graph-cred-{tenantId}` convention.
+   **This citation and naming were themselves wrong — corrected in
+   `wp-021d`, see the section below. Do not use `graph-cred-` for anything;
+   read on for the actual correct name and convention.**
+2. **Confirmed `APFlow.Web` has no SQL/Key Vault access.** Verified directly
+   against the live deployment: `sys.database_principals` shows only the API
+   app's managed identity as an external user (none for Web), and the Key
+   Vault's role assignments show only the API app (Key Vault Secrets User)
+   and the deploying admin (Key Vault Secrets Officer) — no Web app entry.
+   The earlier least-privilege fix in `wp-021a`/`resources.bicep` worked as
+   intended; nothing further to change.
+
+## What changed in wp-021d (QA-caught naming correction)
+
+QA compared `wp-021c`'s change against the actual decision record and found
+it didn't hold up: **`WP-023` ("Application Configuration & Secrets (Key
+Vault)") is still Not Started** — it never ruled on anything — and the only
+genuinely documented convention (`docs/WP-004-Graph-Multitenancy-Decision.md`,
+echoed in `docs/Backlog.md`'s Per-Tenant Graph Configuration item) is
+**`graph-secret-{tenantId}`**, not `graph-cred-{tenantId}`.
+
+**Root cause (confirmed by the Chief Technical Architect):** the
+`graph-cred-{tenantId}` form had appeared in some of the Architect's own
+later guidance by mistake — not an error introduced during any merge, and
+`docs/WP-004-Graph-Multitenancy-Decision.md`/`docs/Backlog.md` themselves
+were already correct throughout and were never touched. The Architect
+corrected the source guidance directly.
+
+**Corrected, everywhere in this README and `docs/M365-Dev-Mailbox-Tenant.md`:**
+the Graph client secret's Key Vault name is
+`graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` — **not**
+`graph-cred-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`, and **not** the original
+`gbskipdev`. **For any future environment, name this secret
+`graph-secret-{mail-tenant-id}`.**
+
+The live Key Vault secret in `kv-apflow-dev-ryd3y6` should be renamed a
+second time to match (same three-command pattern used for the first rename
+— read the existing value, write it under the correct name, delete the
+incorrect one):
+```bash
+SECRET_VALUE=$(az keyvault secret show --vault-name kv-apflow-dev-ryd3y6 --name graph-cred-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf --query value -o tsv)
+az keyvault secret set --vault-name kv-apflow-dev-ryd3y6 --name graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf --value "$SECRET_VALUE"
+az keyvault secret delete --vault-name kv-apflow-dev-ryd3y6 --name graph-cred-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf
+unset SECRET_VALUE
+```
+
+One incidental finding during verification, not a defect: `az role
+assignment list`'s `principalName` column can display a managed identity's
+**App ID** rather than its Object ID, which briefly looked like a mismatch
+against `az webapp identity show`'s Object ID output. Cross-checking with
+`principalId` (not `principalName`) resolved it — worth knowing if anyone
+re-verifies this later and sees the same apparent discrepancy.
 
 ## What changed in wp-021b (bug found during actual deployment)
 
@@ -235,16 +299,21 @@ az login --tenant 641fc267-7902-48d0-8e1c-1d3d0166c8ac --allow-no-subscriptions
 `--graph-client-id` tells the script this dev environment's Graph app
 (`apflow-graph-dev`) already exists — it reuses it instead of creating a
 duplicate, and doesn't touch its `Mail.ReadWrite` permission or reset its
-secret. Its client secret is already stored in Key Vault as `gbskipdev` (do
-this yourself, directly from your terminal — never through this script or
-any chat channel):
+secret. Its client secret is stored in Key Vault as
+`graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`, per the
+`graph-secret-{tenantId}` naming convention (per `docs/WP-004-Graph-Multitenancy-Decision.md`
+/ `docs/Backlog.md` — see "What changed in wp-021d" above for why this isn't
+`graph-cred-{tenantId}`) (do this yourself, directly from
+your terminal — never through this script or any chat channel):
 ```bash
-az keyvault secret set --vault-name <keyVaultName-from-step-1> --name gbskipdev --value <the-value-you-already-have>
+az keyvault secret set --vault-name <keyVaultName-from-step-1> --name graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf --value <the-value-you-already-have>
 ```
 
 (The `--key-vault-name`/`--secret-name`/`--subscription-tenant-id` flags
 below only apply when the script is generating a **new** Graph app secret —
-not needed for this environment, since the Graph app already exists.)
+not needed for this environment, since the Graph app already exists. For a
+new environment, name the secret `graph-secret-{mail-tenant-id}` to follow the
+same convention.)
 
 Capture the printed reference values (SPA client ID, API client ID, API
 scope) — see the table below, already partly filled in.
@@ -337,7 +406,7 @@ confirmed (see STOP items above / `docs/M365-Dev-Mailbox-Tenant.md`).
 | API scope | React MSAL — scope requested when calling the API | `api://<API client ID>/access_as_user` |
 | Graph/mail tenant ID | Workers' Graph client-credentials config | `1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` |
 | Graph client ID | Workers' Graph client-credentials config (separate from the API client ID) | `40d63c64-ff18-4028-ba92-01ca93c1c432` |
-| Graph client secret name (Key Vault) | Workers reads this from Key Vault at runtime — never hardcoded | `gbskipdev` (expires ~2026-08-29 — rotate before then) |
+| Graph client secret name (Key Vault) | Workers reads this from Key Vault at runtime — never hardcoded | `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` (expires ~2026-08-29 — rotate before then) |
 | Test mailbox UPN | What Workers actually polls in dev | `invoices@acoounts01.onmicrosoft.com` |
 
 ---
