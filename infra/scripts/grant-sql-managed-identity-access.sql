@@ -13,14 +13,13 @@
 --     (sqlAadAdminObjectId / sqlAadAdminLogin), e.g. via:
 --       sqlcmd -S <sqlServerFqdn> -d <sqlDatabaseName> -G --authentication-method=ActiveDirectoryDefault
 --     or Azure Data Studio / SSMS with "Azure Active Directory - Universal / Default" auth.
---   - The user name below MUST exactly match each App Service's name (this is
+--   - The user name below MUST exactly match the App Service's name (this is
 --     also the display name of the Enterprise Application created for its
---     system-assigned managed identity). Replace the placeholders before running.
+--     system-assigned managed identity). Replace the placeholder before running.
 -- ============================================================================
 
--- Replace with the actual App Service names (see Bicep outputs: apiAppServiceName / webAppServiceName)
+-- Replace with the actual App Service name (see Bicep output: apiAppServiceName)
 DECLARE @apiAppServiceName SYSNAME = N'<apiAppServiceName-from-bicep-output>';
-DECLARE @webAppServiceName SYSNAME = N'<webAppServiceName-from-bicep-output>';
 
 DECLARE @sql NVARCHAR(MAX);
 
@@ -35,21 +34,13 @@ ALTER ROLE db_datawriter ADD MEMBER [' + @apiAppServiceName + N'];
 ';
 EXEC sp_executesql @sql;
 
--- APFlow.Web — provisioned per this WP's explicit instruction that both App
--- Services get SQL access. In practice the SPA host has no server-side data
--- access pattern today; granting read-only here rather than read/write until
--- a concrete need is identified (flag for Chief Technical Architect review —
--- see README "Observations for review").
-SET @sql = N'
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = ''' + @webAppServiceName + N''')
-BEGIN
-    CREATE USER [' + @webAppServiceName + N'] FROM EXTERNAL PROVIDER;
-END
-ALTER ROLE db_datareader ADD MEMBER [' + @webAppServiceName + N'];
-';
-EXEC sp_executesql @sql;
+-- APFlow.Web (the SPA host) intentionally gets NO database user here.
+-- Per Chief Technical Architect ruling: a static SPA host has no server-side
+-- reason to touch SQL directly — WP-021's original "both App Services" grant
+-- was over-provisioning per 02_Project_Standards.md §4 (least privilege) and
+-- has been narrowed to APFlow.Api only.
 
 -- Verify
 SELECT name, type_desc, authentication_type_desc
 FROM sys.database_principals
-WHERE name IN (@apiAppServiceName, @webAppServiceName);
+WHERE name = @apiAppServiceName;

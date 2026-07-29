@@ -269,15 +269,12 @@ resource apiKvAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource webKvAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, webAppService.id, kvSecretsUserRoleId)
-  scope: keyVault
-  properties: {
-    roleDefinitionId: kvSecretsUserRoleId
-    principalId: webAppService.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
+// APFlow.Web (the SPA host) intentionally has NO Key Vault or SQL grants.
+// Per Chief Technical Architect ruling: a static SPA host has no server-side
+// logic that would ever need either — granting them anyway would be
+// over-provisioning against 02_Project_Standards.md §4's least-privilege
+// principle for no corresponding benefit. (Storage access below is
+// unaffected by this ruling and was not flagged.)
 
 resource apiStorageAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storageAccount.id, apiAppService.id, storageBlobDataContributorRoleId)

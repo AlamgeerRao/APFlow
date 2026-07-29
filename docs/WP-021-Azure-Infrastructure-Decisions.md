@@ -1,7 +1,7 @@
 # WP-021 — Azure Infrastructure (App Service, SQL, Storage): Decisions Required
 
-**Status:** OPEN — infrastructure code merged and verified compiling; two items
-below require action/ruling before this WP can actually be deployed.
+**Status:** RESOLVED (2026-07-29, via WP-021a's merge) — both open items below
+are closed. See "Resolution (WP-021a)" under each item.
 **Owner:** Chief Technical Architect / a human with Entra tenant-creation rights.
 **Raised:** WP-021's own source drop (`infra/README.md`), surfaced here per
 merge instruction rather than decided during the merge.
@@ -50,8 +50,15 @@ Everything else in this WP (the Bicep deployment, the app-registration
 script, the SQL grants) is ready to run as soon as this one manual step is
 done and its Tenant ID is captured.
 
-- [ ] A human with the required Entra role creates the dev CIAM tenant and
+- [x] A human with the required Entra role creates the dev CIAM tenant and
       records the Tenant ID.
+
+**Resolution (WP-021a, 2026-07-29):** created and confirmed as tenant type
+**External** (a first attempt using a Workforce-type tenant, `tahirayyub`,
+was correctly identified and set aside before use). Tenant name
+`RameezJav lt.`, domain `rameezjav.onmicrosoft.com`, Tenant ID
+`641fc267-7902-48d0-8e1c-1d3d0166c8ac`. See `infra/README.md` for the full
+reference table.
 
 ## Open item 2 — `Mail.ReadWrite` has no mailbox to target if left in the CIAM tenant
 
@@ -73,12 +80,43 @@ workforce identity/Exchange), not something to guess at.
 warning if left unset, so this doesn't block the rest of the WP from being
 usable) — but is not "done" until one of these is confirmed:
 
-- [ ] Register the Graph-permissioned app in a **separate dev/test
+- [x] Register the Graph-permissioned app in a **separate dev/test
       Microsoft 365 tenant** that actually has an Exchange Online mailbox to
       poll, **or**
 - [ ] Defer the Graph/mail piece until GB Skips' own tenant details exist and
       point `--mail-tenant-id` at a stand-in test mailbox tenant in the
       meantime.
+
+**Resolution (WP-021a, 2026-07-29):** Chief Technical Architect ruling —
+registered in a separate M365 tenant. The originally-suggested free
+Microsoft 365 Developer Program sandbox route was attempted and found
+genuinely inaccessible (a 2024 Microsoft policy change restricts it to
+qualifying Visual Studio Enterprise/Professional subscribers or Partner
+Program members); **Microsoft 365 Business Basic on monthly billing** was
+used instead (no eligibility gate, standard commercial signup). Full
+provisioning record: `infra/docs/M365-Dev-Mailbox-Tenant.md`. Tenant domain
+`acoounts01.onmicrosoft.com`, Tenant ID `1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`,
+mailbox `invoices@acoounts01.onmicrosoft.com`.
+
+**Also ruled on, same merge — app registration count corrected from two to
+three.** WP-021's original "interim assumption, not escalated" (API resource
++ Graph client sharing one registration) is overridden: the API resource and
+the Graph application-only client are two different security boundaries (one
+validates end-user tokens, the other is a no-user-context mailbox credential)
+and must not share a registration or a leaked-secret blast radius.
+`create-entra-app-registrations.sh` now creates/reuses three registrations —
+`APFlow-SPA-Dev`, `APFlow-Api-Dev` (CIAM tenant), and `apflow-graph-dev`
+(mail tenant, application-only, `Mail.ReadWrite` + admin consent). See
+`infra/README.md` for the full breakdown.
+
+**Also resolved, same merge — `APFlow.Web`'s SQL/Key Vault grants removed.**
+The "Observation, not a blocker" below (both App Services getting SQL/Key
+Vault access despite `APFlow.Web` having no server-side use for either) was
+confirmed as over-provisioning against `02_Project_Standards.md` §4
+(least privilege) and removed: `infra/modules/resources.bicep` and
+`infra/scripts/grant-sql-managed-identity-access.sql` now grant SQL/Key
+Vault access to `APFlow.Api` only. `APFlow.Web`'s Storage grant is
+unaffected (not flagged, no server-side storage access pattern was raised).
 
 ## Also carried over from the WP's own README (not new decisions, recorded for visibility)
 
