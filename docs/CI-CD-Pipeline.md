@@ -8,16 +8,31 @@ API:  https://app-apflow-dev-api-ryd3y6fyfloxu.azurewebsites.net
 Web:  https://app-apflow-dev-web-ryd3y6fyfloxu.azurewebsites.net
 ```
 
+**wp-060 note:** this drop corrects two things QA flagged/caught after the
+original `wp-022b` drop, both reflected below and in the file paths
+themselves:
+1. **File structure** — the original drop nested everything under an extra
+   `wp-022/` folder rather than matching real repo paths. Corrected here:
+   `.github/workflows/` and `docs/` sit at the repo root; both one-time
+   setup scripts now live under `infra/scripts/` alongside WP-021's own
+   scripts (same category of thing — manual, elevated-privilege Azure/Entra
+   setup — not a new top-level `scripts/` folder).
+2. **Node.js version** — `APFlow.Web` was flagged in the Azure Portal as
+   running Node 20, which reached end-of-life 2026-04-30. Bumped to Node 24
+   (Active LTS) in both the deployed runtime stack (WP-021's
+   `resources.bicep`) and this pipeline's own build/test step, so CI
+   exercises the same Node major version that actually runs in production.
+
 ---
 
 ## Files created
 
-| File | Purpose |
-|---|---|
-| `.github/workflows/ci-cd.yml` | The pipeline itself |
-| `infra/scripts/setup-github-oidc-service-principal.sh` | One-time setup: creates the CI/CD Entra app registration + OIDC federation + RBAC |
-| `infra/scripts/grant-ci-sql-migration-access.sql` | One-time setup: grants that identity a database user with migration rights |
-| `docs/CI-CD-Pipeline.md` | This document |
+| File | Purpose | Repo location |
+|---|---|---|
+| `ci-cd.yml` | The pipeline itself | `.github/workflows/ci-cd.yml` |
+| `setup-github-oidc-service-principal.sh` | One-time setup: creates the CI/CD Entra app registration + OIDC federation + RBAC | `infra/scripts/setup-github-oidc-service-principal.sh` |
+| `grant-ci-sql-migration-access.sql` | One-time setup: grants that identity a database user with migration rights | `infra/scripts/grant-ci-sql-migration-access.sql` |
+| `CI-CD-Pipeline.md` | This document | `docs/CI-CD-Pipeline.md` |
 
 ---
 

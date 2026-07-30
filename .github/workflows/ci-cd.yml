@@ -20,7 +20,7 @@ concurrency:
 
 env:
   DOTNET_VERSION: '9.0.x'
-  NODE_VERSION: '20.x'
+  NODE_VERSION: '24.x'   # wp-060: bumped from 20.x (EOL 2026-04-30) to Active LTS
   SOLUTION_PATH: 'APFlow.sln'
   API_PROJECT_PATH: 'src/APFlow.Api/APFlow.Api.csproj'
   INFRASTRUCTURE_PROJECT_PATH: 'src/APFlow.Infrastructure/APFlow.Infrastructure.csproj'
@@ -138,7 +138,8 @@ jobs:
         with:
           name: web-publish
           # Includes the small Express static-file server (see WP-021 README
-          # — APFlow.Web runs NODE|20-lts on App Service, not Static Web Apps)
+          # — APFlow.Web runs NODE|24-lts on App Service, not Static Web Apps —
+          # see infra/README.md "What changed in wp-060" for the Node 20 EOL bump)
           # alongside its built assets. Adjust this path if the repo's actual
           # server entrypoint/build output layout differs — not independently
           # verified against the real repo; flagged in docs/CI-CD-Pipeline.md.

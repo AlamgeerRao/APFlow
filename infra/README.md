@@ -79,7 +79,7 @@ would have been over-provisioning against `02_Project_Standards.md` §4
 | Resource Group | `rg-apflow-dev` | |
 | App Service Plan (Linux) | Hosts both App Services | `B1` — one plan, shared compute, per WP instruction |
 | App Service — APFlow.Api | Backend API | System-assigned identity; `DOTNETCORE\|9.0`; only app with SQL + Key Vault RBAC grants |
-| App Service — APFlow.Web | React SPA, served from App Service (confirmed: not Static Web Apps) | System-assigned identity; `NODE\|20-lts`; Storage access only — no SQL/Key Vault (see ruling above) |
+| App Service — APFlow.Web | React SPA, served from App Service (confirmed: not Static Web Apps) | System-assigned identity; `NODE\|24-lts` (Active LTS — see "What changed in wp-060" below); Storage access only — no SQL/Key Vault (see ruling above) |
 | Azure SQL Server | Azure-AD-only authentication — **no SQL login/password exists** | AAD admin set to a group/user in the subscription's own tenant |
 | Azure SQL Database | Single shared database | Confirmed time-boxed position — schema via EF Core migrations only, never in this template |
 | Storage Account + Blob Container | Document storage | `allowSharedKeyAccess: false` — no account keys are issued; access is RBAC-only |
@@ -157,6 +157,37 @@ change here to match):
    and the deploying admin (Key Vault Secrets Officer) — no Web app entry.
    The earlier least-privilege fix in `wp-021a`/`resources.bicep` worked as
    intended; nothing further to change.
+
+## What changed in wp-060 (Node.js LTS upgrade — spans WP-021 and WP-022)
+
+Spotted directly in the Azure Portal: `APFlow.Web`'s App Service was flagged
+as running an end-of-life runtime stack. Confirmed —
+**Node.js 20 reached end-of-life on 2026-04-30**; it had been unsupported
+for 3 months at the time this was caught. No further security patches are
+issued for it upstream.
+
+**Fix:** bumped to **Node.js 24 — Active LTS** (entered LTS October 2025,
+EOL 2028-04-30), the longest-runway supported option currently available as
+an Azure App Service Linux runtime stack (`NODE|24-lts`), ahead of the more
+conservative Node 22 (Maintenance LTS, EOL 2027-04-30). Changed in:
+- `infra/modules/resources.bicep` — `linuxFxVersion` for `APFlow.Web`.
+- `.github/workflows/ci-cd.yml` (WP-022) — `NODE_VERSION` for the
+  build/lint/test job, so CI exercises the same Node major version that
+  actually runs in production rather than a stale one.
+
+**This WP-060 package is also the first correctly-rooted drop of WP-022's
+files.** The prior `wp-022b` drop nested everything under an extra `wp-022/`
+folder rather than matching real repo paths — QA flagged this before merge.
+This package fixes that at the same time: `.github/workflows/ci-cd.yml` and
+`docs/CI-CD-Pipeline.md` sit at the repo root as they should, and both
+one-time setup scripts (`setup-github-oidc-service-principal.sh`,
+`grant-ci-sql-migration-access.sql`) live under `infra/scripts/` alongside
+WP-021's own scripts — same category of thing (manually-run, elevated-
+privilege Azure/Entra setup), not application code, so grouped with their
+siblings rather than a new top-level `scripts/` folder.
+
+**No other resource's runtime stack needed changing** — `APFlow.Api` runs
+`DOTNETCORE|9.0`, which isn't affected by this issue.
 
 ## What changed in wp-021d (QA-caught naming correction)
 
