@@ -1,0 +1,275 @@
+name: AP Flow CI/CD (Development)
+
+# WP-022 — Development-only pipeline. There is no staging/prod target yet
+# (per 01_Project_Context.md — dev-only per this WP's own scope), so this
+# workflow deliberately has no environment parameter/matrix that could ever
+# point migrations or deployments anywhere else. Every target (SQL server,
+# database, both App Services) is hardcoded to the single "development"
+# GitHub Environment's variables below — see docs/CI-CD-Pipeline.md for why.
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ap-flow-dev-deploy
+  cancel-in-progress: false
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  NODE_VERSION: '20.x'
+  SOLUTION_PATH: 'APFlow.sln'
+  API_PROJECT_PATH: 'src/APFlow.Api/APFlow.Api.csproj'
+  INFRASTRUCTURE_PROJECT_PATH: 'src/APFlow.Infrastructure/APFlow.Infrastructure.csproj'
+  WEB_APP_PATH: 'src/APFlow.Web'
+
+jobs:
+  # ============================================================================
+  # Backend: build .NET solution, run all 5 test projects
+  # ============================================================================
+  backend-build-test:
+    name: Backend build & test (${{ matrix.test-project }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test-project:
+          - tests/APFlow.Domain.Tests
+          - tests/APFlow.Application.Tests
+          - tests/APFlow.Api.Tests
+          - tests/APFlow.Infrastructure.Tests
+          - tests/APFlow.Integrations.Tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore solution
+        run: dotnet restore "${{ env.SOLUTION_PATH }}"
+
+      - name: Build solution (Release, no restore)
+        # Only needs to run once per matrix entry in principle, but is cheap
+        # and keeps every matrix leg self-contained/independent — deliberate,
+        # not an oversight.
+        run: dotnet build "${{ env.SOLUTION_PATH }}" --configuration Release --no-restore
+
+      - name: Run tests — ${{ matrix.test-project }}
+        run: dotnet test "${{ matrix.test-project }}" --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ strategy.job-index }}
+          path: '**/test-results.trx'
+          retention-days: 14
+
+  # ============================================================================
+  # Backend: publish the API for deployment (separate from test matrix so a
+  # single publish artifact exists regardless of matrix fan-out)
+  # ============================================================================
+  backend-publish:
+    name: Publish APFlow.Api
+    runs-on: ubuntu-latest
+    needs: [backend-build-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore "${{ env.SOLUTION_PATH }}"
+
+      - name: Publish APFlow.Api
+        run: dotnet publish "${{ env.API_PROJECT_PATH }}" --configuration Release --no-restore --output ./publish/api
+
+      - name: Upload API publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+          retention-days: 14
+
+  # ============================================================================
+  # Frontend: build, lint, type-check, unit test (all added WP-014a)
+  # ============================================================================
+  frontend-build-test:
+    name: Frontend build & test (APFlow.Web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WEB_APP_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WEB_APP_PATH }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint .)
+        run: npx eslint .
+
+      - name: Type-check (tsc -b)
+        run: npx tsc -b
+
+      - name: Unit tests (vitest run)
+        run: npx vitest run
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload web publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-publish
+          # Includes the small Express static-file server (see WP-021 README
+          # — APFlow.Web runs NODE|20-lts on App Service, not Static Web Apps)
+          # alongside its built assets. Adjust this path if the repo's actual
+          # server entrypoint/build output layout differs — not independently
+          # verified against the real repo; flagged in docs/CI-CD-Pipeline.md.
+          path: |
+            ${{ env.WEB_APP_PATH }}/dist
+            ${{ env.WEB_APP_PATH }}/server.js
+            ${{ env.WEB_APP_PATH }}/package.json
+            ${{ env.WEB_APP_PATH }}/package-lock.json
+          retention-days: 14
+
+  # ============================================================================
+  # Apply pending EF Core migrations to Development ONLY — explicit, auditable
+  # step, gated behind the "development" GitHub Environment, and only reached
+  # if every build/test job above succeeded.
+  # ============================================================================
+  migrate-development-database:
+    name: Apply EF Core migrations (Development)
+    runs-on: ubuntu-latest
+    needs: [backend-publish, frontend-build-test]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment:
+      name: development
+    permissions:
+      id-token: write   # required for OIDC login to Azure — no stored client secret
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore "${{ env.SOLUTION_PATH }}"
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef
+
+      # --- OIDC federated login: no client secret is stored anywhere. -------
+      # This exchanges GitHub's own OIDC ID token for an Azure AD token using
+      # the CI/CD app registration's federated credential (see
+      # scripts/setup-github-oidc-service-principal.sh). Writing the raw
+      # GitHub token to a file and pointing AZURE_FEDERATED_TOKEN_FILE at it
+      # is the documented mechanism Azure.Identity's WorkloadIdentityCredential
+      # (used by "Authentication=Active Directory Default" below) expects.
+      # FLAGGED: this exact hand-off has not been run against the real
+      # pipeline yet — verify on first live run; see docs/CI-CD-Pipeline.md.
+      - name: Request GitHub OIDC token for Azure AD federation
+        id: oidc
+        run: |
+          TOKEN_RESPONSE=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange")
+          echo "$TOKEN_RESPONSE" | jq -r '.value' > "$RUNNER_TEMP/azure_federated_token"
+          echo "token_file=$RUNNER_TEMP/azure_federated_token" >> "$GITHUB_OUTPUT"
+
+      - name: Apply pending migrations
+        env:
+          AZURE_CLIENT_ID: ${{ vars.CI_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_FEDERATED_TOKEN_FILE: ${{ steps.oidc.outputs.token_file }}
+          AZURE_AUTHORITY_HOST: https://login.microsoftonline.com
+        run: |
+          dotnet ef database update \
+            --project "${{ env.INFRASTRUCTURE_PROJECT_PATH }}" \
+            --startup-project "${{ env.API_PROJECT_PATH }}" \
+            --connection "Server=tcp:${{ vars.SQL_SERVER_FQDN }},1433;Initial Catalog=${{ vars.SQL_DATABASE_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;"
+
+  # ============================================================================
+  # Deploy — API (only after migrations succeed)
+  # ============================================================================
+  deploy-api:
+    name: Deploy APFlow.Api (Development)
+    runs-on: ubuntu-latest
+    needs: [migrate-development-database]
+    environment:
+      name: development
+      url: https://app-apflow-dev-api-ryd3y6fyfloxu.azurewebsites.net
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download API publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+
+      - name: Azure login (OIDC — no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.CI_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.API_APP_SERVICE_NAME }}
+          package: ./publish/api
+
+  # ============================================================================
+  # Deploy — Web (only after migrations succeed; independent of deploy-api,
+  # both gated on the same migration step)
+  # ============================================================================
+  deploy-web:
+    name: Deploy APFlow.Web (Development)
+    runs-on: ubuntu-latest
+    needs: [migrate-development-database]
+    environment:
+      name: development
+      url: https://app-apflow-dev-web-ryd3y6fyfloxu.azurewebsites.net
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download web publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-publish
+          path: ./publish/web
+
+      - name: Azure login (OIDC — no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.CI_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.WEB_APP_SERVICE_NAME }}
+          package: ./publish/web
