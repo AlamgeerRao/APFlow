@@ -2,6 +2,7 @@ using APFlow.Application.Features.Approval;
 using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Suppliers;
+using APFlow.Application.Features.SupplierFolders;
 using APFlow.Application.Features.Workflow;
 using APFlow.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkflowValidationService, WorkflowValidationService>();
         services.AddScoped<IApprovalAuthorizationService, ApprovalAuthorizationService>();
         services.AddScoped<IInvoiceWorkflowActionsService, InvoiceWorkflowActionsService>();
+        services.AddScoped<ISupplierFolderQueryService, SupplierFolderQueryService>();
 
         // Further feature registrations, validators, and mapping profiles are added
         // here as they are implemented.

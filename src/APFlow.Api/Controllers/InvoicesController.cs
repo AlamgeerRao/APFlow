@@ -34,6 +34,7 @@ public sealed class InvoicesController : ControllerBase
     private readonly IInvoiceQueryService _invoiceQueryService;
     private readonly IInvoiceService _invoiceService;
     private readonly IInvoiceWorkflowActionsService _invoiceWorkflowActionsService;
+    private readonly ISupplierFolderQueryService _supplierFolderQueryService;
     private readonly IAuditQueryService _auditQueryService;
     private readonly IAuditService _auditService;
     private readonly IBlobStorageService _blobStorageService;
@@ -44,6 +45,7 @@ public sealed class InvoicesController : ControllerBase
         IInvoiceQueryService invoiceQueryService,
         IInvoiceService invoiceService,
         IInvoiceWorkflowActionsService invoiceWorkflowActionsService,
+        ISupplierFolderQueryService supplierFolderQueryService,
         IAuditQueryService auditQueryService,
         IAuditService auditService,
         IBlobStorageService blobStorageService,
@@ -52,6 +54,7 @@ public sealed class InvoicesController : ControllerBase
         _invoiceQueryService = invoiceQueryService;
         _invoiceService = invoiceService;
         _invoiceWorkflowActionsService = invoiceWorkflowActionsService;
+        _supplierFolderQueryService = supplierFolderQueryService;
         _auditQueryService = auditQueryService;
         _auditService = auditService;
         _blobStorageService = blobStorageService;
@@ -98,6 +101,77 @@ public sealed class InvoicesController : ControllerBase
             SortDescending: sortDescending);
 
         var result = await _invoiceQueryService.SearchAsync(parameters, cancellationToken);
+        if (result.IsFailure)
+        {
+            return ErrorProblem(result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Returns per-status invoice counts for the current tenant's non-terminal
+    /// workflow statuses (WP-059 Part A) - backs the Supplier &amp; Folder Views'
+    /// folder list. Thin wrapper over <see cref="ISupplierFolderQueryService.GetFolderCountsAsync"/>;
+    /// no filtering/aggregation logic lives in this controller.
+    /// </summary>
+    [HttpGet("folders")]
+    [ProducesResponseType(typeof(IReadOnlyList<FolderSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetFolders([FromQuery] string? search, CancellationToken cancellationToken)
+    {
+        var result = await _supplierFolderQueryService.GetFolderCountsAsync(search, cancellationToken);
+        if (result.IsFailure)
+        {
+            return ErrorProblem(result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Returns the distinct supplier names appearing among invoices matching the
+    /// optional <paramref name="folder"/>/<paramref name="search"/> filters
+    /// (WP-059 Part A) - backs the supplier filter dropdown, scoped to what's
+    /// actually in the current folder/search context.
+    /// </summary>
+    [HttpGet("suppliers")]
+    [ProducesResponseType(typeof(IReadOnlyList<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetSuppliers(
+        [FromQuery] string? folder, [FromQuery] string? search, CancellationToken cancellationToken)
+    {
+        var result = await _supplierFolderQueryService.GetSupplierNamesAsync(folder, search, cancellationToken);
+        if (result.IsFailure)
+        {
+            return ErrorProblem(result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Returns a page of supplier-grouped invoices matching the optional
+    /// folder/supplier/search filters (WP-059 Part A) - backs the Supplier &amp;
+    /// Folder Views' grouped list. Paginates over supplier groups, default page
+    /// size <see cref="SupplierFolderQueryParameters.DefaultPageSize"/>, per
+    /// docs/WP-019-Supplier-Folder-Views-Decisions.md §3.
+    /// </summary>
+    [HttpGet("grouped")]
+    [ProducesResponseType(typeof(SupplierGroupedInvoicesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetGrouped(
+        [FromQuery] string? folder,
+        [FromQuery] string? supplier,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = SupplierFolderQueryParameters.DefaultPageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var parameters = new SupplierFolderQueryParameters(
+            Folder: folder, Supplier: supplier, Search: search, Page: page, PageSize: pageSize);
+
+        var result = await _supplierFolderQueryService.GetGroupedInvoicesAsync(parameters, cancellationToken);
         if (result.IsFailure)
         {
             return ErrorProblem(result.Error);

@@ -463,17 +463,111 @@ public class InvoicesControllerTests
         Assert.Equal("Approval.Unauthorized", problem.Extensions["code"]);
     }
 
+    [Fact]
+    public async Task GetFolders_ReturnsFolderSummaries()
+    {
+        var supplierFolderService = new FakeSupplierFolderQueryService
+        {
+            FoldersToReturn = [new FolderSummaryDto("RECEIVED", "Received", 3), new FolderSummaryDto("AWAITING_REVIEW", "Awaiting Review", 7)],
+        };
+        var controller = CreateController(
+            new FakeInvoiceService(), new FakeAuditQueryService(), supplierFolderQueryService: supplierFolderService);
+
+        var actionResult = await controller.GetFolders(search: "Acme", CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var folders = Assert.IsAssignableFrom<IReadOnlyList<FolderSummaryDto>>(okResult.Value);
+        Assert.Equal(2, folders.Count);
+        Assert.Equal("Acme", supplierFolderService.LastSearch);
+    }
+
+    [Fact]
+    public async Task GetFolders_ServiceFails_ReturnsProblem()
+    {
+        var supplierFolderService = new FakeSupplierFolderQueryService { FailureToReturn = new Error("Workflow.TemplateNotFound", "boom") };
+        var controller = CreateController(
+            new FakeInvoiceService(), new FakeAuditQueryService(), supplierFolderQueryService: supplierFolderService);
+
+        var actionResult = await controller.GetFolders(search: null, CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetSuppliers_ReturnsSupplierNames_PassesFolderAndSearchThrough()
+    {
+        var supplierFolderService = new FakeSupplierFolderQueryService { SuppliersToReturn = ["Acme Ltd", "Zeta Ltd"] };
+        var controller = CreateController(
+            new FakeInvoiceService(), new FakeAuditQueryService(), supplierFolderQueryService: supplierFolderService);
+
+        var actionResult = await controller.GetSuppliers(folder: "AWAITING_REVIEW", search: "Ac", CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var suppliers = Assert.IsAssignableFrom<IReadOnlyList<string>>(okResult.Value);
+        Assert.Equal(["Acme Ltd", "Zeta Ltd"], suppliers);
+        Assert.Equal(("AWAITING_REVIEW", "Ac"), supplierFolderService.LastSuppliersArgs);
+    }
+
+    [Fact]
+    public async Task GetGrouped_ReturnsGroupedResult_PassesParametersThrough()
+    {
+        var supplierFolderService = new FakeSupplierFolderQueryService
+        {
+            GroupedToReturn = new SupplierGroupedInvoicesDto([], 0, 2, 10),
+        };
+        var controller = CreateController(
+            new FakeInvoiceService(), new FakeAuditQueryService(), supplierFolderQueryService: supplierFolderService);
+
+        var actionResult = await controller.GetGrouped(
+            folder: "AWAITING_REVIEW", supplier: "Acme Ltd", search: "Ac", page: 2, pageSize: 10, CancellationToken.None);
+
+        var okResult = Assert.IsType<OkObjectResult>(actionResult);
+        var grouped = Assert.IsType<SupplierGroupedInvoicesDto>(okResult.Value);
+        Assert.Equal(2, grouped.Page);
+        Assert.Equal(10, grouped.PageSize);
+
+        var lastParams = supplierFolderService.LastGroupedParameters;
+        Assert.NotNull(lastParams);
+        Assert.Equal("AWAITING_REVIEW", lastParams!.Folder);
+        Assert.Equal("Acme Ltd", lastParams.Supplier);
+        Assert.Equal("Ac", lastParams.Search);
+        Assert.Equal(2, lastParams.Page);
+        Assert.Equal(10, lastParams.PageSize);
+    }
+
+    [Fact]
+    public async Task GetGrouped_InvalidPageSize_ReturnsBadRequest()
+    {
+        var supplierFolderService = new FakeSupplierFolderQueryService
+        {
+            FailureToReturn = new Error("SupplierFolderQuery.InvalidPageSize", "PageSize must be between 1 and 50."),
+        };
+        var controller = CreateController(
+            new FakeInvoiceService(), new FakeAuditQueryService(), supplierFolderQueryService: supplierFolderService);
+
+        var actionResult = await controller.GetGrouped(
+            folder: null, supplier: null, search: null, page: 1, pageSize: 999, CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("SupplierFolderQuery.InvalidPageSize", problem.Extensions["code"]);
+    }
+
     private static InvoicesController CreateController(
         FakeInvoiceService invoiceService,
         FakeAuditQueryService auditQueryService,
         FakeAuditService? auditService = null,
         FakeBlobStorageService? blobStorageService = null,
         FakeInvoiceWorkflowActionsService? invoiceWorkflowActionsService = null,
-        FakeInvoiceQueryService? invoiceQueryService = null) =>
+        FakeInvoiceQueryService? invoiceQueryService = null,
+        FakeSupplierFolderQueryService? supplierFolderQueryService = null) =>
         new(
             invoiceQueryService ?? new FakeInvoiceQueryService(),
             invoiceService,
             invoiceWorkflowActionsService ?? new FakeInvoiceWorkflowActionsService(),
+            supplierFolderQueryService ?? new FakeSupplierFolderQueryService(),
             auditQueryService,
             auditService ?? new FakeAuditService(),
             blobStorageService ?? new FakeBlobStorageService(),
@@ -605,6 +699,41 @@ public class InvoicesControllerTests
             return Task.FromResult(FailureToReturn is { } error
                 ? Result.Failure<PagedResult<InvoiceListItemDto>>(error)
                 : Result.Success(ResultToReturn));
+        }
+    }
+
+    private sealed class FakeSupplierFolderQueryService : ISupplierFolderQueryService
+    {
+        public IReadOnlyList<FolderSummaryDto> FoldersToReturn { get; set; } = [];
+        public IReadOnlyList<string> SuppliersToReturn { get; set; } = [];
+        public SupplierGroupedInvoicesDto GroupedToReturn { get; set; } = new([], 0, 1, SupplierFolderQueryParameters.DefaultPageSize);
+        public Error? FailureToReturn { get; set; }
+        public string? LastSearch { get; private set; }
+        public (string? Folder, string? Search)? LastSuppliersArgs { get; private set; }
+        public SupplierFolderQueryParameters? LastGroupedParameters { get; private set; }
+
+        public Task<Result<IReadOnlyList<FolderSummaryDto>>> GetFolderCountsAsync(string? search, CancellationToken cancellationToken = default)
+        {
+            LastSearch = search;
+            return Task.FromResult(FailureToReturn is { } error
+                ? Result.Failure<IReadOnlyList<FolderSummaryDto>>(error)
+                : Result.Success(FoldersToReturn));
+        }
+
+        public Task<Result<IReadOnlyList<string>>> GetSupplierNamesAsync(string? folder, string? search, CancellationToken cancellationToken = default)
+        {
+            LastSuppliersArgs = (folder, search);
+            return Task.FromResult(FailureToReturn is { } error
+                ? Result.Failure<IReadOnlyList<string>>(error)
+                : Result.Success(SuppliersToReturn));
+        }
+
+        public Task<Result<SupplierGroupedInvoicesDto>> GetGroupedInvoicesAsync(SupplierFolderQueryParameters parameters, CancellationToken cancellationToken = default)
+        {
+            LastGroupedParameters = parameters;
+            return Task.FromResult(FailureToReturn is { } error
+                ? Result.Failure<SupplierGroupedInvoicesDto>(error)
+                : Result.Success(GroupedToReturn));
         }
     }
 

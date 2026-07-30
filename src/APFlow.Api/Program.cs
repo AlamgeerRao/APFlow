@@ -38,13 +38,9 @@ builder.Services
     .AddInfrastructure(builder.Configuration, builder.Environment)
     .AddIntegrations(builder.Configuration, builder.Environment)
     .AddWorkers()
-    .AddApiServices(builder.Configuration)
+    .AddApiServices(builder.Configuration, builder.Environment)
     .AddApiAuthentication(builder.Configuration, builder.Environment)
     .AddApiAuthorization();
-
-// NOTE: No CORS policy is configured. APFlow.Web (the React SPA) will need one
-// to call this API cross-origin from a different host/port. Deferred to the
-// work package that wires up APFlow.Web against this API - not implemented here.
 
 var app = builder.Build();
 
@@ -57,6 +53,12 @@ var app = builder.Build();
 // implicit routing-insertion behavior in minimal hosting.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
+
+// WP-059 Part B: named CORS policy (allowed origins from configuration - see
+// AddApiServices/CorsOptions). Must run before UseAuthentication/UseAuthorization
+// so a preflight OPTIONS request (which never carries an Authorization header)
+// is answered without being rejected by auth middleware first.
+app.UseApiCors();
 
 // WP-002: Microsoft Entra External ID JWT bearer authentication, with a
 // solution-wide fallback authorization policy requiring an authenticated caller

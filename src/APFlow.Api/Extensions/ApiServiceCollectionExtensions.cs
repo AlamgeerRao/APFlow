@@ -2,7 +2,9 @@ using APFlow.Api.Configuration;
 using APFlow.Infrastructure.Persistence;
 using APFlow.Infrastructure.Storage;
 using APFlow.Integrations.Graph;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
 namespace APFlow.Api.Extensions;
@@ -16,10 +18,25 @@ public static class ApiServiceCollectionExtensions
 {
     private const string BearerSecuritySchemeId = "Bearer";
 
-    /// <summary>Registers API-owned services (OpenAPI, health checks) and binds their options.</summary>
-    public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
+    /// <summary>Named CORS policy applied to every endpoint (WP-059 Part B) - see <see cref="UseApiCors"/>.</summary>
+    public const string CorsPolicyName = "ApFlowWebClient";
+
+    /// <summary>Registers API-owned services (OpenAPI, health checks, CORS) and binds their options.</summary>
+    public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         services.Configure<ApplicationOptions>(configuration.GetSection(ApplicationOptions.SectionName));
+
+        // WP-059 Part B: named CORS policy, allowed origins read from configuration
+        // ("Cors:AllowedOrigins"), not hardcoded - see appsettings.Development.json
+        // for the actual Development-environment origins (the deployed dev Web App
+        // Service URL plus the local Vite dev server). The decision logic is
+        // extracted to ConfigureCorsPolicy (public, not inline in this lambda) so
+        // it can be unit-tested directly against a real CorsPolicyBuilder/CorsPolicy,
+        // without needing a full DI container or WebApplicationFactory.
+        var corsOptions = configuration.GetSection(CorsPolicyOptions.SectionName).Get<CorsPolicyOptions>() ?? new CorsPolicyOptions();
+
+        services.AddCors(options => options.AddPolicy(
+            CorsPolicyName, policy => ConfigureCorsPolicy(policy, corsOptions, environment)));
 
         // Built-in OpenAPI document generation (Microsoft.AspNetCore.OpenApi). This produces
         // the JSON document only; there is no built-in interactive Swagger-style UI page.
@@ -72,6 +89,61 @@ public static class ApiServiceCollectionExtensions
         // registration lands.
 
         return services;
+    }
+
+    /// <summary>
+    /// The CORS policy decision logic (WP-059 Part B), extracted from
+    /// <see cref="AddApiServices"/>'s <c>AddCors</c> call so it can be unit-tested
+    /// directly against a real <see cref="CorsPolicyBuilder"/>/built
+    /// <c>CorsPolicy</c>, without needing a full DI container or
+    /// <c>WebApplicationFactory</c>.
+    /// </summary>
+    /// <param name="policy">The builder to configure.</param>
+    /// <param name="corsOptions">The bound "Cors" configuration section.</param>
+    /// <param name="environment">The current hosting environment.</param>
+    public static void ConfigureCorsPolicy(CorsPolicyBuilder policy, CorsPolicyOptions corsOptions, IHostEnvironment environment)
+    {
+        if (corsOptions.AllowedOrigins.Length > 0)
+        {
+            // No AllowCredentials(): this API authenticates via a Bearer token in
+            // the Authorization header (Entra External ID JWT, WP-002), not
+            // cookies/TLS client certs - AllowCredentials() governs the latter and
+            // would be an unnecessary permission grant to add
+            // (02_Project_Standards.md §4, least privilege).
+            policy.WithOrigins(corsOptions.AllowedOrigins).AllowAnyHeader().AllowAnyMethod();
+        }
+        else if (environment.IsDevelopment())
+        {
+            // No explicit origins configured, and this is local Development -
+            // permissive fallback so a developer's frontend on any port can call
+            // this API without needing to edit config first. Never applies
+            // outside Development: a deployed environment with no configured
+            // origins gets a CORS policy that allows nothing, not a silent
+            // permissive fallback - fail closed, not open, matching this
+            // codebase's established philosophy elsewhere (WP-003's tenant
+            // filter, WP-012's idempotency check, WP-051/053's approval-policy
+            // fail-closed behaviour).
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        }
+
+        // Implicit else (deployed environment, no configured origins): no
+        // WithOrigins/AllowAnyOrigin call at all - the policy permits no
+        // cross-origin requests until Cors:AllowedOrigins is set for that
+        // environment.
+    }
+
+    /// <summary>
+    /// Applies the named CORS policy registered by <see cref="AddApiServices"/>
+    /// (WP-059 Part B). Must run before <c>UseAuthentication</c>/<c>UseAuthorization</c>
+    /// in the middleware pipeline (see Program.cs) - the standard ASP.NET Core
+    /// ordering, so a preflight <c>OPTIONS</c> request is answered before auth
+    /// middleware ever sees it (preflight requests never carry an Authorization
+    /// header).
+    /// </summary>
+    public static WebApplication UseApiCors(this WebApplication app)
+    {
+        app.UseCors(CorsPolicyName);
+        return app;
     }
 
     /// <summary>
