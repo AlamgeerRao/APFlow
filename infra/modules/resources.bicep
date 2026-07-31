@@ -222,6 +222,21 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'ENTRA_API_CLIENT_ID', value: entraApiClientId }
         { name: 'ENTRA_API_SCOPE', value: entraApiScope }
+        // ASP.NET Core config binds ':' section separators to '__' in App
+        // Service app settings, and array elements to a numeric suffix -
+        // this is the live equivalent of appsettings.Development.json's
+        // "Cors": { "AllowedOrigins": ["https://...web....azurewebsites.net"] }.
+        // Confirmed missing live 2026-07-31 (az webapp config appsettings
+        // list returned [] for this app) - WP-023's own flagged gap,
+        // ConfigureCorsPolicy.cs fails closed (permits nothing) rather than
+        // falling back to the Development-only permissive policy, so every
+        // cross-origin request from the deployed web app was being
+        // rejected. Uses the webAppServiceName *string variable*, not
+        // webAppService.properties.defaultHostName - the latter would
+        // create a circular resource dependency, since webAppService's own
+        // API_BASE_URL setting already references apiAppService the other
+        // way around.
+        { name: 'Cors__AllowedOrigins__0', value: 'https://${webAppServiceName}.azurewebsites.net' }
       ]
     }
   }
