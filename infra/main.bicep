@@ -59,6 +59,15 @@ param entraApiScope string = ''
 @description('The Entra External ID (CIAM) tenant authority base URL, e.g. https://<tenant-subdomain>.ciamlogin.com/<tenantId> (no trailing /v2.0 - resources.bicep appends that). Required by APFlow.Api\'s own JWT bearer authentication (EntraId:Authority) - unlike the other entra* values above, this is NOT optional in any deployed (non-Development) environment: AuthenticationExtensions.cs deliberately fails fast at startup if it and entraApiClientId-derived Audience are not both set.')
 param entraAuthority string = ''
 
+@description('The Microsoft 365 / Entra ID tenant hosting the mailbox APFlow.Api reads via Graph (Graph:TenantId - NOT the same tenant as entraTenantId, see GraphOptions.cs remarks). Same fail-fast-outside-Development requirement as entraAuthority above.')
+param graphTenantId string = ''
+
+@description('Application (client) ID of the Graph app registration (Graph:ClientId).')
+param graphClientId string = ''
+
+@description('The mailbox UPN/address APFlow.Api reads via Graph (Graph:MailboxUserPrincipalName).')
+param graphMailboxUpn string = ''
+
 var resourceGroupName = 'rg-${namePrefix}-${environmentName}'
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -88,6 +97,9 @@ module resources 'modules/resources.bicep' = {
     entraApiClientId: entraApiClientId
     entraApiScope: entraApiScope
     entraAuthority: entraAuthority
+    graphTenantId: graphTenantId
+    graphClientId: graphClientId
+    graphMailboxUpn: graphMailboxUpn
   }
 }
 

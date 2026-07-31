@@ -43,3 +43,11 @@ param entraApiScope = 'api://603682ec-46ab-4075-9e87-8e44478a39a4/access_as_user
 // https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac/v2.0/.well-known/openid-configuration
 // returning 200 with a matching tenant ID.
 param entraAuthority = 'https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac'
+
+// Graph app registration + mailbox (WP-021d). NOT the same tenant as
+// entraTenantId above - see GraphOptions.cs's remarks. Values already
+// established as this environment's GRAPH_TENANT_ID/GRAPH_CLIENT_ID/
+// GRAPH_MAILBOX_UPN GitHub variables (docs/CI-CD-Pipeline.md).
+param graphTenantId = '1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf'
+param graphClientId = '40d63c64-ff18-4028-ba92-01ca93c1c432'
+param graphMailboxUpn = 'invoices@acoounts01.onmicrosoft.com'

@@ -36,6 +36,9 @@ param entraSpaClientId string
 param entraApiClientId string
 param entraApiScope string
 param entraAuthority string
+param graphTenantId string
+param graphClientId string
+param graphMailboxUpn string
 
 // Unique suffix keeps globally-unique names (storage, sql, key vault, app services) collision-free
 var uniqueSuffix = uniqueString(resourceGroup().id, environmentName)
@@ -244,6 +247,25 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         // (confirmed via `az ad app show`), not just its bare client ID.
         { name: 'EntraId__Authority', value: '${entraAuthority}/v2.0' }
         { name: 'EntraId__Audience', value: 'api://${entraApiClientId}' }
+        // Same fail-fast-on-missing-config pattern as EntraId above, live-
+        // diagnosed together during the same 2026-07-31 crash-loop
+        // investigation: AddDatabase (Infrastructure/DependencyInjection.cs)
+        // requires "ConnectionStrings:DefaultConnection", AddBlobStorage
+        // requires "BlobStorage:ContainerName" + "BlobStorage:AccountUrl",
+        // and AddGraph (Integrations/DependencyInjection.cs) requires
+        // "Graph:TenantId"/"Graph:ClientId"/"Graph:MailboxUserPrincipalName"
+        // - none of these matched any of the flat-named settings above
+        // (SQL_SERVER_FQDN etc. are, like ENTRA_TENANT_ID, not read by any
+        // .NET code). Graph:ClientSecret is deliberately left unset - it's
+        // optional by design (GraphOptions.cs), falling back to this app's
+        // own Managed Identity via DefaultAzureCredential, the preferred
+        // secret-less path per that class's own doc comment.
+        { name: 'ConnectionStrings__DefaultConnection', value: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabaseName};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;' }
+        { name: 'BlobStorage__ContainerName', value: blobContainerName }
+        { name: 'BlobStorage__AccountUrl', value: storageAccount.properties.primaryEndpoints.blob }
+        { name: 'Graph__TenantId', value: graphTenantId }
+        { name: 'Graph__ClientId', value: graphClientId }
+        { name: 'Graph__MailboxUserPrincipalName', value: graphMailboxUpn }
         // ASP.NET Core config binds ':' section separators to '__' in App
         // Service app settings, and array elements to a numeric suffix -
         // this is the live equivalent of appsettings.Development.json's
