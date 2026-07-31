@@ -1,5 +1,5 @@
 interface InvoicePdfViewerProps {
-  pdfUrl: string;
+  pdfUrl: string | null;
   invoiceNumber: string;
 }
 
@@ -14,8 +14,25 @@ interface InvoicePdfViewerProps {
  * (not only as a fallback), per the Architect's implementation note —
  * some corporate/locked-down browsers disable the PDF plugin without
  * reliably triggering <object>'s fallback rendering.
+ *
+ * `pdfUrl` is null when no document could be retrieved (no PDF was ever
+ * attached, or Blob Storage failed) — a real, expected state, handled here
+ * rather than by the whole Invoice Review page failing to load.
  */
 export function InvoicePdfViewer({ pdfUrl, invoiceNumber }: InvoicePdfViewerProps) {
+  if (!pdfUrl) {
+    return (
+      <section aria-labelledby="pdf-viewer-heading" className="rounded-md border border-slate-200 bg-white p-4">
+        <h2 id="pdf-viewer-heading" className="mb-3 text-sm font-semibold text-ink-900">
+          Source Document
+        </h2>
+        <div className="flex h-[70vh] w-full flex-col items-center justify-center gap-2 rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-600">
+          <p>No PDF is available for this invoice.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="pdf-viewer-heading" className="rounded-md border border-slate-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between">

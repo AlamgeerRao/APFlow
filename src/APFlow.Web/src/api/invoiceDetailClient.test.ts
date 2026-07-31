@@ -105,7 +105,7 @@ describe('HttpInvoiceDetailClient', () => {
 
     const result = await client.getInvoiceDetail('platform-default', 'inv-1');
 
-    expect(result?.pdfUrl.startsWith('blob:')).toBe(true);
+    expect(result?.pdfUrl?.startsWith('blob:')).toBe(true);
   });
 
   it('returns null on a 404 rather than throwing', async () => {
@@ -123,6 +123,34 @@ describe('HttpInvoiceDetailClient', () => {
     const client = new HttpInvoiceDetailClient();
 
     await expect(client.getInvoiceDetail('platform-default', 'inv-1')).rejects.toThrow('Server error');
+  });
+
+  it('still returns the invoice with pdfUrl null when the PDF download fails, instead of failing the whole page', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      invoice: {
+        id: 'inv-1',
+        supplierName: 'X',
+        supplierInvoiceNumber: 'X-1',
+        invoiceDate: '2026-07-01',
+        grossTotal: 1,
+        currency: 'GBP',
+        status: 'RECEIVED',
+        isPotentialDuplicate: false,
+        duplicateCheckReason: null,
+        sourceDocumentBlobName: 'x',
+        createdAtUtc: '2026-07-01T00:00:00Z',
+      },
+      recentAuditEntries: [],
+      extractedFields: [],
+    });
+    vi.mocked(httpClient.getBlob).mockRejectedValueOnce(new ApiError(404, 'Not found'));
+    const client = new HttpInvoiceDetailClient();
+
+    const result = await client.getInvoiceDetail('platform-default', 'inv-1');
+
+    expect(result).not.toBeNull();
+    expect(result?.invoiceNumber).toBe('X-1');
+    expect(result?.pdfUrl).toBeNull();
   });
 
   it('computes overallConfidenceScore as the mean of non-null field scores', async () => {

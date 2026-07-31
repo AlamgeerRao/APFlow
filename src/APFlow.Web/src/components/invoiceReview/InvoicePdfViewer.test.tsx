@@ -35,4 +35,11 @@ describe('InvoicePdfViewer', () => {
     const object = container.querySelector('object');
     expect(object?.textContent).toContain("This browser can't display the PDF inline.");
   });
+
+  it('shows an "unavailable" message instead of a broken viewer when pdfUrl is null', () => {
+    const { container } = render(<InvoicePdfViewer pdfUrl={null} invoiceNumber="NW-1001" />);
+
+    expect(container.querySelector('object')).toBeNull();
+    expect(screen.getByText('No PDF is available for this invoice.')).toBeInTheDocument();
+  });
 });

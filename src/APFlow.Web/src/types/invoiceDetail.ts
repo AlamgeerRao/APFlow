@@ -40,8 +40,15 @@ export interface AuditEntry {
 }
 
 export interface InvoiceDetail extends InvoiceListItem {
-  /** URL the browser can load directly to display the source PDF. */
-  pdfUrl: string;
+  /**
+   * URL the browser can load directly to display the source PDF, or null if
+   * it couldn't be retrieved (e.g. no document was ever attached to this
+   * invoice, or Blob Storage returned an error) — a real, expected state,
+   * not just a loading placeholder. `InvoicePdfViewer` renders its own
+   * "unavailable" message for this case rather than the page failing to
+   * load entirely.
+   */
+  pdfUrl: string | null;
   /** Traceability field confirmed by the WP-012 report (Invoice.SourceDocumentBlobName). */
   sourceDocumentBlobName: string;
   /** ISO 8601 timestamp the invoice was first received. */

@@ -79,8 +79,18 @@ export class HttpInvoiceDetailClient implements InvoiceDetailClient {
       throw error;
     }
 
-    const pdfBlob = await httpClient.getBlob(`/api/invoices/${invoiceId}/download`);
-    const pdfUrl = URL.createObjectURL(pdfBlob);
+    // A missing/undownloadable PDF (e.g. no document was ever attached, or a
+    // transient Blob Storage failure) shouldn't fail the whole invoice detail
+    // page - the invoice record itself already loaded successfully above.
+    // InvoicePdfViewer renders its own "unavailable" message for a null
+    // pdfUrl instead.
+    let pdfUrl: string | null = null;
+    try {
+      const pdfBlob = await httpClient.getBlob(`/api/invoices/${invoiceId}/download`);
+      pdfUrl = URL.createObjectURL(pdfBlob);
+    } catch {
+      pdfUrl = null;
+    }
 
     return { ...mapInvoiceDetailResponse(response), pdfUrl };
   }

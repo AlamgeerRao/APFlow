@@ -39,7 +39,7 @@ export function useInvoiceDetail(invoiceId: string | undefined): InvoiceDetailSt
   const [reloadToken, setReloadToken] = useState(0);
   const previousBlobUrlRef = useRef<string | null>(null);
 
-  function adoptBlobUrl(nextPdfUrl: string | undefined) {
+  function adoptBlobUrl(nextPdfUrl: string | null) {
     if (previousBlobUrlRef.current && previousBlobUrlRef.current !== nextPdfUrl) {
       URL.revokeObjectURL(previousBlobUrlRef.current);
     }
