@@ -130,7 +130,17 @@ describe('httpClient.post/patch', () => {
 describe('httpClient.getBlob', () => {
   it('returns a Blob for a successful binary response', async () => {
     vi.mocked(getAccessToken).mockResolvedValue('token');
-    vi.mocked(fetch).mockResolvedValue(new Response(new Blob(['pdf-bytes']), { status: 200 }));
+    // A minimal Response-shaped mock, not a real Response wrapping a real
+    // Blob: jsdom's Response/Blob body-roundtrip support is inconsistent
+    // across environments/versions (diagnosed after a CI-only failure that
+    // never reproduced locally) - getBlob only ever touches
+    // response.ok/response.status/response.blob(), so that's all this
+    // needs to provide.
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(['pdf-bytes']),
+    } as unknown as Response);
 
     const blob = await httpClient.getBlob('/api/invoices/1/download');
 
