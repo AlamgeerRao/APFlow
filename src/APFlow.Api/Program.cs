@@ -7,17 +7,6 @@ using APFlow.Integrations;
 using APFlow.Workers;
 using Azure.Identity;
 
-// TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the live "IDX10214: Audience
-// validation failed" investigation is closed. Microsoft.IdentityModel redacts
-// actual claim values from its exception messages by default (the
-// "See https://aka.ms/identitymodel/app-context-switches" suffix on that
-// error is this redaction). IdentityModelEventSource.ShowPII alone did NOT
-// unredact IDX10214 specifically - per the linked wiki
-// (App-Context-Switches-in-IdentityModel), v8.8.0 moved that one behind its
-// own dedicated switch instead.
-AppContext.SetSwitch("Switch.DoNotScrubExceptions", true);
-Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Configuration -----------------------------------------------------

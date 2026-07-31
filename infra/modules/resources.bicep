@@ -243,10 +243,23 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         // GitHub variable, with the /v2.0 suffix ASP.NET Core's JWT bearer
         // Authority needs for signing-key discovery (confirmed live via
         // that URL's own /v2.0/.well-known/openid-configuration returning
-        // 200). Audience is the API app registration's Application ID URI
-        // (confirmed via `az ad app show`), not just its bare client ID.
+        // 200). Audience was first set to the API app registration's
+        // Application ID URI ('api://{clientId}') on the (reasonable but,
+        // for this tenant type, wrong) assumption that a v2.0 token issued
+        // for a custom "api://.../access_as_user" scope carries that URI as
+        // its aud claim. Live-diagnosed 2026-07-31 by decoding a real,
+        // rejected access token directly (IdentityModel redacts the actual
+        // audience from its own IDX10214 exception message even with
+        // ShowPII/Switch.DoNotScrubExceptions set - see git history on this
+        // line for the AuthenticationExtensions.cs diagnostic that proved
+        // it): Entra External ID (CIAM) issues the bare client ID as aud
+        // for this scope shape, not the App ID URI - apparently a real
+        // behavioral difference from classic Entra ID (Workforce) tenants,
+        // not a misconfiguration on this app registration's side (its
+        // identifierUris/requestedAccessTokenVersion are both already
+        // correct, confirmed via `az ad app show`).
         { name: 'EntraId__Authority', value: '${entraAuthority}/v2.0' }
-        { name: 'EntraId__Audience', value: 'api://${entraApiClientId}' }
+        { name: 'EntraId__Audience', value: entraApiClientId }
         // Same fail-fast-on-missing-config pattern as EntraId above, live-
         // diagnosed together during the same 2026-07-31 crash-loop
         // investigation: AddDatabase (Infrastructure/DependencyInjection.cs)
