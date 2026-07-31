@@ -18,10 +18,10 @@ public sealed class WorkerIdentityOptions
     /// The AP Flow tenant id (matches a real signed-in user's Entra "tid" claim -
     /// see <see cref="APFlow.Application.Interfaces.ICurrentUserService.TenantId"/>)
     /// that background workers operate on behalf of. Must be the SAME value used
-    /// by real GB Skips users signing in (currently the CIAM sign-in tenant id,
-    /// not <c>WorkflowSeedData.GbSkipsPlaceholderTenantId</c>, which is explicitly
-    /// documented as never matching any real caller) - using the wrong value here
-    /// would make worker-created rows invisible to every real user.
+    /// by real GB Skips users signing in - the CIAM sign-in tenant id, which is
+    /// also <c>WorkflowSeedData.GbSkipsTenantId</c> as of WP-070 (previously a
+    /// placeholder that never matched any real caller) - using the wrong value
+    /// here would make worker-created rows invisible to every real user.
     /// </summary>
     public string? TenantId { get; init; }
 }

@@ -31,7 +31,7 @@ public sealed class ApprovalPolicyConfiguration : IEntityTypeConfiguration<Appro
         builder.HasData(new
         {
             Id = ApprovalPolicySeedData.GbSkipsInvoiceApprovalPolicyId,
-            TenantId = (Guid?)WorkflowSeedData.GbSkipsPlaceholderTenantId,
+            TenantId = (Guid?)WorkflowSeedData.GbSkipsTenantId,
             Domain = ApprovalDomains.InvoiceApproval,
             RequiredRole = Roles.FinanceManager,
             RequiresDualControl = false,

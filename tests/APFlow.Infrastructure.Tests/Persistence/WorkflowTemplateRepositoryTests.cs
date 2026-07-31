@@ -53,13 +53,13 @@ public class WorkflowTemplateRepositoryTests
     [Fact]
     public async Task GetActiveTemplateAsync_GbSkipsTenant_ReturnsGbSkipsTemplate_WithTheTwoExtraStatuses()
     {
-        using var context = CreateContext(WorkflowSeedData.GbSkipsPlaceholderTenantId);
+        using var context = CreateContext(WorkflowSeedData.GbSkipsTenantId);
         var repository = new WorkflowTemplateRepository(context);
 
         var template = await repository.GetActiveTemplateAsync(WorkflowDomains.Invoice);
 
         Assert.NotNull(template);
-        Assert.Equal(WorkflowSeedData.GbSkipsPlaceholderTenantId, template!.TenantId);
+        Assert.Equal(WorkflowSeedData.GbSkipsTenantId, template!.TenantId);
         Assert.Equal("GB Skips Invoice Workflow", template.Name);
         Assert.Contains(template.Statuses, s => s.Code == InvoiceStatusCodes.CheckedReadyToApprove);
         Assert.Contains(template.Statuses, s => s.Code == InvoiceStatusCodes.NeedsReviewFebina);
@@ -112,7 +112,7 @@ public class WorkflowTemplateRepositoryTests
         var platformDefaultTemplate = await new WorkflowTemplateRepository(platformDefaultContext)
             .GetActiveTemplateAsync(WorkflowDomains.Invoice);
 
-        using var gbSkipsContext = CreateContext(WorkflowSeedData.GbSkipsPlaceholderTenantId);
+        using var gbSkipsContext = CreateContext(WorkflowSeedData.GbSkipsTenantId);
         var gbSkipsTemplate = await new WorkflowTemplateRepository(gbSkipsContext)
             .GetActiveTemplateAsync(WorkflowDomains.Invoice);
 

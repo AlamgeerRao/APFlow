@@ -24,7 +24,7 @@ public sealed class StatusReferenceConfiguration : IEntityTypeConfiguration<Stat
                 Id = row.Id,
                 WorkflowTemplateId = row.TemplateId,
                 TenantId = row.TemplateId == WorkflowSeedData.GbSkipsTemplateId
-                    ? (Guid?)WorkflowSeedData.GbSkipsPlaceholderTenantId
+                    ? (Guid?)WorkflowSeedData.GbSkipsTenantId
                     : null,
                 Code = row.Code,
                 Name = row.Name,

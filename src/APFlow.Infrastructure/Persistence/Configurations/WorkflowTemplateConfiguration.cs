@@ -46,7 +46,7 @@ public sealed class WorkflowTemplateConfiguration : IEntityTypeConfiguration<Wor
             new
             {
                 Id = WorkflowSeedData.GbSkipsTemplateId,
-                TenantId = (Guid?)WorkflowSeedData.GbSkipsPlaceholderTenantId,
+                TenantId = (Guid?)WorkflowSeedData.GbSkipsTenantId,
                 DomainName = WorkflowDomains.Invoice,
                 Name = "GB Skips Invoice Workflow",
                 CreatedAtUtc = WorkflowSeedData.SeedTimestamp,

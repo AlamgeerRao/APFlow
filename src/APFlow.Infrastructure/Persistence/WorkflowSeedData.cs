@@ -17,18 +17,21 @@ namespace APFlow.Infrastructure.Persistence;
 public static class WorkflowSeedData
 {
     /// <summary>
-    /// PLACEHOLDER - not GB Skips' real Entra tenant id (the "tid" claim value).
-    /// This codebase has no real GB Skips tenant configured anywhere (confirmed:
-    /// no App Registration, no verified tenant id exists in any doc this project
-    /// has produced - see docs/WP-002-Entra-Verification-Checklist.md,
-    /// docs/WP-004-Graph-Verification-Checklist.md for the same "no real tenant
-    /// available yet" situation at every prior point this has come up). This value
-    /// MUST be corrected to GB Skips' real Entra tenant id before this template can
-    /// ever actually apply to a real GB Skips user - until then, the GB Skips
-    /// template exists in the database but is unreachable (no real
-    /// ICurrentUserService.TenantId will ever equal this placeholder).
+    /// GB Skips' real Entra tenant id (the "tid" claim value every real signed-in
+    /// GB Skips user's token carries) - the CIAM sign-in tenant provisioned in
+    /// WP-021, also used as-is by <c>infra/main.dev.bicepparam</c>'s
+    /// <c>entraTenantId</c> parameter and <c>WorkerCurrentUserService</c>'s
+    /// <c>Workers:TenantId</c> config (WP-069). WP-070 corrects this constant
+    /// from a placeholder value (<c>00000000-0000-0000-0000-0000000B5121</c>,
+    /// documented at the time as "no real GB Skips tenant configured anywhere")
+    /// to this real one via a migration re-keying every row that referenced it -
+    /// see <c>docs/WP-070-Correct-Gb-Skips-Workflow-Tenant-Id-Decisions.md</c> if
+    /// present, or the WP-070 report otherwise. Before this fix, GB Skips'
+    /// WorkflowTemplate/StatusReference/WorkflowTransition/ApprovalPolicy rows
+    /// existed in the database but were unreachable - no real
+    /// ICurrentUserService.TenantId would ever equal the old placeholder.
     /// </summary>
-    public static readonly Guid GbSkipsPlaceholderTenantId = Guid.Parse("00000000-0000-0000-0000-0000000B5121");
+    public static readonly Guid GbSkipsTenantId = Guid.Parse("641fc267-7902-48d0-8e1c-1d3d0166c8ac");
 
     /// <summary>Fixed id for the platform-default template's seed row.</summary>
     public static readonly Guid PlatformDefaultTemplateId = Guid.Parse("00000000-0000-0000-0001-000000000001");

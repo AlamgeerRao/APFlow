@@ -16,13 +16,13 @@ public class ApprovalPolicyRepositoryTests
     [Fact]
     public async Task GetActivePolicyAsync_GbSkipsTenant_ReturnsSeededFinanceManagerPolicy()
     {
-        using var context = CreateContext(WorkflowSeedData.GbSkipsPlaceholderTenantId);
+        using var context = CreateContext(WorkflowSeedData.GbSkipsTenantId);
         var repository = new ApprovalPolicyRepository(context);
 
         var policy = await repository.GetActivePolicyAsync(ApprovalDomains.InvoiceApproval);
 
         Assert.NotNull(policy);
-        Assert.Equal(WorkflowSeedData.GbSkipsPlaceholderTenantId, policy!.TenantId);
+        Assert.Equal(WorkflowSeedData.GbSkipsTenantId, policy!.TenantId);
         Assert.Equal(Roles.FinanceManager, policy.RequiredRole);
         Assert.False(policy.RequiresDualControl);
     }
@@ -45,7 +45,7 @@ public class ApprovalPolicyRepositoryTests
     public async Task GetActivePolicyAsync_PaymentBatchApprovalDomain_NoPolicySeeded_ReturnsNull()
     {
         // Task 5: the domain is defined but no policy is seeded against it yet.
-        using var context = CreateContext(WorkflowSeedData.GbSkipsPlaceholderTenantId);
+        using var context = CreateContext(WorkflowSeedData.GbSkipsTenantId);
         var repository = new ApprovalPolicyRepository(context);
 
         var policy = await repository.GetActivePolicyAsync(ApprovalDomains.PaymentBatchApproval);

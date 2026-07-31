@@ -28,7 +28,7 @@ public sealed class WorkflowTransitionConfiguration : IEntityTypeConfiguration<W
         {
             row.Id,
             TenantId = row.TemplateId == WorkflowSeedData.GbSkipsTemplateId
-                ? (Guid?)WorkflowSeedData.GbSkipsPlaceholderTenantId
+                ? (Guid?)WorkflowSeedData.GbSkipsTenantId
                 : null,
             WorkflowTemplateId = row.TemplateId,
             row.FromStatusCode,
