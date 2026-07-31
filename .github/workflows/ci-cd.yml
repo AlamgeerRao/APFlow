@@ -227,37 +227,30 @@ jobs:
       - name: Add temporary SQL firewall rule for this runner
         id: sql-firewall
         run: |
-          # Uses `az rest` directly against the ARM API (switched from
-          # `az sql server firewall-rule create` on a since-disproven theory
-          # that the wrapped command's own pre-auth check built a malformed
-          # path). The identical malformed action/scope recurred with
-          # `az rest` too - since `az rest` sends exactly the URL string
-          # it's given with no path-construction logic of its own, that
-          # rules the wrapper theory OUT: the malformed URL is being built
-          # by THIS script's own variable substitution, not by any Azure
-          # CLI internals. The DEBUG echoes below exist to find out which
-          # value is actually empty/wrong at runtime, rather than guessing
-          # again - real RBAC has already been independently re-verified
-          # correct via the ARM API and is very unlikely to be the cause.
+          # Root cause found live (2026-07-31): vars.SQL_SERVER_FQDN was
+          # simply not set in the "development" GitHub Environment - proven
+          # by the DEBUG echoes below showing it empty while RESOURCE_GROUP/
+          # AZURE_SUBSCRIPTION_ID (resolved the identical way, in the same
+          # step) were both populated correctly. Not a workflow bug, not an
+          # Azure CLI bug (both were seriously, wrongly suspected first) -
+          # just a missing variable, silently producing a malformed resource
+          # ID (empty server-name segment) instead of an obvious error. The
+          # explicit check below now fails loudly and immediately on this
+          # exact class of problem instead of letting it surface three
+          # layers removed as a confusing Azure error.
+          for v in SQL_SERVER_FQDN RESOURCE_GROUP AZURE_SUBSCRIPTION_ID; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Required GitHub Environment variable '$v' is empty or not set on the 'development' environment."
+              exit 1
+            fi
+          done
           az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           RUNNER_IP=$(curl -s https://api.ipify.org)
           echo "Runner public IP: $RUNNER_IP"
           echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
           SQL_SERVER_NAME="${SQL_SERVER_FQDN%%.*}"
           echo "sql_server_name=$SQL_SERVER_NAME" >> "$GITHUB_OUTPUT"
-          # Diagnostic (2026-07-31): the identical malformed action/scope
-          # recurred even after switching to `az rest`, which sends exactly
-          # the URL string it's given - no internal path-construction logic
-          # of its own. That rules out the CLI-wrapper theory and means the
-          # malformed path is being built HERE, in this script. Print every
-          # input and the final URL so the next run's log shows definitively
-          # which value is empty/wrong, instead of guessing again.
-          echo "DEBUG SQL_SERVER_FQDN=[$SQL_SERVER_FQDN]"
-          echo "DEBUG SQL_SERVER_NAME=[$SQL_SERVER_NAME]"
-          echo "DEBUG RESOURCE_GROUP=[$RESOURCE_GROUP]"
-          echo "DEBUG AZURE_SUBSCRIPTION_ID=[$AZURE_SUBSCRIPTION_ID]"
           FIREWALL_RULE_URL="https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Sql/servers/${SQL_SERVER_NAME}/firewallRules/gha-run-${{ github.run_id }}?api-version=2021-11-01"
-          echo "DEBUG FIREWALL_RULE_URL=[$FIREWALL_RULE_URL]"
           az rest --method put \
             --url "$FIREWALL_RULE_URL" \
             --body "{\"properties\":{\"startIpAddress\":\"${RUNNER_IP}\",\"endIpAddress\":\"${RUNNER_IP}\"}}"
@@ -272,7 +265,19 @@ jobs:
           AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
           AZURE_FEDERATED_TOKEN_FILE: ${{ steps.oidc.outputs.token_file }}
           AZURE_AUTHORITY_HOST: https://login.microsoftonline.com
+          SQL_SERVER_FQDN: ${{ vars.SQL_SERVER_FQDN }}
+          SQL_DATABASE_NAME: ${{ vars.SQL_DATABASE_NAME }}
         run: |
+          # Same missing-variable failure mode as the firewall-rule step
+          # above is possible here too (both consume vars.SQL_SERVER_FQDN) -
+          # fail loudly rather than attempt a connection with an empty
+          # Server=tcp:,1433;... string.
+          for v in SQL_SERVER_FQDN SQL_DATABASE_NAME; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Required GitHub Environment variable '$v' is empty or not set on the 'development' environment."
+              exit 1
+            fi
+          done
           dotnet ef database update \
             --project "${{ env.INFRASTRUCTURE_PROJECT_PATH }}" \
             --startup-project "${{ env.API_PROJECT_PATH }}" \

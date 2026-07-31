@@ -204,6 +204,24 @@ az ad app federated-credential create \
   }'
 ```
 
+**Also found on a later real run (2026-07-31): `SQL_SERVER_FQDN` was not
+actually set on the `development` Environment**, despite being listed in the
+Variables table above as a WP-021-sourced value — the table records what
+*should* be set, not confirmation that it was ever entered into the GitHub
+UI (the same gap seen once already with `RESOURCE_GROUP`). This produced a
+confusing downstream symptom: the firewall-rule step's resource ID built
+with an empty server-name segment, which Azure's REST API rejected as
+`AuthorizationFailed` on a URL where the firewall rule name appeared to have
+shifted into the resource-type position — not an RBAC or Azure CLI defect,
+just an empty bash variable with no early check. `ci-cd.yml` now fails
+loudly (`::error::` + `exit 1`) immediately if `SQL_SERVER_FQDN`,
+`SQL_DATABASE_NAME`, `RESOURCE_GROUP`, or `AZURE_SUBSCRIPTION_ID` is empty,
+in both the firewall-rule step and the migration step, before attempting
+anything against Azure. **Action needed:** confirm `SQL_SERVER_FQDN` and
+`SQL_DATABASE_NAME` are actually present as Environment variables on
+`development` (see `docs/Backlog.md`) — not yet verified as of this
+writing.
+
 1. **Create the CI/CD service principal + OIDC federation, and grant its two
    RBAC roles** (`Website Contributor` on the resource group, `SQL Server
    Contributor` on just the SQL server — the second is new, added post-wp-060
