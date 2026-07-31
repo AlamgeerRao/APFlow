@@ -46,11 +46,12 @@ RESOURCE_GROUP=""
 GITHUB_ORG=""
 GITHUB_REPO=""
 GITHUB_BRANCH="main"
+GITHUB_ENVIRONMENT="development"
 SQL_SERVER_NAME=""
 APP_DISPLAY_NAME="APFlow-CI-Dev"
 
 usage() {
-  echo "Usage: $0 --tenant-id <id> --subscription-id <id> --resource-group <rg> --github-org <org> --github-repo <repo> [--github-branch <branch>] [--sql-server-name <name>]"
+  echo "Usage: $0 --tenant-id <id> --subscription-id <id> --resource-group <rg> --github-org <org> --github-repo <repo> [--github-branch <branch>] [--github-environment <name>] [--sql-server-name <name>]"
   exit 1
 }
 
@@ -62,6 +63,7 @@ while [[ $# -gt 0 ]]; do
     --github-org) GITHUB_ORG="$2"; shift 2 ;;
     --github-repo) GITHUB_REPO="$2"; shift 2 ;;
     --github-branch) GITHUB_BRANCH="$2"; shift 2 ;;
+    --github-environment) GITHUB_ENVIRONMENT="$2"; shift 2 ;;
     --sql-server-name) SQL_SERVER_NAME="$2"; shift 2 ;;
     *) usage ;;
   esac
@@ -90,11 +92,27 @@ CI_SP_OBJECT_ID=$(az ad sp show --id "$CI_APP_ID" --query id -o tsv)
 echo "    CI/CD app Client ID: $CI_APP_ID"
 
 # ------------------------------------------------------------------------------
-# 2. Add the federated credential trusting GitHub's OIDC issuer for this
-#    specific repo + branch (not "any branch", not "any repo" — scoped
-#    deliberately narrow).
+# 2. Add federated credentials trusting GitHub's OIDC issuer for this specific
+#    repo (not "any repo" — scoped deliberately narrow). TWO are needed, not
+#    one, because GitHub's OIDC token's "sub" claim depends on how the JOB is
+#    configured, not just which branch triggered it:
+#      - a job with no "environment:" key gets a REF-based subject
+#        (repo:{org}/{repo}:ref:refs/heads/{branch})
+#      - a job WITH "environment: <name>" gets an ENVIRONMENT-based subject
+#        instead (repo:{org}/{repo}:environment:{name}) - this TAKES
+#        PRIORITY over the ref-based shape, it does not additionally include it.
+#    ci-cd.yml's migrate-development-database/deploy-api/deploy-web jobs all
+#    specify "environment: name: development", so they need the second shape.
+#    CONFIRMED LIVE (2026-07-31): this GitHub account also includes the
+#    numeric owner/repo IDs in the subject (repo:{org}@{ownerId}/{repo}@{repoId}:...)
+#    - seen directly in a real AADSTS700213 failure. Not documented as
+#      universal GitHub behaviour, so this script creates BOTH the
+#      id-qualified and plain forms for the environment-based credential, to
+#      be safe regardless of which one a given GitHub account actually sends.
+#    Owner/repo numeric IDs are fetched from GitHub's public API - no auth
+#    needed for a public repo.
 # ------------------------------------------------------------------------------
-echo "--> Adding federated credential for $GITHUB_ORG/$GITHUB_REPO (branch: $GITHUB_BRANCH)"
+echo "--> Adding ref-based federated credential for $GITHUB_ORG/$GITHUB_REPO (branch: $GITHUB_BRANCH)"
 az ad app federated-credential create \
   --id "$CI_OBJECT_ID" \
   --parameters "{
@@ -103,6 +121,32 @@ az ad app federated-credential create \
     \"subject\": \"repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/${GITHUB_BRANCH}\",
     \"audiences\": [\"api://AzureADTokenExchange\"]
   }"
+
+echo "--> Adding environment-based federated credential for $GITHUB_ORG/$GITHUB_REPO (environment: $GITHUB_ENVIRONMENT)"
+az ad app federated-credential create \
+  --id "$CI_OBJECT_ID" \
+  --parameters "{
+    \"name\": \"github-actions-env-${GITHUB_ENVIRONMENT}\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:${GITHUB_ORG}/${GITHUB_REPO}:environment:${GITHUB_ENVIRONMENT}\",
+    \"audiences\": [\"api://AzureADTokenExchange\"]
+  }"
+
+OWNER_ID=$(curl -sS "https://api.github.com/users/${GITHUB_ORG}" | grep -m1 '"id"' | grep -o '[0-9]*')
+REPO_ID=$(curl -sS "https://api.github.com/repos/${GITHUB_ORG}/${GITHUB_REPO}" | grep -m1 '"id"' | grep -o '[0-9]*')
+if [[ -n "$OWNER_ID" && -n "$REPO_ID" ]]; then
+  echo "--> Adding id-qualified environment-based federated credential (owner id $OWNER_ID, repo id $REPO_ID)"
+  az ad app federated-credential create \
+    --id "$CI_OBJECT_ID" \
+    --parameters "{
+      \"name\": \"github-actions-env-${GITHUB_ENVIRONMENT}-idscoped\",
+      \"issuer\": \"https://token.actions.githubusercontent.com\",
+      \"subject\": \"repo:${GITHUB_ORG}@${OWNER_ID}/${GITHUB_REPO}@${REPO_ID}:environment:${GITHUB_ENVIRONMENT}\",
+      \"audiences\": [\"api://AzureADTokenExchange\"]
+    }"
+else
+  echo "--> Skipping id-qualified federated credential: could not resolve owner/repo numeric IDs from GitHub's public API."
+fi
 
 # ------------------------------------------------------------------------------
 # 3. Grant RBAC — scoped to the resource group only, "Website Contributor"

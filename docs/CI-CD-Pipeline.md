@@ -167,6 +167,43 @@ actual GitHub *Secret*, scoped to the `development` environment.
 are done; **step 3's `RESOURCE_GROUP` variable specifically was not
 confirmed** — check it's set before assuming step 4 will succeed.
 
+**Also found on the first post-setup real run (2026-07-31): the federated
+credential's subject shape was wrong.** `AADSTS700213: No matching
+federated identity record found for presented assertion subject
+'repo:AlamgeerRao@105811261/APFlow@1302101224:environment:development'`.
+Root cause: `migrate-development-database`/`deploy-api`/`deploy-web` all
+specify `environment: name: development` — a job referencing a GitHub
+Environment gets an **environment-scoped** OIDC subject
+(`repo:{org}/{repo}:environment:{name}`), which takes priority over the
+**ref-scoped** one (`repo:{org}/{repo}:ref:refs/heads/{branch}`) the setup
+script originally created — it does not get both. This account also
+includes the numeric owner/repo IDs in the subject
+(`{org}@{ownerId}/{repo}@{repoId}`), confirmed directly from the error.
+`setup-github-oidc-service-principal.sh` now creates three federated
+credentials (ref-based, environment-based, and an id-qualified
+environment-based one, to cover both subject shapes) instead of one. **Fix
+for the existing `APFlow-CI-Dev` app (already created, don't re-run the
+whole script)** — add the two missing credentials directly:
+```bash
+az ad app federated-credential create \
+  --id 744112fe-2263-4194-adb3-bba7af331a1b \
+  --parameters '{
+    "name": "github-actions-env-development",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:AlamgeerRao/APFlow:environment:development",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+az ad app federated-credential create \
+  --id 744112fe-2263-4194-adb3-bba7af331a1b \
+  --parameters '{
+    "name": "github-actions-env-development-idscoped",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:AlamgeerRao@105811261/APFlow@1302101224:environment:development",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
 1. **Create the CI/CD service principal + OIDC federation, and grant its two
    RBAC roles** (`Website Contributor` on the resource group, `SQL Server
    Contributor` on just the SQL server — the second is new, added post-wp-060
