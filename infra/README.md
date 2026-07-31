@@ -280,10 +280,36 @@ Run these in order — later steps depend on outputs from earlier ones.
 
 ### 1. Deploy the core infrastructure
 
+**For the existing `dev` environment, always deploy via
+`infra/main.dev.bicepparam`** rather than typing `--parameters` by hand:
+
 ```bash
 az login
 az account set --subscription "<subscription-id-or-name>"
 
+az deployment sub create --location ukwest --parameters infra/main.dev.bicepparam
+```
+
+This checked-in file (no secrets — just IDs and a UPN login) is the
+canonical source of truth for this environment's `sqlAadAdminObjectId`,
+`sqlAadAdminLogin`, and `entraTenantId`/`entraSpaClientId`/
+`entraApiClientId`/`entraApiScope`. It exists specifically so nobody has to
+remember to query live App Service settings before a redeploy —
+`entraTenantId` and friends all default to `''` in `main.bicep` (so a
+brand-new environment can bootstrap before Task 1's app registrations
+exist), and a redeploy that omits them would silently reset the already-
+working sign-in config back to blank. This was flagged as a real hazard by
+the DevOps engineer reviewing the 2026-07-31 server.js/Bicep redeploy — see
+`docs/Backlog.md`. If any of these values ever change, update
+`main.dev.bicepparam` in the same commit as whatever changed them.
+
+**Only for bringing up a genuinely new environment** (no
+`main.<env>.bicepparam` file yet, Entra app registrations don't exist yet),
+the manual form below is still appropriate — the `entra*` values are
+intentionally left blank at first, then step 3 wires them in once step 2
+produces them:
+
+```bash
 az deployment sub create \
   --location ukwest \
   --template-file infra/main.bicep \
@@ -351,6 +377,17 @@ scope) — see the table below, already partly filled in.
 
 ### 3. Re-deploy to wire the Entra values into the API/Web app settings (optional but recommended)
 
+**Once the values from step 2 are known, write them into
+`infra/main.<env>.bicepparam`** (for `dev`, this is already done — see
+`infra/main.dev.bicepparam`) and redeploy from that file:
+
+```bash
+az deployment sub create --location ukwest --parameters infra/main.dev.bicepparam
+```
+
+For a genuinely new environment with no params file yet, the manual
+equivalent is:
+
 ```bash
 az deployment sub create \
   --location ukwest \
@@ -364,6 +401,11 @@ az deployment sub create \
       entraApiClientId="<from-step-2>" \
       entraApiScope="<from-step-2>"
 ```
+
+— but creating the params file at this point instead is strongly
+preferred, so every subsequent redeploy of this environment inherits these
+values automatically rather than depending on whoever runs the command
+next remembering to pass them.
 
 Bicep deployments are idempotent — this only updates the app settings that
 changed.
