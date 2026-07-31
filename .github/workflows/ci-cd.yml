@@ -314,6 +314,13 @@ jobs:
           name: api-publish
           path: ./publish/api
 
+      - name: Verify required variables are set
+        run: |
+          if [ -z "${{ vars.API_APP_SERVICE_NAME }}" ]; then
+            echo "::error::Required GitHub Environment variable 'API_APP_SERVICE_NAME' is empty or not set on the 'development' environment."
+            exit 1
+          fi
+
       - name: Azure login (OIDC — no client secret)
         uses: azure/login@v2
         with:
@@ -347,6 +354,13 @@ jobs:
         with:
           name: web-publish
           path: ./publish/web
+
+      - name: Verify required variables are set
+        run: |
+          if [ -z "${{ vars.WEB_APP_SERVICE_NAME }}" ]; then
+            echo "::error::Required GitHub Environment variable 'WEB_APP_SERVICE_NAME' is empty or not set on the 'development' environment."
+            exit 1
+          fi
 
       - name: Azure login (OIDC — no client secret)
         uses: azure/login@v2

@@ -213,14 +213,21 @@ confusing downstream symptom: the firewall-rule step's resource ID built
 with an empty server-name segment, which Azure's REST API rejected as
 `AuthorizationFailed` on a URL where the firewall rule name appeared to have
 shifted into the resource-type position — not an RBAC or Azure CLI defect,
-just an empty bash variable with no early check. `ci-cd.yml` now fails
-loudly (`::error::` + `exit 1`) immediately if `SQL_SERVER_FQDN`,
-`SQL_DATABASE_NAME`, `RESOURCE_GROUP`, or `AZURE_SUBSCRIPTION_ID` is empty,
-in both the firewall-rule step and the migration step, before attempting
-anything against Azure. **Action needed:** confirm `SQL_SERVER_FQDN` and
-`SQL_DATABASE_NAME` are actually present as Environment variables on
-`development` (see `docs/Backlog.md`) — not yet verified as of this
-writing.
+just an empty bash variable with no early check.
+
+Given this is the second time a documented variable turned out never to
+have been set, the check was extended to every variable the workflow
+actually consumes, not just the two the SQL bug happened to surface.
+`ci-cd.yml` now fails loudly (`::error::` + `exit 1`) immediately if any of
+`SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, `RESOURCE_GROUP`, or
+`AZURE_SUBSCRIPTION_ID` is empty in the firewall-rule/migration steps, or if
+`API_APP_SERVICE_NAME`/`WEB_APP_SERVICE_NAME` is empty in the respective
+deploy job, before attempting anything against Azure. **Action needed:**
+confirmed present on `development` so far are only `CI_AZURE_CLIENT_ID`,
+`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `RESOURCE_GROUP` — add or
+confirm `SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, `API_APP_SERVICE_NAME`, and
+`WEB_APP_SERVICE_NAME` (values in the table above), then trigger a fresh
+`Run workflow` (not `Re-run failed jobs`) — see `docs/Backlog.md`.
 
 1. **Create the CI/CD service principal + OIDC federation, and grant its two
    RBAC roles** (`Website Contributor` on the resource group, `SQL Server
