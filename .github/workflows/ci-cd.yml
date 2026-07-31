@@ -105,6 +105,17 @@ jobs:
   frontend-build-test:
     name: Frontend build & test (APFlow.Web)
     runs-on: ubuntu-latest
+    # Required for the "Build production bundle" step's vars.* references
+    # (ENTRA_SPA_CLIENT_ID, ENTRA_AUTHORITY, ENTRA_API_SCOPE,
+    # API_APP_SERVICE_NAME) to resolve at all: GitHub Environment-scoped
+    # variables are only visible to a job that references that environment -
+    # without this, every vars.* in this job silently resolves to an empty
+    # string, which is exactly what produced "Required GitHub Environment
+    # variable for 'VITE_ENTRA_CLIENT_ID' is empty" on the first real run
+    # after that step was added, even though the variable was confirmed set
+    # on the development environment itself.
+    environment:
+      name: development
     defaults:
       run:
         working-directory: ${{ env.WEB_APP_PATH }}
