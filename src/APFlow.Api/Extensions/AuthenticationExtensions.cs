@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using APFlow.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -62,6 +63,43 @@ public static class AuthenticationExtensions
                     // token shape once the App Registration exists (see CurrentUserService).
                     RoleClaimType = "roles",
                     NameClaimType = "preferred_username",
+                };
+
+                // TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the live "IDX10214:
+                // Audience validation failed" investigation is closed. IdentityModel's
+                // own exception message stays redacted even with ShowPII/
+                // Switch.DoNotScrubExceptions set (see Program.cs) - decode the raw
+                // token directly instead of continuing to fight that redaction.
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("TempJwtDiagnostics");
+
+                        var authHeader = context.Request.Headers.Authorization.ToString();
+                        const string bearerPrefix = "Bearer ";
+                        if (authHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var jwt = new JwtSecurityTokenHandler().ReadJwtToken(authHeader[bearerPrefix.Length..]);
+                                logger.LogWarning(
+                                    "TEMP DIAGNOSTIC: token aud=[{Audiences}] iss={Issuer} appid={AppId} scp={Scp}",
+                                    string.Join(", ", jwt.Audiences),
+                                    jwt.Issuer,
+                                    jwt.Claims.FirstOrDefault(c => c.Type == "azp" || c.Type == "appid")?.Value,
+                                    jwt.Claims.FirstOrDefault(c => c.Type == "scp")?.Value);
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogWarning(ex, "TEMP DIAGNOSTIC: failed to decode raw token for logging");
+                            }
+                        }
+
+                        return Task.CompletedTask;
+                    },
                 };
             });
 
