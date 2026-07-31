@@ -7,6 +7,14 @@ using APFlow.Integrations;
 using APFlow.Workers;
 using Azure.Identity;
 
+// TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the live "IDX10214: Audience
+// validation failed" investigation is closed. Microsoft.IdentityModel redacts
+// actual claim values from its exception messages by default (the
+// "See https://aka.ms/identitymodel/app-context-switches" suffix on that
+// error is this redaction) - ShowPII unlocks the real aud/iss values in the
+// next failure's log line instead of guessing from outside the process.
+Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Configuration -----------------------------------------------------
