@@ -167,9 +167,10 @@ actual GitHub *Secret*, scoped to the `development` environment.
 are done; **step 3's `RESOURCE_GROUP` variable specifically was not
 confirmed** — check it's set before assuming step 4 will succeed.
 
-**Also found on the first post-setup real run (2026-07-31): the federated
-credential's subject shape was wrong.** `AADSTS700213: No matching
-federated identity record found for presented assertion subject
+**Also found on the first post-setup real run, resolved same day
+(2026-07-31): the federated credential's subject shape was wrong.**
+`AADSTS700213: No matching federated identity record found for presented
+assertion subject
 'repo:AlamgeerRao@105811261/APFlow@1302101224:environment:development'`.
 Root cause: `migrate-development-database`/`deploy-api`/`deploy-web` all
 specify `environment: name: development` — a job referencing a GitHub
@@ -181,9 +182,9 @@ includes the numeric owner/repo IDs in the subject
 (`{org}@{ownerId}/{repo}@{repoId}`), confirmed directly from the error.
 `setup-github-oidc-service-principal.sh` now creates three federated
 credentials (ref-based, environment-based, and an id-qualified
-environment-based one, to cover both subject shapes) instead of one. **Fix
-for the existing `APFlow-CI-Dev` app (already created, don't re-run the
-whole script)** — add the two missing credentials directly:
+environment-based one, to cover both subject shapes) instead of one for any
+future setup. **The user added the two missing credentials directly to the
+existing `APFlow-CI-Dev` app — confirmed created:**
 ```bash
 az ad app federated-credential create \
   --id 744112fe-2263-4194-adb3-bba7af331a1b \
