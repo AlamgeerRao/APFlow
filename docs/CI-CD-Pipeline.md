@@ -41,19 +41,29 @@ run, both fixed here:**
    variable and a new `SQL Server Contributor` RBAC grant** — see the
    updated tables below and the one-time setup section.
 
-**Also found while investigating (2), not yet fixed — blocking the next
-real run:** the one-time setup script has likely never actually been
-executed. As tenant Global Administrator, only `APFlow-SPA-Dev` and
-`APFlow-Api-Dev` exist as app registrations in the CIAM tenant — there is no
-`APFlow-CI-Dev`. Separately, as subscription Owner, zero RBAC role
-assignments exist on `rg-apflow-dev` at all, meaning `Website Contributor`
-was never granted either. **This means the pipeline reaching the SQL
-connection step does not actually prove OIDC/Azure AD login works** — bug
-(1) above is a purely local build-time check that happens before any Azure
-call, and SQL error 40 is a network-layer failure that would occur
-regardless of whether the Azure AD credential resolves. Confirm
-`CI_AZURE_CLIENT_ID` in the `development` GitHub Environment actually
-matches a real app registration before assuming this gap is closed.
+**Also found while investigating (2): the one-time setup script had likely
+never actually been executed — resolved 2026-07-31.** As tenant Global
+Administrator, only `APFlow-SPA-Dev` and `APFlow-Api-Dev` existed as app
+registrations in the CIAM tenant — no `APFlow-CI-Dev`. Separately, as
+subscription Owner, zero RBAC role assignments existed on `rg-apflow-dev` at
+all, meaning `Website Contributor` had never been granted either. **The user
+then ran the setup script for real** (with the new `--sql-server-name`
+argument): `APFlow-CI-Dev` created (Client ID
+`c49371f6-7723-42a7-b9e0-ae0e39b4bf1b`, no client secret, OIDC federated
+credential scoped to `repo:AlamgeerRao/APFlow:ref:refs/heads/main`);
+`Website Contributor` granted on `rg-apflow-dev`; `SQL Server Contributor`
+granted on `sql-apflow-dev-ryd3y6fyfloxu`; `grant-ci-sql-migration-access.sql`
+run via the Portal Query Editor (confirmed `APFlow-CI-Dev` present in
+`sys.database_principals` with migration rights); `CI_AZURE_CLIENT_ID` /
+`AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` set as GitHub Environment
+variables. Full detail in `docs/Backlog.md`'s Closed section.
+
+**Still open: confirm the `RESOURCE_GROUP` variable (added for bug (2)'s
+fix) is also set** — it wasn't mentioned among the variables added above,
+and without it the temporary-firewall-rule steps will fail with an empty
+`--resource-group`. **None of the above has been exercised by a real
+pipeline run yet** — the next push/`workflow_dispatch` run is the actual
+end-to-end verification of this setup, not the setup completion itself.
 
 ---
 
@@ -152,8 +162,10 @@ actual GitHub *Secret*, scoped to the `development` environment.
 
 ## One-time setup (run before the first pipeline run)
 
-**Confirmed not yet done as of 2026-07-31** (see the post-wp-060 note above)
-— running this is the blocking next step, not optional cleanup.
+**Completed 2026-07-31** (see the post-wp-060 note above and
+`docs/Backlog.md`'s Closed section for the actual values). Steps 1–3 below
+are done; **step 3's `RESOURCE_GROUP` variable specifically was not
+confirmed** — check it's set before assuming step 4 will succeed.
 
 1. **Create the CI/CD service principal + OIDC federation, and grant its two
    RBAC roles** (`Website Contributor` on the resource group, `SQL Server
