@@ -115,3 +115,5 @@ output storageAccountName string = resources.outputs.storageAccountName
 output blobContainerName string = resources.outputs.blobContainerName
 output appInsightsName string = resources.outputs.appInsightsName
 output logAnalyticsWorkspaceName string = resources.outputs.logAnalyticsWorkspaceName
+output docIntelName string = resources.outputs.docIntelName
+output docIntelEndpoint string = resources.outputs.docIntelEndpoint

@@ -58,9 +58,11 @@ var blobContainerName = 'documents'
 var keyVaultName = 'kv-${namePrefix}-${environmentName}-${substring(uniqueSuffix, 0, 6)}'
 var logAnalyticsName = 'log-${baseName}-${uniqueSuffix}'
 var appInsightsName = 'appi-${baseName}-${uniqueSuffix}'
+var docIntelName = 'docintel-${baseName}-${uniqueSuffix}'
 
 var kvSecretsUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
 var storageBlobDataContributorRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+var cognitiveServicesUserRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
 
 // ----------------------------------------------------------------------------
 // Log Analytics + Application Insights (workspace-based)
@@ -184,6 +186,32 @@ resource sqlFirewallAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-p
 }
 
 // ----------------------------------------------------------------------------
+// Azure AI Document Intelligence (WP-061) — S0 (Standard) tier. Real
+// provisioning, closing the gap docs/Backlog.md flagged (this resource
+// never existed, so APFlow.Api's own fail-fast startup check for
+// DocumentIntelligence:Endpoint was blocking non-Development startup
+// entirely, worked around live with a non-durable ASPNETCORE_ENVIRONMENT=
+// Development override). `customSubDomainName` is REQUIRED here, not
+// optional - Cognitive Services resources only support Azure AD/Managed
+// Identity-based authentication (what this app actually uses, see the
+// RBAC grant below) when a custom subdomain is assigned; without it, only
+// API-key auth would work, silently breaking the DefaultAzureCredential
+// path this app relies on.
+// ----------------------------------------------------------------------------
+resource docIntel 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+  name: docIntelName
+  location: location
+  kind: 'FormRecognizer'
+  sku: {
+    name: 'S0'
+  }
+  properties: {
+    customSubDomainName: docIntelName
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+// ----------------------------------------------------------------------------
 // App Service Plan (single plan, two apps) — Linux
 // ----------------------------------------------------------------------------
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -294,6 +322,14 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         // API_BASE_URL setting already references apiAppService the other
         // way around.
         { name: 'Cors__AllowedOrigins__0', value: 'https://${webAppServiceName}.azurewebsites.net' }
+        // WP-061: only the endpoint (non-secret) is wired into the running
+        // app - DocumentIntelligenceOptions.ApiKey is deliberately left
+        // unset, same shape as Graph:ClientSecret/BlobStorage's account-key
+        // fallback, so auth goes through DefaultAzureCredential against the
+        // "Cognitive Services User" RBAC grant below, not a stored key. The
+        // key itself is stored in Key Vault separately, for reference/
+        // break-glass only - see docs/Backlog.md and the WP-061 report.
+        { name: 'DocumentIntelligence__Endpoint', value: docIntel.properties.endpoint }
       ]
     }
   }
@@ -389,6 +425,19 @@ resource webStorageAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   }
 }
 
+// WP-061: APFlow.Api only - APFlow.Web has no reason to call Document
+// Intelligence directly, same least-privilege reasoning already applied to
+// its SQL/Key Vault grants above.
+resource apiDocIntelAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(docIntel.id, apiAppService.id, cognitiveServicesUserRoleId)
+  scope: docIntel
+  properties: {
+    roleDefinitionId: cognitiveServicesUserRoleId
+    principalId: apiAppService.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Note: SQL access for both App Services' managed identities is granted via
 // contained database users, which requires a T-SQL connection (AAD auth) and
 // cannot be expressed in Bicep/ARM. See scripts/grant-sql-managed-identity-access.sql.
@@ -466,6 +515,20 @@ resource blobDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-previ
   }
 }
 
+resource docIntelDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'diag-${docIntelName}'
+  scope: docIntel
+  properties: {
+    workspaceId: logAnalytics.id
+    logs: [
+      { categoryGroup: 'allLogs', enabled: true }
+    ]
+    metrics: [
+      { category: 'AllMetrics', enabled: true }
+    ]
+  }
+}
+
 // ----------------------------------------------------------------------------
 // Outputs
 // ----------------------------------------------------------------------------
@@ -480,3 +543,5 @@ output storageAccountName string = storageAccount.name
 output blobContainerName string = blobContainerName
 output appInsightsName string = appInsights.name
 output logAnalyticsWorkspaceName string = logAnalytics.name
+output docIntelName string = docIntel.name
+output docIntelEndpoint string = docIntel.properties.endpoint
