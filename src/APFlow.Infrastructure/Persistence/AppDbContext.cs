@@ -112,6 +112,16 @@ public class AppDbContext : DbContext
         _currentUserService = currentUserService;
         _logger = logger;
         _currentTenantId = Guid.TryParse(currentUserService?.TenantId, out var tenantId) ? tenantId : null;
+
+        // TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the "sample invoices don't
+        // show up" investigation is closed. Confirms the exact raw tid claim string
+        // and whether it parsed, rather than guessing why the tenant query filter
+        // (ApplyTenantAndSoftDeleteFilter) returns zero rows.
+        _logger?.LogWarning(
+            "TEMP DIAGNOSTIC: raw TenantId claim=[{Raw}] parsed={Parsed} resolved={Resolved}",
+            currentUserService?.TenantId,
+            _currentTenantId is not null,
+            _currentTenantId);
     }
 
     /// <inheritdoc />
