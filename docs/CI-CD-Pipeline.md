@@ -23,6 +23,38 @@ themselves:
    `resources.bicep`) and this pipeline's own build/test step, so CI
    exercises the same Node major version that actually runs in production.
 
+**Post-wp-060 note (2026-07-31): two real bugs found on the first live pipeline
+run, both fixed here:**
+1. `dotnet ef database update` failed with `APFlow.Api doesn't reference
+   Microsoft.EntityFrameworkCore.Design` — `Infrastructure`'s existing
+   reference is `PrivateAssets="all"`, which deliberately keeps it out of
+   `APFlow.Api`'s graph, but EF's tools load design-time services from the
+   **startup project** (`APFlow.Api`), not `--project`. Fixed by adding the
+   same (also-private) reference to `APFlow.Api.csproj`.
+2. The next run failed with SQL error 40 (`Could not open a connection to
+   SQL Server`) — GitHub-hosted runners have no static IP and are not
+   covered by the SQL server's "Allow Azure services" firewall rule (that
+   rule only covers Azure's own trusted PaaS-to-PaaS traffic). Fixed by
+   adding "Add/Remove temporary SQL firewall rule" steps around the
+   migration in `ci-cd.yml`, scoped to exactly that run's IP and removed
+   unconditionally afterward. **This requires a new `RESOURCE_GROUP`
+   variable and a new `SQL Server Contributor` RBAC grant** — see the
+   updated tables below and the one-time setup section.
+
+**Also found while investigating (2), not yet fixed — blocking the next
+real run:** the one-time setup script has likely never actually been
+executed. As tenant Global Administrator, only `APFlow-SPA-Dev` and
+`APFlow-Api-Dev` exist as app registrations in the CIAM tenant — there is no
+`APFlow-CI-Dev`. Separately, as subscription Owner, zero RBAC role
+assignments exist on `rg-apflow-dev` at all, meaning `Website Contributor`
+was never granted either. **This means the pipeline reaching the SQL
+connection step does not actually prove OIDC/Azure AD login works** — bug
+(1) above is a purely local build-time check that happens before any Azure
+call, and SQL error 40 is a network-layer failure that would occur
+regardless of whether the Azure AD credential resolves. Confirm
+`CI_AZURE_CLIENT_ID` in the `development` GitHub Environment actually
+matches a real app registration before assuming this gap is closed.
+
 ---
 
 ## Files created
@@ -88,6 +120,7 @@ repository-wide, since nothing here should ever apply outside Development):
 | `WEB_APP_SERVICE_NAME` | `app-apflow-dev-web-ryd3y6fyfloxu` | WP-021 |
 | `SQL_SERVER_FQDN` | `sql-apflow-dev-ryd3y6fyfloxu.database.windows.net` | WP-021 |
 | `SQL_DATABASE_NAME` | `sqldb-apflow-dev` | WP-021 |
+| `RESOURCE_GROUP` | `rg-apflow-dev` | Added post-wp-060 — needed by the migration job's temporary SQL firewall-rule steps (`az sql server firewall-rule create`/`delete` require `--resource-group`) |
 | `KEY_VAULT_NAME` | `kv-apflow-dev-ryd3y6` | WP-021 |
 | `STORAGE_ACCOUNT_NAME` | `stapflowdevryd3y6fyfloxu` | WP-021 |
 | `STORAGE_BLOB_ENDPOINT` | `https://stapflowdevryd3y6fyfloxu.blob.core.windows.net/` | WP-021 |
@@ -101,7 +134,8 @@ repository-wide, since nothing here should ever apply outside Development):
 
 The current workflow only actually *uses* `AZURE_TENANT_ID`,
 `AZURE_SUBSCRIPTION_ID`, `CI_AZURE_CLIENT_ID`, `API_APP_SERVICE_NAME`,
-`WEB_APP_SERVICE_NAME`, `SQL_SERVER_FQDN`, and `SQL_DATABASE_NAME` directly —
+`WEB_APP_SERVICE_NAME`, `SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, and (post-wp-060)
+`RESOURCE_GROUP` directly —
 the rest are documented here for completeness/handoff (per Task 8's ask) and
 because the Entra/Graph/Storage values are things the Backend and React
 Engineers will need to configure their own code against, even though the
@@ -118,7 +152,13 @@ actual GitHub *Secret*, scoped to the `development` environment.
 
 ## One-time setup (run before the first pipeline run)
 
-1. **Create the CI/CD service principal + OIDC federation:**
+**Confirmed not yet done as of 2026-07-31** (see the post-wp-060 note above)
+— running this is the blocking next step, not optional cleanup.
+
+1. **Create the CI/CD service principal + OIDC federation, and grant its two
+   RBAC roles** (`Website Contributor` on the resource group, `SQL Server
+   Contributor` on just the SQL server — the second is new, added post-wp-060
+   so the pipeline can manage its own temporary firewall rule):
    ```bash
    az login --tenant 641fc267-7902-48d0-8e1c-1d3d0166c8ac --allow-no-subscriptions
    ./infra/scripts/setup-github-oidc-service-principal.sh \
@@ -127,9 +167,21 @@ actual GitHub *Secret*, scoped to the `development` environment.
      --resource-group rg-apflow-dev \
      --github-org <your-org-or-username> \
      --github-repo <your-repo-name> \
-     --github-branch main
+     --github-branch main \
+     --sql-server-name sql-apflow-dev-ryd3y6fyfloxu
    ```
    Capture the printed `CI_AZURE_CLIENT_ID` for the Variables table above.
+   If this has already been run once (creating the app registration) but
+   without `--sql-server-name`, do not re-run the whole script — it would
+   create a second, duplicate app registration. Instead grant just the
+   missing role directly:
+   ```bash
+   az role assignment create \
+     --assignee-object-id <existing CI SP object id> \
+     --assignee-principal-type ServicePrincipal \
+     --role "SQL Server Contributor" \
+     --scope /subscriptions/ca6d83dc-24be-412f-a6f4-97da7a4abf5d/resourceGroups/rg-apflow-dev/providers/Microsoft.Sql/servers/sql-apflow-dev-ryd3y6fyfloxu
+   ```
 
 2. **Grant it SQL migration access** (same Query Editor / `sqlcmd` approach
    as WP-021's `grant-sql-managed-identity-access.sql`):

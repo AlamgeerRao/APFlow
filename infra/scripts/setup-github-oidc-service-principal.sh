@@ -31,7 +31,12 @@
 #       --resource-group rg-apflow-dev \
 #       --github-org <your-github-org-or-username> \
 #       --github-repo <your-repo-name> \
-#       --github-branch main
+#       --github-branch main \
+#       --sql-server-name sql-apflow-dev-ryd3y6fyfloxu
+#
+# --sql-server-name is optional but recommended: without it, the SQL Server
+# Contributor grant (needed by ci-cd.yml's temporary firewall-rule steps,
+# added post-wp-060) is skipped and printed as a follow-up command instead.
 # ==============================================================================
 set -euo pipefail
 
@@ -41,10 +46,11 @@ RESOURCE_GROUP=""
 GITHUB_ORG=""
 GITHUB_REPO=""
 GITHUB_BRANCH="main"
+SQL_SERVER_NAME=""
 APP_DISPLAY_NAME="APFlow-CI-Dev"
 
 usage() {
-  echo "Usage: $0 --tenant-id <id> --subscription-id <id> --resource-group <rg> --github-org <org> --github-repo <repo> [--github-branch <branch>]"
+  echo "Usage: $0 --tenant-id <id> --subscription-id <id> --resource-group <rg> --github-org <org> --github-repo <repo> [--github-branch <branch>] [--sql-server-name <name>]"
   exit 1
 }
 
@@ -56,6 +62,7 @@ while [[ $# -gt 0 ]]; do
     --github-org) GITHUB_ORG="$2"; shift 2 ;;
     --github-repo) GITHUB_REPO="$2"; shift 2 ;;
     --github-branch) GITHUB_BRANCH="$2"; shift 2 ;;
+    --sql-server-name) SQL_SERVER_NAME="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -112,6 +119,32 @@ az role assignment create \
   --assignee-principal-type ServicePrincipal \
   --role "Website Contributor" \
   --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+
+# ------------------------------------------------------------------------------
+# 4. Grant 'SQL Server Contributor', scoped to just the SQL server resource
+#    (not the whole resource group - narrower than step 3's grant, same
+#    least-privilege intent). Needed so the pipeline can add/remove a
+#    temporary firewall rule for its own ephemeral runner IP around each
+#    "dotnet ef database update" (see ci-cd.yml's "Add/Remove temporary SQL
+#    firewall rule" steps) - without this, every migration run fails with
+#    SqlException error 40 ("Could not open a connection to SQL Server"),
+#    because GitHub-hosted runners have no static IP and are not covered by
+#    the server's "Allow Azure services" firewall rule. This does NOT grant
+#    any access to the data itself - that's governed separately by the SQL
+#    contained database user from grant-ci-sql-migration-access.sql.
+# ------------------------------------------------------------------------------
+if [[ -n "$SQL_SERVER_NAME" ]]; then
+  echo "--> Granting 'SQL Server Contributor' on SQL server $SQL_SERVER_NAME"
+  az role assignment create \
+    --assignee-object-id "$CI_SP_OBJECT_ID" \
+    --assignee-principal-type ServicePrincipal \
+    --role "SQL Server Contributor" \
+    --scope "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Sql/servers/${SQL_SERVER_NAME}"
+else
+  echo "--> Skipping 'SQL Server Contributor' grant: no --sql-server-name given."
+  echo "    Run this once manually before the pipeline can manage its own firewall rule:"
+  echo "    az role assignment create --assignee-object-id $CI_SP_OBJECT_ID --assignee-principal-type ServicePrincipal --role \"SQL Server Contributor\" --scope /subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Sql/servers/<sql-server-name>"
+fi
 
 # ------------------------------------------------------------------------------
 # Summary

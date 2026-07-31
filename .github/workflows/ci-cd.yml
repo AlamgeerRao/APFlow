@@ -186,8 +186,14 @@ jobs:
       # GitHub token to a file and pointing AZURE_FEDERATED_TOKEN_FILE at it
       # is the documented mechanism Azure.Identity's WorkloadIdentityCredential
       # (used by "Authentication=Active Directory Default" below) expects.
-      # FLAGGED: this exact hand-off has not been run against the real
-      # pipeline yet — verify on first live run; see docs/CI-CD-Pipeline.md.
+      # NOT YET CONFIRMED as of 2026-07-31: reaching a later step in a real
+      # run does not by itself prove this exchange succeeds - the migration
+      # step's own errors seen so far (a local build-time check, then a
+      # network-layer SQL firewall failure) both occur independent of
+      # whether this token exchange/the AAD app itself is valid. Separately
+      # confirmed (as tenant Global Administrator) that the CI/CD app
+      # registration this depends on may not exist yet - see
+      # docs/CI-CD-Pipeline.md's post-wp-060 note before assuming this works.
       - name: Request GitHub OIDC token for Azure AD federation
         id: oidc
         run: |
@@ -195,6 +201,46 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange")
           echo "$TOKEN_RESPONSE" | jq -r '.value' > "$RUNNER_TEMP/azure_federated_token"
           echo "token_file=$RUNNER_TEMP/azure_federated_token" >> "$GITHUB_OUTPUT"
+
+      # --- Temporary SQL firewall rule for this runner's ephemeral IP. ------
+      # GitHub-hosted runners have no static/predictable IP and are NOT
+      # covered by Azure SQL's "Allow Azure services" rule (that rule only
+      # covers Azure's own trusted PaaS-to-PaaS traffic, not arbitrary
+      # internet hosts, even ones physically running on Azure). Without this,
+      # "dotnet ef database update" fails with SqlException error 40 ("Could
+      # not open a connection to SQL Server") regardless of how the
+      # connection authenticates - this is a network/firewall problem, not a
+      # credentials problem. The rule is scoped to exactly this run's IP and
+      # removed unconditionally afterward (see the cleanup step below), so no
+      # standing firewall exception is left behind between runs. Requires the
+      # CI service principal to hold a role covering
+      # Microsoft.Sql/servers/firewallRules/* on the SQL server resource
+      # (e.g. "SQL Server Contributor", scoped to just that one resource) -
+      # see setup-github-oidc-service-principal.sh step 4.
+      - name: Azure login (OIDC — no client secret)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.CI_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Add temporary SQL firewall rule for this runner
+        id: sql-firewall
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "Runner public IP: $RUNNER_IP"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          SQL_SERVER_NAME="${SQL_SERVER_FQDN%%.*}"
+          echo "sql_server_name=$SQL_SERVER_NAME" >> "$GITHUB_OUTPUT"
+          az sql server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER_NAME" \
+            --name "gha-run-${{ github.run_id }}" \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP"
+        env:
+          SQL_SERVER_FQDN: ${{ vars.SQL_SERVER_FQDN }}
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
 
       - name: Apply pending migrations
         env:
@@ -207,6 +253,17 @@ jobs:
             --project "${{ env.INFRASTRUCTURE_PROJECT_PATH }}" \
             --startup-project "${{ env.API_PROJECT_PATH }}" \
             --connection "Server=tcp:${{ vars.SQL_SERVER_FQDN }},1433;Initial Catalog=${{ vars.SQL_DATABASE_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;"
+
+      - name: Remove temporary SQL firewall rule
+        if: always()
+        run: |
+          az sql server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "${{ steps.sql-firewall.outputs.sql_server_name }}" \
+            --name "gha-run-${{ github.run_id }}" \
+            || echo "Firewall rule already absent or removal failed - not fatal, but check for a stale rule."
+        env:
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
 
   # ============================================================================
   # Deploy — API (only after migrations succeed)
