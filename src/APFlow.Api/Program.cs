@@ -5,7 +5,9 @@ using APFlow.Infrastructure;
 using APFlow.Infrastructure.Configuration;
 using APFlow.Integrations;
 using APFlow.Workers;
+using Azure;
 using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,9 +21,45 @@ var keyVaultOptions = builder.Configuration
 
 if (keyVaultOptions is { Enabled: true } && !string.IsNullOrWhiteSpace(keyVaultOptions.VaultUri))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(keyVaultOptions.VaultUri),
-        new DefaultAzureCredential());
+    var keyVaultUri = new Uri(keyVaultOptions.VaultUri);
+    var keyVaultCredential = new DefaultAzureCredential();
+
+    builder.Configuration.AddAzureKeyVault(keyVaultUri, keyVaultCredential);
+
+    // WP-068: the generic AddAzureKeyVault call above maps each secret's raw
+    // NAME directly into configuration (translating "--" to ":"), which does
+    // NOT help Graph:ClientSecret specifically - that secret is deliberately
+    // stored under this project's own "graph-secret-{tenantId}" naming
+    // convention (docs/Secret-Naming-Convention.md), not "Graph--ClientSecret",
+    // because the future Per-Tenant Graph Configuration work
+    // (docs/WP-004-Graph-Multitenancy-Decision.md) needs one differently-named
+    // secret per tenant, not a single fixed config key. This was the actual
+    // root cause of live Graph auth failing with a 401 the whole session
+    // (confirmed via WP-067's EmailIngestionWorker logs, not guessed): even
+    // with AzureKeyVault now enabled, nothing ever read this specific secret
+    // and put it where GraphOptions.ClientSecret binds from, so it was always
+    // blank, silently falling back to DefaultAzureCredential/Managed Identity
+    // - which was never granted the Graph Mail.Read application permission.
+    var graphTenantId = builder.Configuration["Graph:TenantId"];
+    if (!string.IsNullOrWhiteSpace(graphTenantId))
+    {
+        var secretClient = new SecretClient(keyVaultUri, keyVaultCredential);
+        try
+        {
+            var graphSecret = secretClient.GetSecret($"graph-secret-{graphTenantId}");
+            builder.Configuration.AddInMemoryCollection(
+                [new KeyValuePair<string, string?>("Graph:ClientSecret", graphSecret.Value.Value)]);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // No secret stored for this tenant yet - Graph:ClientSecret stays
+            // blank, and GraphOptions' own documented fallback (Managed
+            // Identity via DefaultAzureCredential) applies, exactly as before
+            // this fix. Not a startup failure: a missing secret is a
+            // legitimate, expected state for an environment that genuinely
+            // intends to rely on Managed Identity for Graph instead.
+        }
+    }
 }
 
 // --- Logging -------------------------------------------------------------

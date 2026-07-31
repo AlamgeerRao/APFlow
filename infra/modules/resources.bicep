@@ -259,6 +259,16 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'STORAGE_BLOB_ENDPOINT', value: storageAccount.properties.primaryEndpoints.blob }
         { name: 'STORAGE_CONTAINER_NAME', value: blobContainerName }
         { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
+        // WP-068: AzureKeyVault:Enabled/VaultUri were never set as live app
+        // settings at all, on top of KeyVaultOptions.Enabled defaulting to
+        // false - Program.cs's AddAzureKeyVault call (and the explicit
+        // graph-secret-{tenantId} -> Graph:ClientSecret mapping added
+        // alongside it) had never executed this entire session. This is
+        // what actually turns Key Vault loading on. Requires the API's
+        // managed identity to hold Key Vault Secrets User on this vault -
+        // already granted below (apiKvAccess, from WP-021).
+        { name: 'AzureKeyVault__Enabled', value: 'true' }
+        { name: 'AzureKeyVault__VaultUri', value: keyVault.properties.vaultUri }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'ENTRA_API_CLIENT_ID', value: entraApiClientId }
