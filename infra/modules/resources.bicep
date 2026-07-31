@@ -35,6 +35,7 @@ param entraTenantId string
 param entraSpaClientId string
 param entraApiClientId string
 param entraApiScope string
+param entraAuthority string
 
 // Unique suffix keeps globally-unique names (storage, sql, key vault, app services) collision-free
 var uniqueSuffix = uniqueString(resourceGroup().id, environmentName)
@@ -222,6 +223,27 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'ENTRA_API_CLIENT_ID', value: entraApiClientId }
         { name: 'ENTRA_API_SCOPE', value: entraApiScope }
+        // The three settings above are NOT read by any .NET code (confirmed
+        // by grepping src/ for their literal names - zero matches) - kept
+        // for handoff/documentation only, per the same reasoning as the
+        // Graph/Storage values in docs/CI-CD-Pipeline.md's variables table.
+        // AuthenticationExtensions.cs/EntraIdOptions actually bind the
+        // "EntraId" config section, which needs the '__'-separated settings
+        // below instead - these were missing entirely until this fix,
+        // which is why AddApiAuthentication's own fail-fast check
+        // ("EntraId:Authority and EntraId:Audience must be configured
+        // outside Development") was throwing on every fresh container
+        // start, live-diagnosed 2026-07-31 as exit code 134 (SIGABRT, the
+        // Linux CoreCLR's unhandled-exception behavior) after this session's
+        // Cors fix forced the API's first real restart in a while. Authority
+        // uses the same tenant/subdomain as the frontend's ENTRA_AUTHORITY
+        // GitHub variable, with the /v2.0 suffix ASP.NET Core's JWT bearer
+        // Authority needs for signing-key discovery (confirmed live via
+        // that URL's own /v2.0/.well-known/openid-configuration returning
+        // 200). Audience is the API app registration's Application ID URI
+        // (confirmed via `az ad app show`), not just its bare client ID.
+        { name: 'EntraId__Authority', value: '${entraAuthority}/v2.0' }
+        { name: 'EntraId__Audience', value: 'api://${entraApiClientId}' }
         // ASP.NET Core config binds ':' section separators to '__' in App
         // Service app settings, and array elements to a numeric suffix -
         // this is the live equivalent of appsettings.Development.json's

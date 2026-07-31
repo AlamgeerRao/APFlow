@@ -37,3 +37,9 @@ param entraTenantId = '641fc267-7902-48d0-8e1c-1d3d0166c8ac'
 param entraSpaClientId = 'd47fcb44-752e-4d7a-ac49-d3c71dfca7e0'
 param entraApiClientId = '603682ec-46ab-4075-9e87-8e44478a39a4'
 param entraApiScope = 'api://603682ec-46ab-4075-9e87-8e44478a39a4/access_as_user'
+// Same tenant/subdomain as the frontend's ENTRA_AUTHORITY GitHub variable
+// (no /v2.0 suffix here - resources.bicep appends that for APFlow.Api's
+// JWT bearer Authority). Live-verified via
+// https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac/v2.0/.well-known/openid-configuration
+// returning 200 with a matching tenant ID.
+param entraAuthority = 'https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac'

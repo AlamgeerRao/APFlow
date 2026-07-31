@@ -56,6 +56,9 @@ param entraApiClientId string = ''
 @description('The exposed API scope, e.g. api://<entraApiClientId>/access_as_user')
 param entraApiScope string = ''
 
+@description('The Entra External ID (CIAM) tenant authority base URL, e.g. https://<tenant-subdomain>.ciamlogin.com/<tenantId> (no trailing /v2.0 - resources.bicep appends that). Required by APFlow.Api\'s own JWT bearer authentication (EntraId:Authority) - unlike the other entra* values above, this is NOT optional in any deployed (non-Development) environment: AuthenticationExtensions.cs deliberately fails fast at startup if it and entraApiClientId-derived Audience are not both set.')
+param entraAuthority string = ''
+
 var resourceGroupName = 'rg-${namePrefix}-${environmentName}'
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -84,6 +87,7 @@ module resources 'modules/resources.bicep' = {
     entraSpaClientId: entraSpaClientId
     entraApiClientId: entraApiClientId
     entraApiScope: entraApiScope
+    entraAuthority: entraAuthority
   }
 }
 
