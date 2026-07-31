@@ -295,11 +295,14 @@ visibility:
 1. **Repo file paths** (`src/APFlow.Api`, `src/APFlow.Infrastructure`,
    `src/APFlow.Web`, the five `tests/*.Tests` paths). The `src/`/`tests/`
    paths mirror what `WP-012-Report.md` actually confirmed
-   (`src/APFlow.Application`, `tests/APFlow.Application.Tests`, etc.), but
-   `APFlow.Web`'s exact path and the frontend build output layout
-   (`dist/`, `server.js`) are **assumed**, not confirmed against the real
-   repo. Adjust the `WEB_APP_PATH` env var and the `web-publish` artifact
-   paths if they differ.
+   (`src/APFlow.Application`, `tests/APFlow.Application.Tests`, etc.).
+   `APFlow.Web`'s frontend build output layout (`dist/`) was already
+   correct; `server.js` did **not** exist until 2026-07-31 (see
+   `docs/Backlog.md`'s Closed section) — it now does, ships an Express
+   static server with SPA fallback, and `resources.bicep` sets
+   `appCommandLine: 'node server.js'` + `SCM_DO_BUILD_DURING_DEPLOYMENT` so
+   Azure actually runs it instead of falling back to its own generic
+   static-site host.
 2. **The OIDC → `dotnet ef` federated-token hand-off**
    (`migrate-development-database` job). Manually requesting GitHub's OIDC
    token and pointing `AZURE_FEDERATED_TOKEN_FILE` at it is the documented

@@ -137,12 +137,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web-publish
-          # Includes the small Express static-file server (see WP-021 README
-          # — APFlow.Web runs NODE|24-lts on App Service, not Static Web Apps —
-          # see infra/README.md "What changed in wp-060" for the Node 20 EOL bump)
-          # alongside its built assets. Adjust this path if the repo's actual
-          # server entrypoint/build output layout differs — not independently
-          # verified against the real repo; flagged in docs/CI-CD-Pipeline.md.
+          # Includes src/APFlow.Web/server.js, the small Express static-file
+          # server with SPA fallback that Azure App Service actually runs
+          # (via resources.bicep's appCommandLine: 'node server.js' —
+          # APFlow.Web runs NODE|24-lts on App Service, not Static Web Apps;
+          # see infra/README.md "What changed in wp-060" for the Node 20 EOL
+          # bump). package.json/package-lock.json (no node_modules) ship
+          # alongside it so Oryx's SCM_DO_BUILD_DURING_DEPLOYMENT post-deploy
+          # build step can install express.
           path: |
             ${{ env.WEB_APP_PATH }}/dist
             ${{ env.WEB_APP_PATH }}/server.js

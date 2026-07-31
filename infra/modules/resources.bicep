@@ -247,12 +247,21 @@ resource webAppService 'Microsoft.Web/sites@2023-12-01' = {
       linuxFxVersion: 'NODE|24-lts'
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
+      // Without an explicit startup command, App Service falls back to its own
+      // generic static-file server (node /opt/startup/default-static-site.js),
+      // which looks for content at wwwroot's root — but the CI artifact puts
+      // the built SPA under wwwroot/dist/, served by this repo's own
+      // src/APFlow.Web/server.js. SCM_DO_BUILD_DURING_DEPLOYMENT is required
+      // because the artifact ships package.json/package-lock.json but not
+      // node_modules — Oryx's post-deploy build step installs them.
+      appCommandLine: 'node server.js'
       appSettings: [
         { name: 'API_BASE_URL', value: 'https://${apiAppService.properties.defaultHostName}' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'ENTRA_SPA_CLIENT_ID', value: entraSpaClientId }
         { name: 'ENTRA_API_SCOPE', value: entraApiScope }
+        { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
       ]
     }
   }
