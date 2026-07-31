@@ -48,6 +48,22 @@ public static class AuthenticationExtensions
                     return;
                 }
 
+                // ASP.NET Core's JwtBearer handler applies a legacy inbound claim-type
+                // map by default (MapInboundClaims = true), silently rewriting short
+                // Entra v2.0 claim names to old WS-Federation-era XML schema URIs -
+                // e.g. "tid" becomes "http://schemas.microsoft.com/identity/claims/
+                // tenantid", "oid" becomes ".../objectidentifier". Live-diagnosed
+                // 2026-07-31: CurrentUserService.TenantId reads the literal "tid" claim
+                // type with no fallback, so it was always null for every real
+                // authenticated user (not something specific to any one test) - the
+                // tenant query filter (AppDbContext.ApplyTenantAndSoftDeleteFilter)
+                // then fails closed and every TenantEntity query returns zero rows.
+                // Disabling the remap is the standard fix for exactly this class of
+                // surprise with modern Entra v2.0 APIs - claims now come through under
+                // their real JWT names, matching CurrentUserService's existing
+                // "oid"/"tid"/"roles" assumptions.
+                options.MapInboundClaims = false;
+
                 options.Authority = entraIdOptions.Authority;
                 options.Audience = entraIdOptions.Audience;
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -62,25 +78,6 @@ public static class AuthenticationExtensions
                     // token shape once the App Registration exists (see CurrentUserService).
                     RoleClaimType = "roles",
                     NameClaimType = "preferred_username",
-                };
-
-                // TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the "tid claim comes
-                // through as null" investigation is closed. Logs every claim type/value
-                // ASP.NET Core actually attached to the validated ClaimsPrincipal, to
-                // see whether "tid" is genuinely absent from the token or just present
-                // under a different (remapped) claim type name.
-                options.Events = new JwtBearerEvents
-                {
-                    OnTokenValidated = context =>
-                    {
-                        var logger = context.HttpContext.RequestServices
-                            .GetRequiredService<ILoggerFactory>()
-                            .CreateLogger("TempClaimsDiagnostics");
-                        var claims = context.Principal?.Claims
-                            .Select(c => $"{c.Type}={c.Value}") ?? [];
-                        logger.LogWarning("TEMP DIAGNOSTIC: validated claims: {Claims}", string.Join(" | ", claims));
-                        return Task.CompletedTask;
-                    },
                 };
             });
 
