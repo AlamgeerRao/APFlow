@@ -133,6 +133,21 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
+      # Prunes devDependencies (typescript, vite, eslint, vitest, etc.) down
+      # to just runtime deps (express) so the artifact below can ship a
+      # working node_modules directly, instead of relying on Azure's Oryx
+      # build step to install them post-deploy. Oryx was tried first
+      # (SCM_DO_BUILD_DURING_DEPLOYMENT=true) and failed: Oryx auto-runs
+      # package.json's "build" script whenever one exists, so it re-ran
+      # `tsc -b && vite build` against this artifact - which ships only the
+      # already-built dist/, not tsconfig.json or src/ - producing
+      # "TS5083: Cannot read file 'tsconfig.json'" and failing the deploy.
+      # Running the real build in CI (above, with full source/devDeps
+      # present) and shipping only the result removes that dependency on
+      # Oryx correctly detecting/skipping this app's build step.
+      - name: Install production-only dependencies for deployment
+        run: npm ci --omit=dev
+
       - name: Upload web publish artifact
         uses: actions/upload-artifact@v4
         with:
@@ -142,14 +157,16 @@ jobs:
           # (via resources.bicep's appCommandLine: 'node server.js' —
           # APFlow.Web runs NODE|24-lts on App Service, not Static Web Apps;
           # see infra/README.md "What changed in wp-060" for the Node 20 EOL
-          # bump). package.json/package-lock.json (no node_modules) ship
-          # alongside it so Oryx's SCM_DO_BUILD_DURING_DEPLOYMENT post-deploy
-          # build step can install express.
+          # bump). node_modules ships pre-installed (production deps only,
+          # see the step above) - resources.bicep sets
+          # SCM_DO_BUILD_DURING_DEPLOYMENT=false so Azure does a plain zip
+          # deploy of exactly this artifact with no Oryx build step at all.
           path: |
             ${{ env.WEB_APP_PATH }}/dist
             ${{ env.WEB_APP_PATH }}/server.js
             ${{ env.WEB_APP_PATH }}/package.json
             ${{ env.WEB_APP_PATH }}/package-lock.json
+            ${{ env.WEB_APP_PATH }}/node_modules
           retention-days: 14
 
   # ============================================================================

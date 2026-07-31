@@ -300,9 +300,22 @@ visibility:
    correct; `server.js` did **not** exist until 2026-07-31 (see
    `docs/Backlog.md`'s Closed section) — it now does, ships an Express
    static server with SPA fallback, and `resources.bicep` sets
-   `appCommandLine: 'node server.js'` + `SCM_DO_BUILD_DURING_DEPLOYMENT` so
-   Azure actually runs it instead of falling back to its own generic
-   static-site host.
+   `appCommandLine: 'node server.js'` so Azure actually runs it instead of
+   falling back to its own generic static-site host.
+   **`SCM_DO_BUILD_DURING_DEPLOYMENT` was tried as `true` first (so Oryx
+   would install `node_modules` post-deploy) and broke the real deploy**:
+   Oryx auto-runs `package.json`'s `"build"` script whenever one exists, so
+   it re-ran `tsc -b && vite build` against an artifact that ships only the
+   already-built `dist/`, not `tsconfig.json`/`src/` — `error TS5083: Cannot
+   read file 'tsconfig.json'`, deploy failed. Fixed by building in CI (where
+   the full source and devDependencies are present) and shipping a
+   production-only `node_modules` (`npm ci --omit=dev`, after the build
+   step) directly in the artifact instead — `SCM_DO_BUILD_DURING_DEPLOYMENT`
+   is now `false`, so Azure does a plain zip deploy with no Oryx build step
+   at all. This resolves the artifact-strategy question the DevOps engineer
+   flagged as an open choice (Oryx-build vs. ship-`node_modules`) — the
+   Oryx-build side turned out not to work for this app's specific
+   `package.json` shape.
 2. **The OIDC → `dotnet ef` federated-token hand-off**
    (`migrate-development-database` job). Manually requesting GitHub's OIDC
    token and pointing `AZURE_FEDERATED_TOKEN_FILE` at it is the documented

@@ -251,9 +251,7 @@ resource webAppService 'Microsoft.Web/sites@2023-12-01' = {
       // generic static-file server (node /opt/startup/default-static-site.js),
       // which looks for content at wwwroot's root — but the CI artifact puts
       // the built SPA under wwwroot/dist/, served by this repo's own
-      // src/APFlow.Web/server.js. SCM_DO_BUILD_DURING_DEPLOYMENT is required
-      // because the artifact ships package.json/package-lock.json but not
-      // node_modules — Oryx's post-deploy build step installs them.
+      // src/APFlow.Web/server.js.
       appCommandLine: 'node server.js'
       appSettings: [
         { name: 'API_BASE_URL', value: 'https://${apiAppService.properties.defaultHostName}' }
@@ -261,7 +259,17 @@ resource webAppService 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'ENTRA_TENANT_ID', value: entraTenantId }
         { name: 'ENTRA_SPA_CLIENT_ID', value: entraSpaClientId }
         { name: 'ENTRA_API_SCOPE', value: entraApiScope }
-        { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
+        // Explicitly false (Azure's own default for zip deploy, set here for
+        // durability against that default ever changing): the CI artifact
+        // already ships a pre-installed production node_modules, so no
+        // post-deploy install is needed. Was 'true' first, relying on Oryx to
+        // install node_modules - broke the deploy instead, because Oryx also
+        // auto-runs package.json's "build" script ("tsc -b && vite build")
+        // whenever one exists, and this artifact ships only the already-built
+        // dist/, not tsconfig.json/src/ - producing
+        // "TS5083: Cannot read file 'tsconfig.json'". See ci-cd.yml's
+        // "Install production-only dependencies for deployment" step.
+        { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }
       ]
     }
   }
