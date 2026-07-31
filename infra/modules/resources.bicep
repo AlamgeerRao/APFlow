@@ -197,10 +197,19 @@ resource sqlFirewallAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-p
 // RBAC grant below) when a custom subdomain is assigned; without it, only
 // API-key auth would work, silently breaking the DefaultAzureCredential
 // path this app relies on.
+// Location is deliberately hardcoded to 'uksouth', NOT the `location`
+// param every other resource here uses ('ukwest') - confirmed live via
+// `az cognitiveservices account list-skus --kind FormRecognizer`: ukwest
+// returns zero SKUs (the account type is entirely unavailable there),
+// uksouth returns both F0 and S0. Same UK-data-residency constraint as
+// everywhere else in this template, just a different specific region
+// within it - not the uksouth *compute* quota wall the `location` param's
+// own doc comment describes (that was App Service Plan SKU capacity, an
+// unrelated quota pool from this resource type).
 // ----------------------------------------------------------------------------
 resource docIntel 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   name: docIntelName
-  location: location
+  location: 'uksouth'
   kind: 'FormRecognizer'
   sku: {
     name: 'S0'
