@@ -227,6 +227,19 @@ jobs:
       - name: Add temporary SQL firewall rule for this runner
         id: sql-firewall
         run: |
+          # Diagnostic + defensive fix for a 2026-07-31 AuthorizationFailed
+          # that occurred despite the CI principal's "SQL Server Contributor"
+          # role being independently confirmed correct (right principal,
+          # right scope, right role, no condition, no resource lock, no
+          # deny-effect policy - all checked directly via the ARM API). The
+          # remaining plausible cause is azure/login not leaving the intended
+          # subscription active for this step's bare `az` calls - print the
+          # active context so a recurrence is diagnosable from the log
+          # instead of re-guessing, and set it explicitly as a cheap,
+          # harmless defensive fix either way.
+          echo "Active az account context before firewall-rule create:"
+          az account show -o json
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           RUNNER_IP=$(curl -s https://api.ipify.org)
           echo "Runner public IP: $RUNNER_IP"
           echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
@@ -241,6 +254,7 @@ jobs:
         env:
           SQL_SERVER_FQDN: ${{ vars.SQL_SERVER_FQDN }}
           RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Apply pending migrations
         env:
@@ -257,11 +271,15 @@ jobs:
       - name: Remove temporary SQL firewall rule
         if: always()
         run: |
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
           az sql server firewall-rule delete \
             --resource-group "$RESOURCE_GROUP" \
             --server "${{ steps.sql-firewall.outputs.sql_server_name }}" \
             --name "gha-run-${{ github.run_id }}" \
             || echo "Firewall rule already absent or removal failed - not fatal, but check for a stale rule."
+        env:
+          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         env:
           RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
 
