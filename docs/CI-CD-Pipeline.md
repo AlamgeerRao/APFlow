@@ -58,12 +58,11 @@ run via the Portal Query Editor (confirmed `APFlow-CI-Dev` present in
 `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` set as GitHub Environment
 variables. Full detail in `docs/Backlog.md`'s Closed section.
 
-**Still open: confirm the `RESOURCE_GROUP` variable (added for bug (2)'s
-fix) is also set** — it wasn't mentioned among the variables added above,
-and without it the temporary-firewall-rule steps will fail with an empty
-`--resource-group`. **None of the above has been exercised by a real
+`RESOURCE_GROUP` (`rg-apflow-dev`, needed for bug (2)'s fix) confirmed set
+as a GitHub Environment variable too, 2026-07-31. **All setup steps and
+both bug fixes are now in place; none of it has been exercised by a real
 pipeline run yet** — the next push/`workflow_dispatch` run is the actual
-end-to-end verification of this setup, not the setup completion itself.
+end-to-end verification, not the setup completion itself.
 
 ---
 
@@ -162,10 +161,10 @@ actual GitHub *Secret*, scoped to the `development` environment.
 
 ## One-time setup (run before the first pipeline run)
 
-**Completed 2026-07-31** (see the post-wp-060 note above and
-`docs/Backlog.md`'s Closed section for the actual values). Steps 1–3 below
-are done; **step 3's `RESOURCE_GROUP` variable specifically was not
-confirmed** — check it's set before assuming step 4 will succeed.
+**Completed 2026-07-31**, including `RESOURCE_GROUP` (see the post-wp-060
+note above and `docs/Backlog.md`'s Closed section for the actual values).
+Steps 1–3 below are done; step 4 (an actual pipeline run) is the remaining
+verification.
 
 **Also found on the first post-setup real run, resolved same day
 (2026-07-31): the federated credential's subject shape was wrong.**
