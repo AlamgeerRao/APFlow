@@ -63,6 +63,25 @@ public static class AuthenticationExtensions
                     RoleClaimType = "roles",
                     NameClaimType = "preferred_username",
                 };
+
+                // TEMPORARY DIAGNOSTIC (2026-07-31) - remove once the "tid claim comes
+                // through as null" investigation is closed. Logs every claim type/value
+                // ASP.NET Core actually attached to the validated ClaimsPrincipal, to
+                // see whether "tid" is genuinely absent from the token or just present
+                // under a different (remapped) claim type name.
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("TempClaimsDiagnostics");
+                        var claims = context.Principal?.Claims
+                            .Select(c => $"{c.Type}={c.Value}") ?? [];
+                        logger.LogWarning("TEMP DIAGNOSTIC: validated claims: {Claims}", string.Join(" | ", claims));
+                        return Task.CompletedTask;
+                    },
+                };
             });
 
         return services;
