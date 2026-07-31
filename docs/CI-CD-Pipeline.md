@@ -136,15 +136,21 @@ repository-wide, since nothing here should ever apply outside Development):
 | `ENTRA_SPA_CLIENT_ID` | `d47fcb44-752e-4d7a-ac49-d3c71dfca7e0` | WP-021 |
 | `ENTRA_API_CLIENT_ID` | `603682ec-46ab-4075-9e87-8e44478a39a4` | WP-021 |
 | `ENTRA_API_SCOPE` | `api://603682ec-46ab-4075-9e87-8e44478a39a4/access_as_user` | WP-021 |
+| `ENTRA_AUTHORITY` | `https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac` | **New, added post-wp-022(c)** — the CIAM authority URL `msalConfig.ts` requires (`VITE_ENTRA_AUTHORITY`). Live-verified by querying `https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-1d3d0166c8ac/v2.0/.well-known/openid-configuration` directly (returned 200 with a matching tenant ID in its endpoints) — not previously documented anywhere in this repo before this fix. |
 | `GRAPH_TENANT_ID` | `1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` | WP-021 |
 | `GRAPH_CLIENT_ID` | `40d63c64-ff18-4028-ba92-01ca93c1c432` | WP-021 |
 | `GRAPH_MAILBOX_UPN` | `invoices@acoounts01.onmicrosoft.com` | WP-021 |
 | `GRAPH_CLIENT_SECRET_KEYVAULT_NAME` | `graph-secret-1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf` | WP-021d — a **name**, not the secret itself; the app reads the actual value from Key Vault at runtime. (Corrected from an earlier `wp-021c` naming mistake, caught by QA — `graph-cred-` never was a real convention; see WP-021's README "What changed in wp-021d".) |
 
-The current workflow only actually *uses* `AZURE_TENANT_ID`,
+The current workflow actually *uses* `AZURE_TENANT_ID`,
 `AZURE_SUBSCRIPTION_ID`, `CI_AZURE_CLIENT_ID`, `API_APP_SERVICE_NAME`,
-`WEB_APP_SERVICE_NAME`, `SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, and (post-wp-060)
-`RESOURCE_GROUP` directly —
+`WEB_APP_SERVICE_NAME`, `SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, (post-wp-060)
+`RESOURCE_GROUP`, and (post-wp-022(c)) `ENTRA_SPA_CLIENT_ID`,
+`ENTRA_AUTHORITY`, and `ENTRA_API_SCOPE` (fed into `frontend-build-test`'s
+`Build production bundle` step as `VITE_ENTRA_CLIENT_ID`/
+`VITE_ENTRA_AUTHORITY`/`VITE_API_SCOPE` — these are compiled into the SPA
+bundle at build time, so they must be set correctly *before* that step
+runs, not just as App Service runtime settings) —
 the rest are documented here for completeness/handoff (per Task 8's ask) and
 because the Entra/Graph/Storage values are things the Backend and React
 Engineers will need to configure their own code against, even though the

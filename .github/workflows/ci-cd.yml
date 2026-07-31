@@ -130,8 +130,40 @@ jobs:
       - name: Unit tests (vitest run)
         run: npx vitest run
 
+      # VITE_*-prefixed variables are compiled into the bundle by `vite build`
+      # itself - there is no later point where they can be injected (unlike
+      # the API's app settings, which .NET reads at runtime). Missing any of
+      # the three msalConfig.ts actually requires (VITE_ENTRA_CLIENT_ID,
+      # VITE_ENTRA_AUTHORITY, VITE_API_SCOPE) produces a real, user-visible
+      # "MSAL initialization failed" error in the browser, confirmed live
+      # 2026-07-31 after the Oryx/server.js fix let the app itself finally
+      # load. VITE_API_BASE_URL (required by httpClient.ts, not wrapped in
+      # msalConfig.ts's own throw-if-missing check) is constructed here
+      # rather than stored as its own variable, so it can't drift from
+      # API_APP_SERVICE_NAME. VITE_ENTRA_REDIRECT_URI is deliberately left
+      # unset - it defaults to the page's own origin, which already matches
+      # the redirect URI registered on the SPA app registration (confirmed
+      # live via `az ad app show`).
       - name: Build production bundle
-        run: npm run build
+        env:
+          VITE_ENTRA_CLIENT_ID: ${{ vars.ENTRA_SPA_CLIENT_ID }}
+          VITE_ENTRA_AUTHORITY: ${{ vars.ENTRA_AUTHORITY }}
+          VITE_API_SCOPE: ${{ vars.ENTRA_API_SCOPE }}
+          API_APP_SERVICE_NAME: ${{ vars.API_APP_SERVICE_NAME }}
+          VITE_API_BASE_URL: https://${{ vars.API_APP_SERVICE_NAME }}.azurewebsites.net
+        run: |
+          # Checked separately from VITE_API_BASE_URL below: that variable is
+          # always non-empty (it has literal https://.../azurewebsites.net
+          # around the substitution), so an empty API_APP_SERVICE_NAME would
+          # otherwise silently produce "https://.azurewebsites.net" instead
+          # of failing loudly here.
+          for v in VITE_ENTRA_CLIENT_ID VITE_ENTRA_AUTHORITY VITE_API_SCOPE API_APP_SERVICE_NAME; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Required GitHub Environment variable for '$v' is empty or not set on the 'development' environment (see docs/CI-CD-Pipeline.md)."
+              exit 1
+            fi
+          done
+          npm run build
 
       # Prunes devDependencies (typescript, vite, eslint, vitest, etc.) down
       # to just runtime deps (express) so the artifact below can ship a
