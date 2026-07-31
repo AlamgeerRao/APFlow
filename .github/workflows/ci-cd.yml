@@ -280,8 +280,6 @@ jobs:
         env:
           RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-        env:
-          RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
 
   # ============================================================================
   # Deploy — API (only after migrations succeed)
