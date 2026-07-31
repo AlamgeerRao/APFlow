@@ -156,6 +156,53 @@ because the Entra/Graph/Storage values are things the Backend and React
 Engineers will need to configure their own code against, even though the
 pipeline itself doesn't reference them.
 
+### Frontend build-time variables (`VITE_*`)
+
+Four values are **compiled directly into the `APFlow.Web` JS bundle by
+`vite build`** — not read at runtime the way the API's `appSettings` are.
+There is no later point at which they can be corrected; getting one wrong
+or missing means rebuilding and redeploying, not just changing an Azure
+setting. `frontend-build-test`'s `Build production bundle` step sets all
+four as `env:` before running `npm run build`, and fails loudly
+(`::error::` + `exit 1`) if any is empty:
+
+| `VITE_*` build var | Sourced from (GitHub Environment variable) |
+|---|---|
+| `VITE_ENTRA_CLIENT_ID` | `ENTRA_SPA_CLIENT_ID` |
+| `VITE_ENTRA_AUTHORITY` | `ENTRA_AUTHORITY` |
+| `VITE_API_SCOPE` | `ENTRA_API_SCOPE` |
+| `VITE_API_BASE_URL` | constructed as `https://${{ vars.API_APP_SERVICE_NAME }}.azurewebsites.net` (not stored as its own variable, so it can't drift from `API_APP_SERVICE_NAME`) |
+
+`VITE_ENTRA_REDIRECT_URI` (see `src/APFlow.Web/.env.example`) is
+deliberately **not** set here — it defaults to the page's own origin at
+runtime, which already matches the redirect URI registered on the SPA app
+registration.
+
+**If you ever add a new required `VITE_*` variable to the frontend**
+(`src/APFlow.Web/src/auth/msalConfig.ts`, `httpClient.ts`, or elsewhere),
+updating `src/APFlow.Web/.env.example` is not sufficient for a real
+deploy to keep working — `.env.example`/`.env.local` only cover local dev.
+The new variable also needs adding to this `Build production bundle`
+step's `env:` block, sourced from a GitHub Environment variable, or the
+production bundle will silently ship without it and fail at runtime in the
+browser instead of at build time in CI.
+
+This was found the hard way, 2026-07-31: `ci-cd.yml` ran `npm run build`
+with none of these four set for the pipeline's entire existence up to that
+point, which only surfaced once a real deploy finally got far enough to
+load the actual app (`MSAL initialization failed: Missing required
+environment variable: VITE_ENTRA_CLIENT_ID`) instead of Azure's static-site
+placeholder — see `docs/Backlog.md`'s Closed section for the full
+diagnosis, including a follow-on bug where `frontend-build-test` initially
+couldn't see any of these GitHub Environment variables at all because the
+job didn't declare `environment: name: development` (GitHub Environment
+variables are only visible to a job that references that environment by
+name — confirmed this is the *only* job in this workflow that was missing
+it; `backend-build-test`/`backend-publish` reference no `vars.*` at all, so
+they never needed it, and `migrate-development-database`/`deploy-api`/
+`deploy-web` all already declared it correctly for their own Azure-login
+`vars.*` reads).
+
 ### Repository/Environment Secrets (sensitive)
 
 **None required.** This is intentional, not incomplete — see the correction
