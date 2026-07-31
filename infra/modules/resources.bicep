@@ -349,6 +349,17 @@ resource apiAppService 'Microsoft.Web/sites@2023-12-01' = {
         // key itself is stored in Key Vault separately, for reference/
         // break-glass only - see docs/Backlog.md and the WP-061 report.
         { name: 'DocumentIntelligence__Endpoint', value: docIntel.properties.endpoint }
+        // WP-069: EmailIngestionWorker's background DI scopes have no HttpContext,
+        // so WorkerCurrentUserService (not the real, HTTP-path CurrentUserService)
+        // resolves for them, returning this value as the tenant it acts on behalf
+        // of. Deliberately reuses entraTenantId rather than adding a second,
+        // independent value - this MUST be the same tenant id real GB Skips users
+        // actually sign in through (the CIAM tenant), not
+        // WorkflowSeedData.GbSkipsPlaceholderTenantId, which is documented as never
+        // matching any real caller. Using the wrong value here would make every
+        // invoice the worker creates invisible to real users (TenantId mismatch
+        // against AppDbContext's tenant query filter).
+        { name: 'Workers__TenantId', value: entraTenantId }
       ]
     }
   }

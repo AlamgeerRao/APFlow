@@ -5,6 +5,7 @@ using APFlow.Infrastructure.Security;
 using APFlow.Infrastructure.Storage;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,9 +27,25 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         services.Configure<KeyVaultOptions>(configuration.GetSection(KeyVaultOptions.SectionName));
+        services.Configure<WorkerIdentityOptions>(configuration.GetSection(WorkerIdentityOptions.SectionName));
 
         services.AddHttpContextAccessor();
-        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<CurrentUserService>();
+        services.AddScoped<WorkerCurrentUserService>();
+
+        // WP-069: EmailIngestionWorker creates its own DI scope on a timer, with
+        // no inbound HTTP request - CurrentUserService's HttpContext is always
+        // null there, so it can never resolve a tenant. Routing on HttpContext
+        // presence (rather than changing CurrentUserService itself) means the
+        // real HTTP path is completely unaffected: any scope with a live request
+        // still gets the exact same CurrentUserService as before.
+        services.AddScoped<ICurrentUserService>(sp =>
+        {
+            var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+            return httpContextAccessor.HttpContext is not null
+                ? sp.GetRequiredService<CurrentUserService>()
+                : sp.GetRequiredService<WorkerCurrentUserService>();
+        });
 
         services.AddDatabase(configuration, environment);
         services.AddBlobStorage(configuration, environment);
