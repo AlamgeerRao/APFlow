@@ -58,6 +58,31 @@ const financeManagerActions = [
 ];
 const apReviewerActions = [{ targetStatusCode: 'NEEDS_REVIEW_FEBINA', targetStatusLabel: 'Escalate to Febina' }];
 
+// WP-075: InvoiceStatusBadge (rendered by WorkflowActionsPanel itself, for the
+// current-status label) now also calls real GET /api/workflow-template, in
+// parallel with useWorkflowActions' own GET .../available-actions call. Both
+// go through this same mocked httpClient.get, so the mock must route by path
+// rather than using a single mockResolvedValueOnce per test (which only ever
+// satisfies whichever of the two calls happens to run first).
+const workflowTemplateResponse = {
+  id: 'template-1',
+  domainName: 'Invoice',
+  name: 'GB Skips',
+  isTenantSpecific: true,
+  statuses: [
+    { code: 'AWAITING_REVIEW', name: 'Awaiting Review', isTerminal: false, sortOrder: 4 },
+    { code: 'CHECKED_READY_TO_APPROVE', name: 'Checked & Ready to Approve', isTerminal: false, sortOrder: 5 },
+    { code: 'APPROVED', name: 'Approved', isTerminal: false, sortOrder: 7 },
+  ],
+  transitions: [],
+};
+
+function mockAvailableActions(actions: unknown) {
+  vi.mocked(httpClient.get).mockImplementation(async (path) =>
+    path === '/api/workflow-template' ? workflowTemplateResponse : actions,
+  );
+}
+
 beforeEach(() => {
   vi.mocked(httpClient.get).mockReset();
   vi.mocked(httpClient.patch).mockReset();
@@ -65,14 +90,14 @@ beforeEach(() => {
 
 describe('WorkflowActionsPanel', () => {
   it('a FINANCE_MANAGER user sees the Approve action (acceptance criteria)', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce(financeManagerActions);
+    mockAvailableActions(financeManagerActions);
     renderPanel(['FINANCE_MANAGER'], baseInvoice());
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument());
   });
 
   it('an AP_REVIEWER user does not see the Approve action, but does see Escalate to Febina (acceptance criteria)', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce(apReviewerActions);
+    mockAvailableActions(apReviewerActions);
     renderPanel(['AP_REVIEWER'], baseInvoice());
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Escalate to Febina' })).toBeInTheDocument());
@@ -80,14 +105,14 @@ describe('WorkflowActionsPanel', () => {
   });
 
   it('displays the current status via its tenant-driven display label (task 4)', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce([]);
+    mockAvailableActions([]);
     renderPanel(['AP_REVIEWER'], baseInvoice({ status: 'AWAITING_REVIEW' }));
 
     await waitFor(() => expect(screen.getByText('Awaiting Review')).toBeInTheDocument());
   });
 
   it('requires confirmation before executing an action, and does not call onStatusChanged until confirmed (task 5)', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce(financeManagerActions);
+    mockAvailableActions(financeManagerActions);
     const onStatusChanged = vi.fn();
     const user = userEvent.setup();
     renderPanel(['FINANCE_MANAGER'], baseInvoice(), onStatusChanged);
@@ -101,7 +126,7 @@ describe('WorkflowActionsPanel', () => {
   });
 
   it('cancelling the confirmation dismisses it without executing anything', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce(financeManagerActions);
+    mockAvailableActions(financeManagerActions);
     const onStatusChanged = vi.fn();
     const user = userEvent.setup();
     renderPanel(['FINANCE_MANAGER'], baseInvoice(), onStatusChanged);
@@ -116,7 +141,7 @@ describe('WorkflowActionsPanel', () => {
   });
 
   it('executes the action after confirmation, shows a success notification, and calls onStatusChanged with the updated invoice merged with the existing pdfUrl (tasks 5, 6, 7)', async () => {
-    vi.mocked(httpClient.get).mockResolvedValueOnce(financeManagerActions);
+    mockAvailableActions(financeManagerActions);
     vi.mocked(httpClient.patch).mockResolvedValueOnce({
       invoice: {
         id: 'inv-gb-002',

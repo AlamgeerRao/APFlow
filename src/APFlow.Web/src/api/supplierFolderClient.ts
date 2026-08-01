@@ -7,8 +7,20 @@ import type {
 import type { InvoiceListItem } from '@/types/invoice';
 import { invoiceFixtures } from '@/api/fixtures/invoices.fixture';
 import { matchesInvoiceSearch } from '@/api/invoiceClient';
-import { workflowTemplateClient } from '@/api/workflowTemplateClient';
+import { FixtureWorkflowTemplateClient } from '@/api/workflowTemplateClient';
 import { httpClient } from '@/api/httpClient';
+
+/**
+ * WP-075: uses its own fixture instance rather than the shared
+ * `workflowTemplateClient` singleton - that singleton is now
+ * `HttpWorkflowTemplateClient` (real network calls), and this class exists
+ * purely as a self-contained, network-free fixture for its own unit tests
+ * (see the class doc comment below). Reaching through the shared singleton
+ * only ever worked by coincidence, while it happened to also be
+ * fixture-backed - WP-075 breaking that coincidence is exactly why this is
+ * now explicit instead.
+ */
+const fixtureWorkflowTemplateClient = new FixtureWorkflowTemplateClient();
 
 /**
  * Client-side contract for WP-019's Supplier & Folder Views. Consumers
@@ -58,7 +70,7 @@ function toListItem(invoice: FixtureInvoice): InvoiceListItem {
  */
 export class FixtureSupplierFolderClient implements SupplierFolderClient {
   async getFolderCounts(tenantId: string, search = ''): Promise<FolderSummary[]> {
-    const template = await workflowTemplateClient.getCurrentWorkflowTemplate(tenantId);
+    const template = await fixtureWorkflowTemplateClient.getCurrentWorkflowTemplate(tenantId);
     const matching = invoiceFixtures.filter(
       (invoice) => invoice.tenantId === tenantId && matchesInvoiceSearch(invoice, search),
     );

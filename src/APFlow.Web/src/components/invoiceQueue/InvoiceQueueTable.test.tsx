@@ -1,10 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { InvoiceQueueTable } from '@/components/invoiceQueue/InvoiceQueueTable';
 import type { InvoiceListItem } from '@/types/invoice';
 import { AuthContext, type AuthContextValue } from '@/auth/authContextDefinition';
+import { httpClient } from '@/api/httpClient';
+
+// WP-075: InvoiceStatusBadge internally calls useWorkflowTemplate, which is now
+// HTTP-backed (GET /api/workflow-template) rather than fixture-backed - mock
+// httpClient.get directly so the real "Awaiting Review" label resolves.
+vi.mock('@/api/httpClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/httpClient')>();
+  return { ...actual, httpClient: { ...actual.httpClient, get: vi.fn() } };
+});
 
 const nonDuplicateInvoice: InvoiceListItem = {
   id: 'inv-1',
@@ -55,6 +64,20 @@ const authValue: AuthContextValue = {
   signIn: () => {},
   signOut: () => {},
 };
+
+beforeEach(() => {
+  vi.mocked(httpClient.get).mockReset();
+  vi.mocked(httpClient.get).mockResolvedValue({
+    id: 'template-1',
+    domainName: 'Invoice',
+    name: 'Platform Default',
+    isTenantSpecific: false,
+    statuses: [
+      { code: 'AWAITING_REVIEW', name: 'Awaiting Review', isTerminal: false, sortOrder: 4 },
+    ],
+    transitions: [],
+  });
+});
 
 function renderTable(invoices: InvoiceListItem[], onSortChange = vi.fn()) {
   return render(
