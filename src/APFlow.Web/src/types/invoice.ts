@@ -17,8 +17,12 @@ export interface InvoiceListItem {
   id: string;
   supplierName: string;
   invoiceNumber: string;
-  /** ISO 8601 date string, e.g. "2026-07-18". */
-  invoiceDate: string;
+  /**
+   * ISO 8601 date string, e.g. "2026-07-18", or null if Document Intelligence
+   * couldn't extract one for this invoice (WP-072: the real backend field is
+   * `DateOnly? InvoiceDate` - genuinely nullable, not just a fixture gap).
+   */
+  invoiceDate: string | null;
   amount: number;
   /** ISO 4217 currency code, e.g. "GBP". */
   currencyCode: string;

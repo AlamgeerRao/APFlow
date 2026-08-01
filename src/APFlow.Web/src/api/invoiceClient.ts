@@ -32,7 +32,9 @@ function compareInvoices(a: InvoiceListItem, b: InvoiceListItem, params: Invoice
     case 'amount':
       return (a.amount - b.amount) * direction;
     case 'invoiceDate':
-      return a.invoiceDate.localeCompare(b.invoiceDate) * direction;
+      // WP-072: invoiceDate is genuinely nullable - a missing date sorts as if empty,
+      // rather than throwing, consistent with formatDate's own "never throw" fix.
+      return (a.invoiceDate ?? '').localeCompare(b.invoiceDate ?? '') * direction;
     case 'invoiceNumber':
       return a.invoiceNumber.localeCompare(b.invoiceNumber) * direction;
     case 'status':

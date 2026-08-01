@@ -21,7 +21,8 @@ export interface InvoiceDetailResponseDto {
     id: string;
     supplierName: string;
     supplierInvoiceNumber: string;
-    invoiceDate: string;
+    /** Genuinely nullable on the wire - see InvoiceListItem.invoiceDate (WP-072). */
+    invoiceDate: string | null;
     grossTotal: number;
     currency: string;
     status: string;

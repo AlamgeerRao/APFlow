@@ -103,7 +103,8 @@ export class FixtureSupplierFolderClient implements SupplierFolderClient {
       .map(([supplierName, invoices]) => ({
         supplierName,
         count: invoices.length,
-        invoices: [...invoices].sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate)),
+        // WP-072: invoiceDate is genuinely nullable - a missing date sorts as if empty.
+        invoices: [...invoices].sort((a, b) => (b.invoiceDate ?? '').localeCompare(a.invoiceDate ?? '')),
       }))
       .sort((a, b) => a.supplierName.localeCompare(b.supplierName));
 

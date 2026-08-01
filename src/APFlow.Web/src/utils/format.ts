@@ -3,9 +3,21 @@ export function formatCurrency(amount: number, currencyCode: string): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currencyCode }).format(amount);
 }
 
-/** Formats an ISO 8601 date string for display, e.g. formatDate('2026-07-18') -> "18 Jul 2026". */
-export function formatDate(isoDate: string): string {
+/**
+ * Formats an ISO 8601 date string for display, e.g. formatDate('2026-07-18') -> "18 Jul 2026".
+ *
+ * WP-072: `isoDate` is genuinely nullable on the wire (backend `DateOnly? InvoiceDate` -
+ * a real invoice can reach this with no extracted date at all, not just a fixture/test
+ * gap), so this never throws regardless of what it's given - null/undefined/empty/an
+ * unparseable string all render as the fallback rather than crashing the row (and,
+ * before this fix, the entire table) that renders it.
+ */
+export function formatDate(isoDate: string | null | undefined): string {
+  if (!isoDate) return '—';
+
   const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(
     date,
   );

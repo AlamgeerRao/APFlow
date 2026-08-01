@@ -23,6 +23,26 @@ describe('formatDate', () => {
   it('formats a date in a different month correctly', () => {
     expect(formatDate('2026-01-05')).toBe('05 Jan 2026');
   });
+
+  // WP-072: a real live invoice (Veygo / 2W4WVCTZ-0001) reached this with a null
+  // invoiceDate - Document Intelligence extracted no date for it - and crashed the
+  // entire Invoice Queue table, since Intl.DateTimeFormat.format() throws
+  // RangeError: Invalid time value on an Invalid Date rather than returning anything.
+  it('returns a fallback instead of throwing for null', () => {
+    expect(formatDate(null)).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for undefined', () => {
+    expect(formatDate(undefined)).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for an empty string', () => {
+    expect(formatDate('')).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for an unparseable string', () => {
+    expect(formatDate('not-a-date')).toBe('—');
+  });
 });
 
 describe('formatDateTime', () => {

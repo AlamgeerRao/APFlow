@@ -30,6 +30,20 @@ const duplicateInvoice: InvoiceListItem = {
   duplicateCheckReason: 'All fields matched an existing invoice from the same supplier.',
 };
 
+// WP-072: mirrors the real live invoice (Veygo / 2W4WVCTZ-0001) that crashed the
+// entire table - Document Intelligence extracted no invoiceDate for it.
+const missingDateInvoice: InvoiceListItem = {
+  id: 'inv-3',
+  supplierName: 'Veygo',
+  invoiceNumber: '2W4WVCTZ-0001',
+  invoiceDate: null,
+  amount: 83.89,
+  currencyCode: 'GBP',
+  status: 'AWAITING_REVIEW',
+  isPotentialDuplicate: true,
+  duplicateCheckReason: "Matches existing invoice on Supplier and Invoice Number ('2W4WVCTZ-0001').",
+};
+
 // InvoiceStatusBadge internally calls useWorkflowTemplate, which requires an
 // authenticated acting user in context to resolve a tenant.
 const authValue: AuthContextValue = {
@@ -111,5 +125,17 @@ describe('InvoiceQueueTable', () => {
     expect(
       screen.getByRole('button', { name: /Review invoice NW-1001 from Northwind Traders Ltd/i }),
     ).toBeInTheDocument();
+  });
+
+  it('renders a row with a missing invoiceDate as a fallback instead of crashing the table', async () => {
+    renderTable([nonDuplicateInvoice, missingDateInvoice]);
+    await waitForStatusBadgesToSettle();
+
+    // The whole table rendered - including the good row - proving one bad row
+    // doesn't take down the page.
+    expect(screen.getByText('Northwind Traders Ltd')).toBeInTheDocument();
+    expect(screen.getByText('Veygo')).toBeInTheDocument();
+    expect(screen.getByText('2W4WVCTZ-0001')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
   });
 });
