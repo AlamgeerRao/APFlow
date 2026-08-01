@@ -21,6 +21,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-002',
@@ -32,7 +33,8 @@ export const invoiceFixtures: FixtureInvoice[] = [
     currencyCode: 'GBP',
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: true,
-    duplicateCheckReason: 'All fields matched an existing invoice from the same supplier.',
+    duplicateCheckReason: 'Matches an existing invoice on Supplier and Invoice Number (\'CS-2046\').',
+    duplicateMatchInvoiceId: 'inv-pd-007',
   },
   {
     id: 'inv-pd-003',
@@ -45,6 +47,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'NEEDS_QUERY',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-004',
@@ -57,6 +60,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'QUERY_RAISED',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-005',
@@ -69,6 +73,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'RECEIVED',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-006',
@@ -81,6 +86,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'PROCESSING',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-007',
@@ -93,6 +99,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_SUPPLIER_RESPONSE',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-008',
@@ -105,6 +112,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-009',
@@ -116,7 +124,8 @@ export const invoiceFixtures: FixtureInvoice[] = [
     currencyCode: 'GBP',
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: true,
-    duplicateCheckReason: 'Invoice number and amount matched an existing invoice from the same supplier.',
+    duplicateCheckReason: 'Matches an existing invoice on Supplier and Invoice Number (\'GLX-90\').',
+    duplicateMatchInvoiceId: 'inv-pd-008',
   },
   {
     id: 'inv-pd-010',
@@ -129,6 +138,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-pd-011',
@@ -141,6 +151,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'RECEIVED',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-gb-001',
@@ -153,6 +164,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-gb-002',
@@ -164,7 +176,8 @@ export const invoiceFixtures: FixtureInvoice[] = [
     currencyCode: 'GBP',
     status: 'CHECKED_READY_TO_APPROVE',
     isPotentialDuplicate: true,
-    duplicateCheckReason: 'Amount and supplier matched an existing invoice within the same week.',
+    duplicateCheckReason: 'Matches an existing invoice on Supplier and Invoice Number (\'YSS-2201\').',
+    duplicateMatchInvoiceId: 'inv-gb-001',
   },
   {
     id: 'inv-gb-003',
@@ -177,6 +190,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'NEEDS_REVIEW_FEBINA',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
   {
     id: 'inv-gb-004',
@@ -189,6 +203,7 @@ export const invoiceFixtures: FixtureInvoice[] = [
     status: 'AWAITING_REVIEW',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
   },
 ];
 

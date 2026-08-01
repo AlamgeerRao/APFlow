@@ -25,6 +25,7 @@ function baseInvoice(overrides: Partial<InvoiceDetail> = {}): InvoiceDetail {
     status: 'CHECKED_READY_TO_APPROVE',
     isPotentialDuplicate: false,
     duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
     pdfUrl: '/sample-invoices/inv-gb-002.pdf',
     sourceDocumentBlobName: 'gb-skips/2026/07/inv-gb-002.pdf',
     receivedAt: '2026-07-02T07:55:00Z',

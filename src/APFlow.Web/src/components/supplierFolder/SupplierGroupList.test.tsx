@@ -27,6 +27,7 @@ const groups: SupplierGroup[] = [
         status: 'AWAITING_REVIEW',
         isPotentialDuplicate: false,
         duplicateCheckReason: null,
+        duplicateMatchInvoiceId: null,
       },
     ],
   },

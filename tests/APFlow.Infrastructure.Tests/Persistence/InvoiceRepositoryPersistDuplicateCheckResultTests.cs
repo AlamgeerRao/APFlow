@@ -39,6 +39,31 @@ public class InvoiceRepositoryPersistDuplicateCheckResultTests
     }
 
     [Fact]
+    public async Task PersistDuplicateCheckResultAsync_WithDuplicateMatchInvoiceId_PersistsIt()
+    {
+        // WP-073: the matched invoice's id, persisted as structured data alongside
+        // the free-text reason.
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId);
+        var repository = new InvoiceRepository(context);
+        var supplier = new Supplier { Name = "Acme Ltd", TenantId = tenantId };
+        context.Suppliers.Add(supplier);
+        var invoice = new Invoice { SupplierId = supplier.Id, TenantId = tenantId };
+        var matchedInvoiceId = Guid.NewGuid();
+        context.Invoices.Add(invoice);
+        await context.SaveChangesAsync();
+
+        await repository.PersistDuplicateCheckResultAsync(
+            invoice.Id,
+            isPotentialDuplicate: true,
+            duplicateCheckReason: "Matches an existing invoice on Supplier and Invoice Number ('INV-1').",
+            duplicateMatchInvoiceId: matchedInvoiceId);
+
+        var reloaded = await context.Invoices.AsNoTracking().SingleAsync(i => i.Id == invoice.Id);
+        Assert.Equal(matchedInvoiceId, reloaded.DuplicateMatchInvoiceId);
+    }
+
+    [Fact]
     public async Task PersistDuplicateCheckResultAsync_UnknownInvoiceId_ReturnsFalse_PersistsNothing()
     {
         var tenantId = Guid.NewGuid();

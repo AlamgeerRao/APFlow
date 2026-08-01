@@ -30,6 +30,13 @@ export interface InvoiceListItem {
   status: string;
   isPotentialDuplicate: boolean;
   duplicateCheckReason: string | null;
+  /**
+   * The matched existing invoice's id (WP-073), or null - either because this
+   * invoice isn't flagged as a duplicate, or because it was flagged before this
+   * field existed (the duplicate check only runs at ingestion time, not
+   * retroactively - see docs for WP-073).
+   */
+  duplicateMatchInvoiceId: string | null;
 }
 
 export type InvoiceSortField = 'supplierName' | 'invoiceNumber' | 'invoiceDate' | 'amount' | 'status';

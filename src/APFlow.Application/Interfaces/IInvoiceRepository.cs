@@ -57,8 +57,9 @@ public interface IInvoiceRepository
 
     /// <summary>
     /// Fetches the invoice with the given id, sets its
-    /// <see cref="Invoice.IsPotentialDuplicate"/>/<see cref="Invoice.DuplicateCheckReason"/>
-    /// fields, and persists the change immediately - this method calls
+    /// <see cref="Invoice.IsPotentialDuplicate"/>/<see cref="Invoice.DuplicateCheckReason"/>/
+    /// <see cref="Invoice.DuplicateMatchInvoiceId"/> (WP-073) fields, and persists the
+    /// change immediately - this method calls
     /// <see cref="SaveChangesAsync"/> itself, unlike every other mutating method on
     /// this interface (<see cref="AddAsync"/>/<see cref="Update"/>/<see cref="Remove"/>
     /// all stage only). See docs/WP-048-Persist-Duplicate-Detection-Result.md for
@@ -73,5 +74,6 @@ public interface IInvoiceRepository
         Guid invoiceId,
         bool isPotentialDuplicate,
         string? duplicateCheckReason,
+        Guid? duplicateMatchInvoiceId = null,
         CancellationToken cancellationToken = default);
 }

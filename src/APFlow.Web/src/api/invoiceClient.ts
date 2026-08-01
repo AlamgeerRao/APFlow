@@ -73,6 +73,7 @@ export class FixtureInvoiceClient implements InvoiceClient {
       status: invoice.status,
       isPotentialDuplicate: invoice.isPotentialDuplicate,
       duplicateCheckReason: invoice.duplicateCheckReason,
+      duplicateMatchInvoiceId: invoice.duplicateMatchInvoiceId,
     }));
 
     return { items, totalCount, page: params.page, pageSize: params.pageSize };
@@ -101,6 +102,7 @@ interface InvoiceListItemResponseDto {
   status: string;
   isPotentialDuplicate: boolean;
   duplicateCheckReason: string | null;
+  duplicateMatchInvoiceId: string | null;
 }
 
 interface InvoiceQueryResponseDto {
@@ -121,6 +123,7 @@ function mapListItem(dto: InvoiceListItemResponseDto): InvoiceListItem {
     status: dto.status,
     isPotentialDuplicate: dto.isPotentialDuplicate,
     duplicateCheckReason: dto.duplicateCheckReason,
+    duplicateMatchInvoiceId: dto.duplicateMatchInvoiceId,
   };
 }
 

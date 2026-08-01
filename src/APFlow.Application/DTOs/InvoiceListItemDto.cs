@@ -13,7 +13,10 @@ namespace APFlow.Application.DTOs;
 /// rule - trivial to widen later if a list view turns out to need more fields.
 /// <see cref="IsPotentialDuplicate"/>/<see cref="DuplicateCheckReason"/> (WP-048)
 /// are included, not omitted, since WP-015's ruled duplicate-highlighting
-/// requirement needs them directly on the list row.
+/// requirement needs them directly on the list row. Same reasoning extends to
+/// <see cref="DuplicateMatchInvoiceId"/> (WP-073): the Invoice Queue's duplicate
+/// indicator needs it to link straight to the matched invoice, not just the API's
+/// detail response.
 /// </summary>
 public sealed record InvoiceListItemDto(
     Guid Id,
@@ -27,4 +30,5 @@ public sealed record InvoiceListItemDto(
     string Status,
     DateTimeOffset CreatedAtUtc,
     bool IsPotentialDuplicate,
-    string? DuplicateCheckReason);
+    string? DuplicateCheckReason,
+    Guid? DuplicateMatchInvoiceId);

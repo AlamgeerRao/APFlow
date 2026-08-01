@@ -36,6 +36,7 @@ export class FixtureInvoiceDetailClient implements InvoiceDetailClient {
       status: match.status,
       isPotentialDuplicate: match.isPotentialDuplicate,
       duplicateCheckReason: match.duplicateCheckReason,
+      duplicateMatchInvoiceId: match.duplicateMatchInvoiceId,
       pdfUrl: match.pdfUrl,
       sourceDocumentBlobName: match.sourceDocumentBlobName,
       receivedAt: match.receivedAt,

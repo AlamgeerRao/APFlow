@@ -22,7 +22,7 @@ public class InvoicesControllerTests
             Id: InvoiceId, SupplierId: Guid.NewGuid(), SupplierName: "Acme Ltd", SupplierInvoiceNumber: "INV-1",
             InvoiceDate: new DateOnly(2026, 1, 1), DueDate: new DateOnly(2026, 2, 1), Currency: "GBP",
             GrossTotal: 120m, Status: InvoiceStatusCodes.AwaitingReview, CreatedAtUtc: DateTimeOffset.UtcNow,
-            IsPotentialDuplicate: false, DuplicateCheckReason: null);
+            IsPotentialDuplicate: false, DuplicateCheckReason: null, DuplicateMatchInvoiceId: null);
         var queryService = new FakeInvoiceQueryService { ResultToReturn = new([listItem], TotalCount: 1, Page: 1, PageSize: 25) };
         var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
 
@@ -590,6 +590,7 @@ public class InvoicesControllerTests
         SourceDocumentContentHash: "abc123",
         IsPotentialDuplicate: false,
         DuplicateCheckReason: null,
+        DuplicateMatchInvoiceId: null,
         CreatedAtUtc: DateTimeOffset.UtcNow);
 
     private static AuditLogDto NewAuditLogDto(string action) => new(

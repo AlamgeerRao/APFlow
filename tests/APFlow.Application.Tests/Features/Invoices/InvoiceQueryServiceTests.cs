@@ -137,8 +137,10 @@ public class InvoiceQueryServiceTests
         // directly on the list row.
         var (service, repo) = CreateService();
         var invoice = NewInvoice(Guid.NewGuid());
+        var matchedInvoiceId = Guid.NewGuid();
         invoice.IsPotentialDuplicate = true;
-        invoice.DuplicateCheckReason = "Matches existing invoice on Supplier and Invoice Number.";
+        invoice.DuplicateCheckReason = "Matches an existing invoice on Supplier and Invoice Number ('INV-1').";
+        invoice.DuplicateMatchInvoiceId = matchedInvoiceId;
         repo.Invoices.Add(invoice);
 
         var result = await service.SearchAsync(new InvoiceQueryParameters());
@@ -146,7 +148,9 @@ public class InvoiceQueryServiceTests
         Assert.True(result.IsSuccess);
         var dto = Assert.Single(result.Value.Items);
         Assert.True(dto.IsPotentialDuplicate);
-        Assert.Equal("Matches existing invoice on Supplier and Invoice Number.", dto.DuplicateCheckReason);
+        Assert.Equal("Matches an existing invoice on Supplier and Invoice Number ('INV-1').", dto.DuplicateCheckReason);
+        // WP-073: structured, not just embedded in the reason text.
+        Assert.Equal(matchedInvoiceId, dto.DuplicateMatchInvoiceId);
     }
 
     [Fact]

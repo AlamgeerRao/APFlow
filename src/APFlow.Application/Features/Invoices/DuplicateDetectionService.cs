@@ -123,7 +123,11 @@ public sealed class DuplicateDetectionService : IDuplicateDetectionService
             return null;
         }
 
-        var reason = $"Matches existing invoice {other.Id} on Supplier and Invoice Number ('{other.SupplierInvoiceNumber}').";
+        // WP-073: no longer embeds other.Id - a raw GUID a user had to parse out of
+        // free text. The matched invoice's id is now structured data
+        // (DuplicateMatch.MatchedInvoiceId, persisted as Invoice.DuplicateMatchInvoiceId),
+        // so the UI can render a real link instead of asking a human to read a GUID.
+        var reason = $"Matches an existing invoice on Supplier and Invoice Number ('{other.SupplierInvoiceNumber}').";
 
         return new DuplicateMatch(other.Id, other.SupplierInvoiceNumber, matchedFields, reason);
     }

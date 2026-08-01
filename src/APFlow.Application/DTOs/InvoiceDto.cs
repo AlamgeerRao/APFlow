@@ -18,6 +18,8 @@ public sealed record InvoiceDto(
     string? SourceDocumentContentHash,
     bool IsPotentialDuplicate,
     string? DuplicateCheckReason,
+    // WP-073: the matched existing invoice's id, if any - see Invoice.DuplicateMatchInvoiceId.
+    Guid? DuplicateMatchInvoiceId,
     DateTimeOffset CreatedAtUtc);
 
 /// <summary>Request shape for creating an invoice. No Id, no Status (always starts at InvoiceStatusCodes.Received), no audit fields - those are owned by the entity/AppDbContext.</summary>

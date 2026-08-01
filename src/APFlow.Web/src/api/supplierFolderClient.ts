@@ -44,6 +44,7 @@ function toListItem(invoice: FixtureInvoice): InvoiceListItem {
     status: invoice.status,
     isPotentialDuplicate: invoice.isPotentialDuplicate,
     duplicateCheckReason: invoice.duplicateCheckReason,
+    duplicateMatchInvoiceId: invoice.duplicateMatchInvoiceId,
   };
 }
 
@@ -137,6 +138,7 @@ interface InvoiceListItemResponseDto {
   status: string;
   isPotentialDuplicate: boolean;
   duplicateCheckReason: string | null;
+  duplicateMatchInvoiceId: string | null;
 }
 
 interface SupplierGroupResponseDto {
@@ -163,6 +165,7 @@ function mapListItem(dto: InvoiceListItemResponseDto): InvoiceListItem {
     status: dto.status,
     isPotentialDuplicate: dto.isPotentialDuplicate,
     duplicateCheckReason: dto.duplicateCheckReason,
+    duplicateMatchInvoiceId: dto.duplicateMatchInvoiceId,
   };
 }
 

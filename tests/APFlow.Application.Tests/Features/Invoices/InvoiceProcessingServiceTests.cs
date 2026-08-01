@@ -208,6 +208,35 @@ public class InvoiceProcessingServiceTests
         var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
         Assert.True(invoice.IsPotentialDuplicate);
         Assert.Equal("Matches existing invoice on Supplier and Invoice Number.", invoice.DuplicateCheckReason);
+        // WP-073: the matched invoice's id, persisted as structured data.
+        Assert.Equal(existingInvoiceId, invoice.DuplicateMatchInvoiceId);
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_MultipleDuplicateMatches_PersistsFirstMatchInvoiceId()
+    {
+        var (service, deps) = CreateService();
+        var supplier = new Supplier { Name = "Acme Ltd" };
+        deps.SupplierRepository.Suppliers.Add(supplier);
+        var firstMatchId = Guid.NewGuid();
+        var secondMatchId = Guid.NewGuid();
+
+        deps.DuplicateDetection.ResultFactory = (candidate, _) => new DuplicateCheckResult(
+            candidate.Id,
+            true,
+            [
+                new DuplicateMatch(firstMatchId, "INV-1", ["Supplier", "InvoiceNumber"], "Matches an existing invoice on Supplier and Invoice Number ('INV-1')."),
+                new DuplicateMatch(secondMatchId, "INV-1", ["Supplier", "InvoiceNumber"], "Matches an existing invoice on Supplier and Invoice Number ('INV-1')."),
+            ]);
+
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
+        deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
+
+        await service.ProcessUnreadEmailsAsync();
+
+        var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
+        Assert.Equal(firstMatchId, invoice.DuplicateMatchInvoiceId);
     }
 
     [Fact]

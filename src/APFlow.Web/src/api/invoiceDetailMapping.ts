@@ -28,6 +28,8 @@ export interface InvoiceDetailResponseDto {
     status: string;
     isPotentialDuplicate: boolean;
     duplicateCheckReason: string | null;
+    /** The matched existing invoice's id, if any (WP-073). */
+    duplicateMatchInvoiceId: string | null;
     sourceDocumentBlobName: string;
     createdAtUtc: string;
   };
@@ -123,6 +125,7 @@ export function mapInvoiceDetailResponse(response: InvoiceDetailResponseDto): Om
     status: response.invoice.status,
     isPotentialDuplicate: response.invoice.isPotentialDuplicate,
     duplicateCheckReason: response.invoice.duplicateCheckReason,
+    duplicateMatchInvoiceId: response.invoice.duplicateMatchInvoiceId,
     sourceDocumentBlobName: response.invoice.sourceDocumentBlobName,
     receivedAt: response.invoice.createdAtUtc,
     extractedFields: response.extractedFields,

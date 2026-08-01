@@ -13,6 +13,7 @@ function responseWith(recentAuditEntries: InvoiceDetailResponseDto['recentAuditE
       status: 'AWAITING_REVIEW',
       isPotentialDuplicate: false,
       duplicateCheckReason: null,
+      duplicateMatchInvoiceId: null,
       sourceDocumentBlobName: 'blob-1',
       createdAtUtc: '2026-07-01T08:00:00Z',
     },

@@ -133,7 +133,11 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
     }
 
     public Task<bool> PersistDuplicateCheckResultAsync(
-        Guid invoiceId, bool isPotentialDuplicate, string? duplicateCheckReason, CancellationToken cancellationToken = default)
+        Guid invoiceId,
+        bool isPotentialDuplicate,
+        string? duplicateCheckReason,
+        Guid? duplicateMatchInvoiceId = null,
+        CancellationToken cancellationToken = default)
     {
         var invoice = Invoices.FirstOrDefault(i => i.Id == invoiceId);
         if (invoice is null)
@@ -143,6 +147,7 @@ internal sealed class FakeInvoiceRepository : IInvoiceRepository
 
         invoice.IsPotentialDuplicate = isPotentialDuplicate;
         invoice.DuplicateCheckReason = duplicateCheckReason;
+        invoice.DuplicateMatchInvoiceId = duplicateMatchInvoiceId;
         SaveChangesCalled = true;
         return Task.FromResult(true);
     }

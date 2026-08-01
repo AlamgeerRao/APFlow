@@ -141,6 +141,7 @@ export class FixtureWorkflowActionClient implements WorkflowActionClient {
       status: targetStatusCode,
       isPotentialDuplicate: detail.isPotentialDuplicate,
       duplicateCheckReason: detail.duplicateCheckReason,
+      duplicateMatchInvoiceId: detail.duplicateMatchInvoiceId,
       sourceDocumentBlobName: detail.sourceDocumentBlobName,
       receivedAt: detail.receivedAt,
       extractedFields: detail.extractedFields,

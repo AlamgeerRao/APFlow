@@ -24,6 +24,7 @@ const orderedItems: InvoiceListItem[] = Array.from({ length: 5 }, (_, i) => ({
   status: 'AWAITING_REVIEW',
   isPotentialDuplicate: false,
   duplicateCheckReason: null,
+  duplicateMatchInvoiceId: null,
 }));
 
 const authValue: AuthContextValue = {
@@ -112,6 +113,7 @@ describe('useInvoiceNavigation', () => {
       status: 'AWAITING_REVIEW',
       isPotentialDuplicate: false,
       duplicateCheckReason: null,
+      duplicateMatchInvoiceId: null,
     }));
 
     vi.mocked(httpClient.get).mockReset();

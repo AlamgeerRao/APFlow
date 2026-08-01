@@ -416,6 +416,7 @@ public sealed class InvoiceService : IInvoiceService
         SourceDocumentContentHash: invoice.SourceDocumentContentHash,
         IsPotentialDuplicate: invoice.IsPotentialDuplicate,
         DuplicateCheckReason: invoice.DuplicateCheckReason,
+        DuplicateMatchInvoiceId: invoice.DuplicateMatchInvoiceId,
         CreatedAtUtc: invoice.CreatedAtUtc);
 
     private static InvoiceNoteDto ToNoteDto(InvoiceNote note) => new(

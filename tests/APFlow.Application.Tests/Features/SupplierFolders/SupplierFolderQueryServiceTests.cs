@@ -271,5 +271,6 @@ public class SupplierFolderQueryServiceTests
         Status: "AWAITING_REVIEW",
         CreatedAtUtc: DateTimeOffset.UtcNow,
         IsPotentialDuplicate: false,
-        DuplicateCheckReason: null);
+        DuplicateCheckReason: null,
+        DuplicateMatchInvoiceId: null);
 }

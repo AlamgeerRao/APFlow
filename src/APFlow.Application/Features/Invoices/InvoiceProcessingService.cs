@@ -332,6 +332,9 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
             var duplicateCheckResult = _duplicateDetectionService.Check(candidate, otherInvoices);
             candidate.IsPotentialDuplicate = duplicateCheckResult.IsPotentialDuplicate;
             candidate.DuplicateCheckReason = BuildDuplicateCheckReason(duplicateCheckResult);
+            // WP-073: only the first match, same reasoning as Invoice.DuplicateMatchInvoiceId's
+            // own doc comment - one navigable reference is what the UI needs.
+            candidate.DuplicateMatchInvoiceId = duplicateCheckResult.Matches.FirstOrDefault()?.MatchedInvoiceId;
 
             await _invoiceRepository.AddAsync(candidate, cancellationToken);
             await _invoiceRepository.SaveChangesAsync(cancellationToken);

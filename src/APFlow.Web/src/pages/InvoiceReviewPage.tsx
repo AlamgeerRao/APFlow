@@ -60,7 +60,12 @@ export function InvoiceReviewPage() {
 
       <InvoiceReviewNavBar previousId={previousId} nextId={nextId} position={position} total={total} />
 
-      {invoice.isPotentialDuplicate && <DuplicateWarningBanner reason={invoice.duplicateCheckReason} />}
+      {invoice.isPotentialDuplicate && (
+        <DuplicateWarningBanner
+          reason={invoice.duplicateCheckReason}
+          duplicateMatchInvoiceId={invoice.duplicateMatchInvoiceId}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="order-2 lg:order-1">

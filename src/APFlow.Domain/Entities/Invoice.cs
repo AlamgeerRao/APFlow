@@ -123,9 +123,29 @@ public sealed class Invoice : TenantEntity
     /// which existing invoice(s) it matched and on which fields. Null whenever
     /// <see cref="IsPotentialDuplicate"/> is false, including "never checked".
     /// System-computed, same reasoning as <see cref="IsPotentialDuplicate"/> - see
-    /// docs/WP-010-Duplicate-Flag-Persistence-Decision.md.
+    /// docs/WP-010-Duplicate-Flag-Persistence-Decision.md. WP-073: no longer embeds
+    /// the matched invoice's raw id - see <see cref="DuplicateMatchInvoiceId"/> for
+    /// that as structured data instead.
     /// </summary>
     public string? DuplicateCheckReason { get; set; }
+
+    /// <summary>
+    /// The id of the existing invoice <see cref="DuplicateDetectionService"/> matched
+    /// this one against, if any (WP-073) - structured data a UI can link to directly,
+    /// rather than a GUID a user had to parse out of <see cref="DuplicateCheckReason"/>'s
+    /// free text. Null whenever <see cref="IsPotentialDuplicate"/> is false, same
+    /// reasoning as <see cref="DuplicateCheckReason"/>. When a candidate matches more
+    /// than one existing invoice, this records only the first match
+    /// (<see cref="DuplicateCheckReason"/> still summarizes all of them) - one
+    /// navigable reference is what the UI needs, not a full list. No foreign-key
+    /// constraint: this is a same-table self-reference purely for traceability/UI
+    /// navigation, not a relationship EF needs to enforce referential integrity for
+    /// (the matched invoice is never deleted through a path that would orphan this
+    /// column in a way that matters - deleting invoices isn't supported at all yet).
+    /// Deliberately NOT backfilled for invoices flagged before this field existed -
+    /// the duplicate check only runs at ingestion time, not retroactively.
+    /// </summary>
+    public Guid? DuplicateMatchInvoiceId { get; set; }
 
     /// <summary>Notes/remarks recorded against this invoice.</summary>
     public ICollection<InvoiceNote> Notes { get; set; } = new List<InvoiceNote>();

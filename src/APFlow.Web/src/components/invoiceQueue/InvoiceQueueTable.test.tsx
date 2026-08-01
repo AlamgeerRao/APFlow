@@ -16,6 +16,7 @@ const nonDuplicateInvoice: InvoiceListItem = {
   status: 'AWAITING_REVIEW',
   isPotentialDuplicate: false,
   duplicateCheckReason: null,
+  duplicateMatchInvoiceId: null,
 };
 
 const duplicateInvoice: InvoiceListItem = {
@@ -27,7 +28,8 @@ const duplicateInvoice: InvoiceListItem = {
   currencyCode: 'GBP',
   status: 'AWAITING_REVIEW',
   isPotentialDuplicate: true,
-  duplicateCheckReason: 'All fields matched an existing invoice from the same supplier.',
+  duplicateCheckReason: "Matches an existing invoice on Supplier and Invoice Number ('CS-2046').",
+  duplicateMatchInvoiceId: 'inv-7',
 };
 
 // WP-072: mirrors the real live invoice (Veygo / 2W4WVCTZ-0001) that crashed the
@@ -41,7 +43,8 @@ const missingDateInvoice: InvoiceListItem = {
   currencyCode: 'GBP',
   status: 'AWAITING_REVIEW',
   isPotentialDuplicate: true,
-  duplicateCheckReason: "Matches existing invoice on Supplier and Invoice Number ('2W4WVCTZ-0001').",
+  duplicateCheckReason: "Matches an existing invoice on Supplier and Invoice Number ('2W4WVCTZ-0001').",
+  duplicateMatchInvoiceId: 'inv-99',
 };
 
 // InvoiceStatusBadge internally calls useWorkflowTemplate, which requires an

@@ -86,5 +86,6 @@ public sealed class InvoiceQueryService : IInvoiceQueryService
         Status: invoice.Status,
         CreatedAtUtc: invoice.CreatedAtUtc,
         IsPotentialDuplicate: invoice.IsPotentialDuplicate,
-        DuplicateCheckReason: invoice.DuplicateCheckReason);
+        DuplicateCheckReason: invoice.DuplicateCheckReason,
+        DuplicateMatchInvoiceId: invoice.DuplicateMatchInvoiceId);
 }

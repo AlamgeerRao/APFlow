@@ -1,9 +1,24 @@
+import { Link } from 'react-router-dom';
+
 interface DuplicateWarningBannerProps {
   reason: string | null;
+  /**
+   * The matched existing invoice's id (WP-073), or null - either not a
+   * duplicate, or flagged before this field existed (see
+   * InvoiceListItem.duplicateMatchInvoiceId). When null, the banner still
+   * renders the reason text; it just omits the link, since there's nothing to
+   * link to.
+   */
+  duplicateMatchInvoiceId: string | null;
 }
 
-/** Prominent duplicate warning banner for the Review Screen (WP-016 task 4). */
-export function DuplicateWarningBanner({ reason }: DuplicateWarningBannerProps) {
+/**
+ * Prominent duplicate warning banner for the Review Screen (WP-016 task 4;
+ * WP-073 added the "View matching invoice" link). Reuses the same
+ * `/invoices/review/:id` route `InvoiceReviewNavBar`'s Previous/Next links
+ * already navigate to.
+ */
+export function DuplicateWarningBanner({ reason, duplicateMatchInvoiceId }: DuplicateWarningBannerProps) {
   return (
     <div role="alert" className="mb-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-4">
       <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600">
@@ -18,6 +33,14 @@ export function DuplicateWarningBanner({ reason }: DuplicateWarningBannerProps) 
         <p className="mt-0.5 text-sm text-amber-700">
           {reason ?? 'This invoice matched an existing invoice during duplicate detection.'}
         </p>
+        {duplicateMatchInvoiceId && (
+          <Link
+            to={`/invoices/review/${duplicateMatchInvoiceId}`}
+            className="mt-1 inline-block text-sm font-medium text-amber-800 underline hover:text-amber-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600"
+          >
+            View matching invoice →
+          </Link>
+        )}
       </div>
     </div>
   );

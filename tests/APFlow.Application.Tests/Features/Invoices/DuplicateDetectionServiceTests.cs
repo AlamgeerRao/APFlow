@@ -57,7 +57,11 @@ public class DuplicateDetectionServiceTests
         var match = Assert.Single(result.Matches);
         Assert.Equal(existing.Id, match.MatchedInvoiceId);
         Assert.Equal(new[] { "Supplier", "InvoiceNumber" }, match.MatchedFields);
-        Assert.Contains(existing.Id.ToString(), match.Reason);
+        // WP-073: the matched invoice's id is structured data (MatchedInvoiceId,
+        // asserted above) - Reason is free text for a human to read and must not
+        // additionally embed the raw GUID a user would have to parse out themselves.
+        Assert.DoesNotContain(existing.Id.ToString(), match.Reason);
+        Assert.Contains("INV-100", match.Reason);
         Assert.False(string.IsNullOrWhiteSpace(match.Reason));
     }
 
