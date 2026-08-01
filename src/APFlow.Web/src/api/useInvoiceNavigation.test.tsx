@@ -43,7 +43,7 @@ beforeEach(() => {
     items: orderedItems,
     totalCount: orderedItems.length,
     page: 1,
-    pageSize: 1000,
+    pageSize: 100,
   });
 });
 
@@ -87,5 +87,49 @@ describe('useInvoiceNavigation', () => {
     expect(result.current.previousId).toBeNull();
     expect(result.current.nextId).toBeNull();
     expect(result.current.position).toBeNull();
+  });
+
+  // WP-072 follow-up: real live traffic showed this hook's old single-request
+  // pageSize: 1000 failing with a 400 - the real backend caps pageSize at 100.
+  it('requests pageSize 100 (the real backend cap), not 1000', async () => {
+    const { result } = renderHook(() => useInvoiceNavigation(orderedItems[0].id), { wrapper });
+    await waitFor(() => expect(result.current.total).toBe(orderedItems.length));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ pageSize: 100 }) }),
+    );
+  });
+
+  it('loops across pages when a tenant has more invoices than one page', async () => {
+    const manyItems: InvoiceListItem[] = Array.from({ length: 120 }, (_, i) => ({
+      id: `many-${i + 1}`,
+      supplierName: `Supplier ${i + 1}`,
+      invoiceNumber: `INV-${i + 1}`,
+      invoiceDate: '2026-07-01',
+      amount: 100,
+      currencyCode: 'GBP',
+      status: 'AWAITING_REVIEW',
+      isPotentialDuplicate: false,
+      duplicateCheckReason: null,
+    }));
+
+    vi.mocked(httpClient.get).mockReset();
+    vi.mocked(httpClient.get).mockImplementation(async (_path, options) => {
+      const page = ((options as { params?: { page?: number } } | undefined)?.params?.page ?? 1) as number;
+      const start = (page - 1) * 100;
+      return {
+        items: manyItems.slice(start, start + 100),
+        totalCount: manyItems.length,
+        page,
+        pageSize: 100,
+      };
+    });
+
+    const { result } = renderHook(() => useInvoiceNavigation(manyItems[110].id), { wrapper });
+    await waitFor(() => expect(result.current.total).toBe(manyItems.length));
+
+    expect(httpClient.get).toHaveBeenCalledTimes(2);
+    expect(result.current.position).toBe(111);
   });
 });

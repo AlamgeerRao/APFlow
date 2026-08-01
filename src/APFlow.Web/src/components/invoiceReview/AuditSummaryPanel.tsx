@@ -4,14 +4,27 @@ interface AuditSummaryPanelProps {
   entries: AuditEntry[];
 }
 
+/**
+ * WP-072 follow-up: never throws, regardless of input. Real audit entries
+ * reaching this were crashing the whole Review screen (`RangeError: Invalid
+ * time value`) on a genuine field-name mismatch upstream (see
+ * `invoiceDetailMapping.ts`'s `AuditLogResponseDto` doc comment) - that root
+ * cause is fixed there, but this stays defensive too, same "never throw on a
+ * missing/invalid value" principle `utils/format.ts#formatDate` already
+ * applies, in case any future caller (or new backend gap) feeds this a bad
+ * timestamp again.
+ */
 function formatTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(iso));
+  }).format(date);
 }
 
 /** Audit/activity history summary for the invoice (WP-016 task 7, WP-013 data). */

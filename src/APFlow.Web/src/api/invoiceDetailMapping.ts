@@ -31,8 +31,67 @@ export interface InvoiceDetailResponseDto {
     sourceDocumentBlobName: string;
     createdAtUtc: string;
   };
-  recentAuditEntries: AuditEntry[];
+  recentAuditEntries: AuditLogResponseDto[];
   extractedFields: ExtractedField[];
+}
+
+/**
+ * Real wire shape of one entry in `recentAuditEntries` -
+ * `APFlow.Application.DTOs.AuditLogDto` (`AuditLogDto.cs`). WP-072: this was never
+ * reconciled against real data before now - `recentAuditEntries` was typed as
+ * directly `AuditEntry[]` (this file's own frontend-only shape: `timestamp`/
+ * `actor`/`description`), and every real entry actually has `performedAtUtc`/
+ * `performedByUserId`/`previousValue`/`newValue` instead, none of which exist on
+ * the real object under those names. `entry.timestamp` was always `undefined` for
+ * real (non-fixture) data, and `AuditSummaryPanel`'s local `formatTimestamp` threw
+ * `RangeError: Invalid time value` on `new Date(undefined)` - crashing the whole
+ * Review screen for any invoice with real audit history (i.e. almost all of them).
+ * `mapAuditEntry` below is the reconciliation this contract never got.
+ */
+export interface AuditLogResponseDto {
+  id: string;
+  performedByUserId: string | null;
+  action: string;
+  entityName: string;
+  entityId: string;
+  previousValue: string | null;
+  newValue: string | null;
+  performedAtUtc: string;
+}
+
+/**
+ * Synthesizes a human-readable description from the real audit fields - there is
+ * no single "description" field on the wire, only `action` plus the
+ * before/after `previousValue`/`newValue` pair. Covers every real
+ * `AuditActions` constant (`AuditActions.cs`); an unrecognized future action
+ * falls back to whichever of `newValue`/`previousValue` is present, rather than
+ * an empty string.
+ */
+function describeAuditEntry(entry: AuditLogResponseDto): string {
+  switch (entry.action) {
+    case 'InvoiceStatusChanged':
+      return `${entry.previousValue ?? '—'} → ${entry.newValue ?? '—'}`;
+    case 'NoteAdded':
+      return entry.newValue ?? '';
+    case 'DocumentViewed':
+      return 'Document viewed';
+    case 'InvoiceCreated':
+      return 'Invoice created';
+    case 'InvoiceDeleted':
+      return 'Invoice deleted';
+    default:
+      return entry.newValue ?? entry.previousValue ?? '';
+  }
+}
+
+function mapAuditEntry(entry: AuditLogResponseDto): AuditEntry {
+  return {
+    id: entry.id,
+    timestamp: entry.performedAtUtc,
+    actor: entry.performedByUserId ?? 'system',
+    action: entry.action,
+    description: describeAuditEntry(entry),
+  };
 }
 
 function averageConfidence(fields: ExtractedField[]): number {
@@ -68,6 +127,6 @@ export function mapInvoiceDetailResponse(response: InvoiceDetailResponseDto): Om
     receivedAt: response.invoice.createdAtUtc,
     extractedFields: response.extractedFields,
     overallConfidenceScore: averageConfidence(response.extractedFields),
-    auditEntries: response.recentAuditEntries,
+    auditEntries: response.recentAuditEntries.map(mapAuditEntry),
   };
 }

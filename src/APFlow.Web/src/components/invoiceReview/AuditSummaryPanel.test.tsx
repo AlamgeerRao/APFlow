@@ -28,4 +28,27 @@ describe('AuditSummaryPanel', () => {
 
     expect(screen.getByText(/No audit history available/i)).toBeInTheDocument();
   });
+
+  // WP-072 follow-up: a real invoice's audit history reached this with an
+  // undefined timestamp (upstream field-name mismatch, now fixed in
+  // invoiceDetailMapping.ts) and crashed the whole Review screen with
+  // RangeError: Invalid time value. This stays defensive regardless.
+  it('renders a fallback instead of throwing when the timestamp is invalid', () => {
+    render(
+      <AuditSummaryPanel
+        entries={[
+          {
+            id: 'audit-bad',
+            timestamp: undefined as unknown as string,
+            actor: 'system',
+            action: 'DocumentViewed',
+            description: 'Document viewed',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Document viewed')).toBeInTheDocument();
+    expect(screen.getByText('—', { exact: false })).toBeInTheDocument();
+  });
 });

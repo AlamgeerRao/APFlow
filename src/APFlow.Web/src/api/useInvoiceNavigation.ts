@@ -29,18 +29,36 @@ export function useInvoiceNavigation(currentInvoiceId: string | undefined): Invo
     if (!user) return;
     let cancelled = false;
 
-    invoiceClient
-      .queryInvoices({
-        tenantId: user.tenantId,
-        sortBy: 'invoiceDate',
-        sortDirection: 'desc',
-        page: 1,
-        pageSize: 1000,
-      })
-      .then((result) => {
-        if (!cancelled) {
-          setOrderedIds(result.items.map((item) => item.id));
-        }
+    // WP-072 follow-up: this used to request pageSize: 1000 in one call, which
+    // real live traffic showed failing with a 400 - the real backend caps
+    // InvoiceQueryParameters.PageSize at 100 (InvoiceQueryParameters.MaxPageSize).
+    // The fixture client never enforced that cap, so this was never exercised
+    // against the real contract before. Loops across pages instead (same
+    // pattern as the backend's own SupplierFolderQueryService.
+    // FetchAllMatchingInvoicesAsync), so this keeps working once a tenant has
+    // more than one page of invoices, rather than just raising the constant
+    // and hitting the same wall again later.
+    async function fetchAllIds(tenantId: string): Promise<string[]> {
+      const ids: string[] = [];
+      let page = 1;
+      for (;;) {
+        const result = await invoiceClient.queryInvoices({
+          tenantId,
+          sortBy: 'invoiceDate',
+          sortDirection: 'desc',
+          page,
+          pageSize: 100,
+        });
+        ids.push(...result.items.map((item) => item.id));
+        if (result.items.length === 0 || ids.length >= result.totalCount) break;
+        page += 1;
+      }
+      return ids;
+    }
+
+    fetchAllIds(user.tenantId)
+      .then((ids) => {
+        if (!cancelled) setOrderedIds(ids);
       })
       .catch(() => {
         if (!cancelled) setOrderedIds([]);
