@@ -10,6 +10,22 @@
 
   <ItemGroup>
     <!--
+      WP-066: infra (resources.bicep) has provisioned Application Insights and set
+      APPLICATIONINSIGHTS_CONNECTION_STRING as an App Service setting since WP-021, but
+      nothing in this project ever referenced the SDK that reads it - zero telemetry was
+      ever the expected result, not a runtime misconfiguration. Microsoft-authored,
+      auto-instruments incoming requests plus outgoing HTTP and SQL dependency calls (see
+      AddApiServices) without extra wiring per call site. Pinned to the classic 2.x line
+      deliberately, not the 3.x line: 3.x is an internal rewrite onto OpenTelemetry that
+      pulls a newer Azure.Core transitively, which is binary-incompatible with this
+      solution's Azure.Identity 1.13.1 (CS0433, DefaultAzureCredential defined in both
+      assemblies) and also forces several Microsoft.Extensions.* packages up to .NET
+      10-era floors (NU1605 downgrade errors elsewhere in the solution). 2.x has none of
+      that and is still a fully supported, actively serviced release line.
+    -->
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
+
+    <!--
       Built-in OpenAPI generation only (Microsoft.AspNetCore.OpenApi), per Project Standards §2
       ("prefer built-in .NET and Azure capabilities") and to match the existing local scaffold.
       No Swagger UI package: there is no interactive UI page without adding a third-party

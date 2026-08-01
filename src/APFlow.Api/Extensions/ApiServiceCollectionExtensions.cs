@@ -10,9 +10,10 @@ using Microsoft.OpenApi.Models;
 namespace APFlow.Api.Extensions;
 
 /// <summary>
-/// Registers services owned by the API layer itself: built-in OpenAPI document generation
-/// and Health Checks. Kept separate from APFlow.Application/Infrastructure/Integrations/Workers
-/// registrations so each layer's composition stays independently testable.
+/// Registers services owned by the API layer itself: Application Insights telemetry
+/// (WP-066), built-in OpenAPI document generation, and Health Checks. Kept separate from
+/// APFlow.Application/Infrastructure/Integrations/Workers registrations so each layer's
+/// composition stays independently testable.
 /// </summary>
 public static class ApiServiceCollectionExtensions
 {
@@ -25,6 +26,16 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         services.Configure<ApplicationOptions>(configuration.GetSection(ApplicationOptions.SectionName));
+
+        // WP-066: the connection string has been sitting in App Service configuration as
+        // APPLICATIONINSIGHTS_CONNECTION_STRING since WP-021, but nothing ever called this -
+        // that (not the connection string, not App Service config) was the entire reason zero
+        // telemetry had ever been ingested. AddApplicationInsightsTelemetry() reads that exact
+        // environment-variable name from IConfiguration by convention, with no explicit
+        // connection-string argument needed; it also auto-registers dependency tracking for
+        // outgoing HTTP calls (Graph) and SQL calls (EF Core/ADO.NET), so no per-call-site
+        // instrumentation is required for either.
+        services.AddApplicationInsightsTelemetry();
 
         // WP-059 Part B: named CORS policy, allowed origins read from configuration
         // ("Cors:AllowedOrigins"), not hardcoded - see appsettings.Development.json
