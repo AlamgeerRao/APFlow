@@ -21,7 +21,10 @@ public interface IPdfExtractionService
     /// attachments with no bytes) are silently skipped, not treated as errors - only
     /// a genuine failure to reach Graph or read the message returns a failed
     /// <see cref="Result"/>. An email with zero PDF attachments is a successful
-    /// result containing an empty list, not a failure.
+    /// result containing an empty <see cref="AttachmentExtractionResult.PdfAttachments"/>
+    /// list, not a failure - <see cref="AttachmentExtractionResult.AllAttachments"/>
+    /// (WP-076) still describes whatever WAS on the email, for a caller that needs to
+    /// record that.
     /// </summary>
-    Task<Result<IReadOnlyList<PdfAttachmentDto>>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default);
+    Task<Result<AttachmentExtractionResult>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default);
 }

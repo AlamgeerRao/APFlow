@@ -53,16 +53,18 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         const string supplierName = "Acme Ltd";
         const string invoiceNumber = "INV-100";
 
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow));
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow));
+        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
+        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
         pdfExtraction.AttachmentsByMessageId["msg-1"] = [new PdfAttachmentDto("invoice1.pdf", 1024, "application/pdf", [1, 2, 3])];
         pdfExtraction.AttachmentsByMessageId["msg-2"] = [new PdfAttachmentDto("invoice2.pdf", 1024, "application/pdf", [4, 5, 6])];
         documentAnalysis.ResultsByFileContent[1] = NewExtraction(supplierName, invoiceNumber);
         documentAnalysis.ResultsByFileContent[4] = NewExtraction(supplierName, invoiceNumber);
 
+        var ingestionIssueRepository = new IngestionIssueRepository(context);
+
         var service = new InvoiceProcessingService(
             emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetectionService,
-            invoiceService, supplierService, invoiceRepository, NullLogger<InvoiceProcessingService>.Instance);
+            invoiceService, supplierService, invoiceRepository, ingestionIssueRepository, NullLogger<InvoiceProcessingService>.Instance);
 
         var result = await service.ProcessUnreadEmailsAsync();
 
@@ -120,16 +122,18 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
 
         const string supplierName = "Acme Ltd";
 
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow));
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow));
+        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
+        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
         pdfExtraction.AttachmentsByMessageId["msg-1"] = [new PdfAttachmentDto("invoice1.pdf", 1024, "application/pdf", [1, 2, 3])];
         pdfExtraction.AttachmentsByMessageId["msg-2"] = [new PdfAttachmentDto("invoice2.pdf", 1024, "application/pdf", [4, 5, 6])];
         documentAnalysis.ResultsByFileContent[1] = NewExtraction(supplierName, "INV-100");
         documentAnalysis.ResultsByFileContent[4] = NewExtraction(supplierName, "INV-200");
 
+        var ingestionIssueRepository = new IngestionIssueRepository(context);
+
         var service = new InvoiceProcessingService(
             emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetectionService,
-            invoiceService, supplierService, invoiceRepository, NullLogger<InvoiceProcessingService>.Instance);
+            invoiceService, supplierService, invoiceRepository, ingestionIssueRepository, NullLogger<InvoiceProcessingService>.Instance);
 
         var result = await service.ProcessUnreadEmailsAsync();
 
@@ -195,12 +199,13 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
     {
         public Dictionary<string, List<PdfAttachmentDto>> AttachmentsByMessageId { get; } = [];
 
-        public Task<Result<IReadOnlyList<PdfAttachmentDto>>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
+        public Task<Result<AttachmentExtractionResult>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
         {
             var attachments = AttachmentsByMessageId.TryGetValue(messageId, out var list)
                 ? (IReadOnlyList<PdfAttachmentDto>)list
                 : [];
-            return Task.FromResult(Result.Success(attachments));
+            var allAttachments = attachments.Select(a => new AttachmentInfoDto(a.FileName, a.ContentType)).ToList();
+            return Task.FromResult(Result.Success(new AttachmentExtractionResult(attachments, allAttachments)));
         }
     }
 

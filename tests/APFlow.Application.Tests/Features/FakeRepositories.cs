@@ -250,3 +250,50 @@ internal sealed class FakeAuditLogRepository : IAuditLogRepository
         return Task.FromResult(1);
     }
 }
+
+/// <summary>
+/// Hand-written fake, same pattern as every repository fake elsewhere in this
+/// codebase. <see cref="GetByConversationIdAsync"/> returns the same tracked
+/// instance stored in <see cref="Issues"/>, matching the real EF-backed
+/// repository's change-tracking semantics closely enough for a caller that mutates
+/// the returned entity and calls <see cref="SaveChangesAsync"/> to persist it.
+/// </summary>
+internal sealed class FakeIngestionIssueRepository : IIngestionIssueRepository
+{
+    public List<IngestionIssue> Issues { get; } = [];
+    public int SaveChangesCallCount { get; private set; }
+
+    public Task<IngestionIssue?> GetByConversationIdAsync(string conversationId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Issues.FirstOrDefault(i => i.ConversationId == conversationId));
+
+    public Task AddAsync(IngestionIssue issue, CancellationToken cancellationToken = default)
+    {
+        Issues.Add(issue);
+        return Task.CompletedTask;
+    }
+
+    public Task<(IReadOnlyList<IngestionIssue> Items, int TotalCount)> QueryAsync(
+        IngestionIssueQueryParameters parameters, CancellationToken cancellationToken = default)
+    {
+        IEnumerable<IngestionIssue> query = Issues;
+
+        var totalCount = query.Count();
+
+        query = parameters.SortDescending
+            ? query.OrderByDescending(i => i.LastSeenUtc)
+            : query.OrderBy(i => i.LastSeenUtc);
+
+        var page = Math.Max(parameters.Page, 1);
+        var pageSize = Math.Clamp(parameters.PageSize, 1, IngestionIssueQueryParameters.MaxPageSize);
+
+        var items = query.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Task.FromResult<(IReadOnlyList<IngestionIssue> Items, int TotalCount)>((items, totalCount));
+    }
+
+    public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        SaveChangesCallCount++;
+        return Task.FromResult(1);
+    }
+}

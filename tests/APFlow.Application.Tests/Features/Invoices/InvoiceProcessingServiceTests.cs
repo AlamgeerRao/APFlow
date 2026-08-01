@@ -281,6 +281,75 @@ public class InvoiceProcessingServiceTests
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value.Items);
         Assert.Equal(1, result.Value.EmailsMarkedProcessed);
+
+        // WP-076: an email with no processable attachment is no longer silent -
+        // it produces an IngestionIssue row. No entry in AllAttachmentsByMessageId
+        // either here (a genuinely attachment-less email), so the summary is "(none)".
+        var issue = Assert.Single(deps.IngestionIssueRepository.Issues);
+        Assert.Equal("conversation-1", issue.ConversationId);
+        Assert.Equal(MessageId, issue.MessageId);
+        Assert.Equal(1, issue.OccurrenceCount);
+        Assert.Equal("(none)", issue.AttachmentsFound);
+        Assert.Equal(IngestionIssueReasonCodes.NoProcessableAttachments, issue.ReasonCode);
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_NoProcessablePdf_RecordsAttachmentFilenamesAndTypes()
+    {
+        var (service, deps) = CreateService();
+        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        // A .png is on the email, but never a processable PDF - AttachmentsByMessageId
+        // stays empty (no PDF survivors); AllAttachmentsByMessageId describes what was
+        // actually there, same as the real PdfExtractionService reports today.
+        deps.PdfExtraction.AllAttachmentsByMessageId[MessageId] = [new AttachmentInfoDto("receipt.png", "image/png")];
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        var issue = Assert.Single(deps.IngestionIssueRepository.Issues);
+        Assert.Equal("receipt.png (image/png)", issue.AttachmentsFound);
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_SecondEmailSameConversation_NoProcessablePdf_IncrementsSameRow_DoesNotCreateSecond()
+    {
+        var (service, deps) = CreateService();
+        const string firstMessageId = "graph-message-first";
+        const string secondMessageId = "graph-message-second";
+        const string sharedConversationId = "shared-conversation";
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
+        deps.PdfExtraction.AllAttachmentsByMessageId[firstMessageId] = [new AttachmentInfoDto("receipt.png", "image/png")];
+
+        await service.ProcessUnreadEmailsAsync();
+
+        deps.EmailSync.UnreadEmails.Clear();
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Re: Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
+        deps.PdfExtraction.AllAttachmentsByMessageId[secondMessageId] = [new AttachmentInfoDto("receipt2.png", "image/png")];
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        var issue = Assert.Single(deps.IngestionIssueRepository.Issues);
+        Assert.Equal(sharedConversationId, issue.ConversationId);
+        Assert.Equal(2, issue.OccurrenceCount);
+        Assert.Equal(secondMessageId, issue.MessageId);
+        Assert.Equal("receipt2.png (image/png)", issue.AttachmentsFound);
+    }
+
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_TwoDifferentConversations_NoProcessablePdf_CreatesTwoSeparateRows()
+    {
+        var (service, deps) = CreateService();
+        const string firstMessageId = "graph-message-first";
+        const string secondMessageId = "graph-message-second";
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "A", "a@example.com", "A Ltd", DateTimeOffset.UtcNow, "conversation-a"));
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "B", "b@example.com", "B Ltd", DateTimeOffset.UtcNow, "conversation-b"));
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, deps.IngestionIssueRepository.Issues.Count);
+        Assert.All(deps.IngestionIssueRepository.Issues, i => Assert.Equal(1, i.OccurrenceCount));
     }
 
     [Fact]
@@ -334,8 +403,8 @@ public class InvoiceProcessingServiceTests
         var (service, deps) = CreateService();
         const string firstMessageId = "graph-message-first";
         const string secondMessageId = "graph-message-second";
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice 1", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow));
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Invoice 2", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow));
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice 1", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-first"));
+        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Invoice 2", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-second"));
         deps.PdfExtraction.AttachmentsByMessageId[firstMessageId] = [NewAttachment("first.pdf")];
         deps.PdfExtraction.AttachmentsByMessageId[secondMessageId] = [NewAttachment("second.pdf")];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
@@ -425,16 +494,17 @@ public class InvoiceProcessingServiceTests
         var blobStorage = new FakeBlobStorageService();
         var documentAnalysis = new FakeDocumentAnalysisService();
         var duplicateDetection = new FakeDuplicateDetectionService();
+        var ingestionIssueRepository = new FakeIngestionIssueRepository();
 
         var service = new InvoiceProcessingService(
             emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetection,
-            invoiceService, supplierService, invoiceRepository, NullLogger<InvoiceProcessingService>.Instance);
+            invoiceService, supplierService, invoiceRepository, ingestionIssueRepository, NullLogger<InvoiceProcessingService>.Instance);
 
         return (service, new TestDependencies(
-            invoiceRepository, supplierRepository, emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetection));
+            invoiceRepository, supplierRepository, emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetection, ingestionIssueRepository));
     }
 
-    private static EmailSummaryDto NewEmail() => new(MessageId, "Invoice attached", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow);
+    private static EmailSummaryDto NewEmail() => new(MessageId, "Invoice attached", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-1");
 
     private static PdfAttachmentDto NewAttachment(string fileName = FileName) =>
         new(fileName, 1024, "application/pdf", System.Text.Encoding.UTF8.GetBytes($"pdf-bytes-for-{fileName}"));
@@ -456,5 +526,6 @@ public class InvoiceProcessingServiceTests
         FakePdfExtractionService PdfExtraction,
         FakeBlobStorageService BlobStorage,
         FakeDocumentAnalysisService DocumentAnalysis,
-        FakeDuplicateDetectionService DuplicateDetection);
+        FakeDuplicateDetectionService DuplicateDetection,
+        FakeIngestionIssueRepository IngestionIssueRepository);
 }

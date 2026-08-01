@@ -40,19 +40,23 @@ internal sealed class FakeEmailSyncService : IEmailSyncService
 internal sealed class FakePdfExtractionService : IPdfExtractionService
 {
     public Dictionary<string, List<PdfAttachmentDto>> AttachmentsByMessageId { get; } = [];
+    public Dictionary<string, List<AttachmentInfoDto>> AllAttachmentsByMessageId { get; } = [];
     public Dictionary<string, Error> FailuresByMessageId { get; } = [];
 
-    public Task<Result<IReadOnlyList<PdfAttachmentDto>>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
+    public Task<Result<AttachmentExtractionResult>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
     {
         if (FailuresByMessageId.TryGetValue(messageId, out var error))
         {
-            return Task.FromResult(Result.Failure<IReadOnlyList<PdfAttachmentDto>>(error));
+            return Task.FromResult(Result.Failure<AttachmentExtractionResult>(error));
         }
 
-        var attachments = AttachmentsByMessageId.TryGetValue(messageId, out var list)
+        var pdfAttachments = AttachmentsByMessageId.TryGetValue(messageId, out var list)
             ? (IReadOnlyList<PdfAttachmentDto>)list
             : [];
-        return Task.FromResult(Result.Success(attachments));
+        var allAttachments = AllAttachmentsByMessageId.TryGetValue(messageId, out var allList)
+            ? (IReadOnlyList<AttachmentInfoDto>)allList
+            : [];
+        return Task.FromResult(Result.Success(new AttachmentExtractionResult(pdfAttachments, allAttachments)));
     }
 }
 
@@ -134,3 +138,4 @@ internal sealed class FakeDuplicateDetectionService : IDuplicateDetectionService
     public DuplicateCheckResult Check(Invoice candidate, IReadOnlyList<Invoice> otherInvoices) =>
         ResultFactory?.Invoke(candidate, otherInvoices) ?? new DuplicateCheckResult(candidate.Id, false, []);
 }
+

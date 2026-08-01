@@ -1,4 +1,5 @@
 import { useAuth } from '@/auth/useAuth';
+import { getActingRoleLabel } from '@/utils/roles';
 
 interface HeaderProps {
   onToggleNav: () => void;
@@ -10,6 +11,7 @@ interface HeaderProps {
  */
 export function Header({ onToggleNav }: HeaderProps) {
   const { user, signOut } = useAuth();
+  const roleLabel = user ? getActingRoleLabel(user.roles) : null;
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
@@ -35,7 +37,10 @@ export function Header({ onToggleNav }: HeaderProps) {
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-sm font-medium text-ink-900">{user.displayName}</p>
-            <p className="text-xs text-slate-400">{user.tenantName}</p>
+            <p className="text-xs text-slate-400">
+              {user.tenantName}
+              {roleLabel && <> &middot; Signed in as: {roleLabel}</>}
+            </p>
           </div>
           <button
             type="button"

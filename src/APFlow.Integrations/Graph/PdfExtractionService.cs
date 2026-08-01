@@ -45,18 +45,18 @@ public sealed class PdfExtractionService : IPdfExtractionService
     }
 
     /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<PdfAttachmentDto>>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
+    public async Task<Result<AttachmentExtractionResult>> ExtractPdfAttachmentsAsync(string messageId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(messageId))
         {
-            return Result.Failure<IReadOnlyList<PdfAttachmentDto>>(
+            return Result.Failure<AttachmentExtractionResult>(
                 new Error("PdfExtraction.InvalidMessageId", "Message id must not be empty."));
         }
 
         if (string.IsNullOrWhiteSpace(_options.MailboxUserPrincipalName))
         {
             _logger.LogWarning("Graph:MailboxUserPrincipalName is not configured; cannot extract attachments.");
-            return Result.Failure<IReadOnlyList<PdfAttachmentDto>>(
+            return Result.Failure<AttachmentExtractionResult>(
                 new Error("PdfExtraction.MailboxNotConfigured", "Graph:MailboxUserPrincipalName is not configured."));
         }
 
@@ -65,6 +65,7 @@ public sealed class PdfExtractionService : IPdfExtractionService
             var attachments = await _attachmentOperations.GetAttachmentsAsync(_options.MailboxUserPrincipalName, messageId, cancellationToken);
 
             var extracted = new List<PdfAttachmentDto>();
+            var allAttachments = attachments.Select(a => new AttachmentInfoDto(a.FileName, a.ContentType)).ToList();
             var skippedInlineCount = 0;
             var skippedUnsupportedCount = 0;
 
@@ -126,7 +127,7 @@ public sealed class PdfExtractionService : IPdfExtractionService
                 "{SkippedInlineCount} inline skipped, {SkippedUnsupportedCount} unsupported skipped.",
                 messageId, extracted.Count, skippedInlineCount, skippedUnsupportedCount);
 
-            return Result.Success<IReadOnlyList<PdfAttachmentDto>>(extracted);
+            return Result.Success(new AttachmentExtractionResult(extracted, allAttachments));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -138,7 +139,7 @@ public sealed class PdfExtractionService : IPdfExtractionService
             // not rethrown - a Graph outage during extraction should surface as a
             // failed Result the caller can act on, not crash whatever called this.
             _logger.LogError(ex, "Attachment extraction failed for message {MessageId}.", messageId);
-            return Result.Failure<IReadOnlyList<PdfAttachmentDto>>(
+            return Result.Failure<AttachmentExtractionResult>(
                 new Error("PdfExtraction.ExtractionFailed", $"Failed to extract attachments for message '{messageId}'."));
         }
     }

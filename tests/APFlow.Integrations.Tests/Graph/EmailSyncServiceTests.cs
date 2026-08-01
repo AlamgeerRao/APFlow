@@ -27,7 +27,7 @@ public class EmailSyncServiceTests
         var (service, ops) = CreateService();
         ops.UnreadMessages =
         [
-            new EmailSummaryDto("msg-1", "Invoice attached", "vendor@example.com", "Vendor Co", DateTimeOffset.UtcNow),
+            new EmailSummaryDto("msg-1", "Invoice attached", "vendor@example.com", "Vendor Co", DateTimeOffset.UtcNow, "conversation-1"),
         ];
 
         var result = await service.SyncUnreadEmailsAsync();

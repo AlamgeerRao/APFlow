@@ -49,7 +49,7 @@ internal sealed class GraphMessageOperations : IGraphMessageOperations
         var response = await _graphClient.Users[mailboxUserPrincipalName].Messages.GetAsync(config =>
         {
             config.QueryParameters.Filter = "isRead eq false";
-            config.QueryParameters.Select = ["id", "subject", "from", "receivedDateTime"];
+            config.QueryParameters.Select = ["id", "subject", "from", "receivedDateTime", "conversationId"];
         }, cancellationToken);
 
         var messages = response?.Value ?? [];
@@ -59,7 +59,8 @@ internal sealed class GraphMessageOperations : IGraphMessageOperations
             Subject: message.Subject ?? string.Empty,
             SenderAddress: message.From?.EmailAddress?.Address ?? string.Empty,
             SenderName: message.From?.EmailAddress?.Name,
-            ReceivedAtUtc: message.ReceivedDateTime ?? DateTimeOffset.MinValue)).ToList();
+            ReceivedAtUtc: message.ReceivedDateTime ?? DateTimeOffset.MinValue,
+            ConversationId: message.ConversationId ?? string.Empty)).ToList();
     }
 
     public async Task<IReadOnlyList<string>> GetMessageCategoriesAsync(string mailboxUserPrincipalName, string messageId, CancellationToken cancellationToken)

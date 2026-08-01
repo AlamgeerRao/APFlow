@@ -99,6 +99,9 @@ public class AppDbContext : DbContext
     /// <summary>Role-gating rules for approval-type actions (WP-051). Optionally tenant-scoped - see <see cref="IOptionallyTenantScoped"/>.</summary>
     public DbSet<ApprovalPolicy> ApprovalPolicies => Set<ApprovalPolicy>();
 
+    /// <summary>Unprocessable-email records (WP-076). Tenant-isolated - see <see cref="_currentTenantId"/>.</summary>
+    public DbSet<IngestionIssue> IngestionIssues => Set<IngestionIssue>();
+
     /// <summary>
     /// Creates a new <see cref="AppDbContext"/>. <paramref name="currentUserService"/>
     /// and <paramref name="logger"/> are optional (default to null) specifically so

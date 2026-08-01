@@ -50,6 +50,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     private readonly IInvoiceService _invoiceService;
     private readonly ISupplierService _supplierService;
     private readonly IInvoiceRepository _invoiceRepository;
+    private readonly IIngestionIssueRepository _ingestionIssueRepository;
     private readonly ILogger<InvoiceProcessingService> _logger;
 
     /// <summary>Creates a new <see cref="InvoiceProcessingService"/>.</summary>
@@ -62,6 +63,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         IInvoiceService invoiceService,
         ISupplierService supplierService,
         IInvoiceRepository invoiceRepository,
+        IIngestionIssueRepository ingestionIssueRepository,
         ILogger<InvoiceProcessingService> logger)
     {
         _emailSyncService = emailSyncService;
@@ -72,6 +74,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         _invoiceService = invoiceService;
         _supplierService = supplierService;
         _invoiceRepository = invoiceRepository;
+        _ingestionIssueRepository = ingestionIssueRepository;
         _logger = logger;
     }
 
@@ -153,10 +156,10 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
             return false;
         }
 
-        var attachments = extractResult.Value;
+        var attachments = extractResult.Value.PdfAttachments;
         if (attachments.Count == 0)
         {
-            _logger.LogInformation("Email {MessageId} had no PDF attachments; nothing to process.", email.MessageId);
+            await RecordIngestionIssueAsync(email, extractResult.Value.AllAttachments, cancellationToken);
             return true;
         }
 
@@ -174,6 +177,70 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         }
 
         return !anyFailed;
+    }
+
+    /// <summary>
+    /// Persists (or bumps) the <see cref="IngestionIssue"/> for an email that had no
+    /// processable PDF attachment (WP-076) - the fix for the silent failure this
+    /// branch used to be (an Information-level log line and nothing else).
+    /// Deduplicated per <see cref="EmailSummaryDto.ConversationId"/>: a reply-chain
+    /// that keeps arriving without a usable attachment increments the same row
+    /// rather than creating a new one per message. A failure here is logged and
+    /// swallowed, not propagated - same reasoning as
+    /// <see cref="ProcessAttachmentAsync"/>'s own database-save try/catch: this is a
+    /// diagnostic side record, not the pipeline's core job of deciding whether the
+    /// email had anything to process (it didn't, regardless of whether this write
+    /// succeeds), so a transient database error here must not leave an otherwise-fine
+    /// "nothing to process" email stuck unmarked forever.
+    /// </summary>
+    private async Task RecordIngestionIssueAsync(EmailSummaryDto email, IReadOnlyList<AttachmentInfoDto> allAttachments, CancellationToken cancellationToken)
+    {
+        var attachmentsFound = allAttachments.Count == 0
+            ? "(none)"
+            : string.Join("; ", allAttachments.Select(a => $"{a.FileName} ({a.ContentType})"));
+
+        try
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            var existing = await _ingestionIssueRepository.GetByConversationIdAsync(email.ConversationId, cancellationToken);
+
+            if (existing is not null)
+            {
+                existing.MessageId = email.MessageId;
+                existing.AttachmentsFound = attachmentsFound;
+                existing.OccurrenceCount++;
+                existing.LastSeenUtc = nowUtc;
+            }
+            else
+            {
+                await _ingestionIssueRepository.AddAsync(new IngestionIssue
+                {
+                    MessageId = email.MessageId,
+                    SenderAddress = email.SenderAddress,
+                    SenderName = email.SenderName,
+                    Subject = email.Subject,
+                    ReceivedAtUtc = email.ReceivedAtUtc,
+                    ConversationId = email.ConversationId,
+                    AttachmentsFound = attachmentsFound,
+                    ReasonCode = IngestionIssueReasonCodes.NoProcessableAttachments,
+                    OccurrenceCount = 1,
+                    LastSeenUtc = nowUtc,
+                }, cancellationToken);
+            }
+
+            await _ingestionIssueRepository.SaveChangesAsync(cancellationToken);
+
+            _logger.LogWarning(
+                "Email {MessageId} (conversation {ConversationId}) had no processable PDF attachment. Attachments found: {AttachmentsFound}.",
+                email.MessageId, email.ConversationId, attachmentsFound);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to record ingestion issue for email {MessageId} (conversation {ConversationId}).",
+                email.MessageId, email.ConversationId);
+        }
     }
 
     /// <summary>

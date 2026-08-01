@@ -42,7 +42,8 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
+        Assert.Empty(result.Value.AllAttachments);
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        var extracted = Assert.Single(result.Value);
+        var extracted = Assert.Single(result.Value.PdfAttachments);
         Assert.Equal("invoice", extracted.FileName);
         Assert.Equal("application/pdf", extracted.ContentType);
         Assert.Equal(ValidPdfBytes, extracted.Content);
@@ -71,7 +72,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Single(result.Value);
+        Assert.Single(result.Value.PdfAttachments);
     }
 
     [Fact]
@@ -86,7 +87,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
     }
 
     [Fact]
@@ -111,7 +112,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
     }
 
     [Theory]
@@ -126,7 +127,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
     }
 
     [Fact]
@@ -139,7 +140,7 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.PdfAttachments);
     }
 
     [Fact]
@@ -158,10 +159,14 @@ public class PdfExtractionServiceTests
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value.Count);
-        Assert.Contains(result.Value, a => a.FileName == "invoice1.pdf");
-        Assert.Contains(result.Value, a => a.FileName == "invoice2.pdf");
-        Assert.DoesNotContain(result.Value, a => a.FileName == "fake.pdf");
+        Assert.Equal(2, result.Value.PdfAttachments.Count);
+        Assert.Contains(result.Value.PdfAttachments, a => a.FileName == "invoice1.pdf");
+        Assert.Contains(result.Value.PdfAttachments, a => a.FileName == "invoice2.pdf");
+        Assert.DoesNotContain(result.Value.PdfAttachments, a => a.FileName == "fake.pdf");
+        // AllAttachments (WP-076) describes every attachment Graph reported, PDF or not.
+        Assert.Equal(5, result.Value.AllAttachments.Count);
+        Assert.Contains(result.Value.AllAttachments, a => a.FileName == "logo.png" && a.ContentType == "image/png");
+        Assert.Contains(result.Value.AllAttachments, a => a.FileName == "readme.txt" && a.ContentType == "text/plain");
     }
 
     [Fact]
@@ -172,7 +177,7 @@ public class PdfExtractionServiceTests
 
         var result = await service.ExtractPdfAttachmentsAsync("msg-1");
 
-        var extracted = Assert.Single(result.Value);
+        var extracted = Assert.Single(result.Value.PdfAttachments);
         Assert.Equal(12345, extracted.SizeInBytes);
         Assert.Equal("application/pdf", extracted.ContentType);
     }
