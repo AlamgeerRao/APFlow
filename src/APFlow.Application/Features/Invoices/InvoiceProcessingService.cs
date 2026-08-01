@@ -262,20 +262,37 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         // IInvoiceService.CreateAsync/UpdateAsync, both of which commit
         // independently) - validated via InvoiceFieldValidation (the same
         // validation IInvoiceService.CreateAsync uses, shared rather than
-        // duplicated) - and created already at InvoiceStatusCodes.Extracted (PDF
-        // extraction and Document Intelligence analysis are both complete by this
-        // point - see InvoiceStatusCodes.Extracted's own doc comment), rather than the
-        // previous two-step "create at Received, then separately advance to
-        // Extracted": that two-step dance required its own separate commit,
-        // incompatible with atomicity here.
+        // duplicated) - and created already at InvoiceStatusCodes.AwaitingReview
+        // (WP-071), not Extracted: PDF extraction and Document Intelligence
+        // analysis are both complete by this point (see InvoiceStatusCodes.Extracted's
+        // own doc comment for what that status itself means), and EXTRACTED ->
+        // AWAITING_REVIEW is a confirmed, already-seeded edge in both templates'
+        // graphs (WorkflowTransitionSeedData) that a reviewer would otherwise have
+        // had to trigger manually via a pointless first PATCH before they could do
+        // anything else with a freshly-ingested invoice. Rather than the earlier
+        // two-step "create at Received, then separately advance to Extracted" (or
+        // WP-071's own predecessor, "create at Extracted, leave AWAITING_REVIEW to
+        // a manual step"): each of those required its own separate commit or a
+        // manual action this pipeline can just as easily skip, incompatible with
+        // or superfluous to the atomicity already established here.
+        // Deliberately NOT going through IWorkflowValidationService.ValidateTransitionAsync
+        // or IApprovalAuthorizationService/RoleGatedTransitions (both of which
+        // InvoiceService.UpdateAsync uses for a user-initiated PATCH) - this is a
+        // system-initiated advance at record-creation time, and EXTRACTED ->
+        // AWAITING_REVIEW is not one of the four RoleGatedTransitions pairs
+        // regardless. Constructing the Invoice directly via IInvoiceRepository
+        // (as this whole method already does, for the atomicity reasons above)
+        // means those checks are architecturally bypassed by construction, not by
+        // any new code added here - there is nothing to "call and skip".
         // One side effect, called out deliberately rather than left to be
-        // discovered: there is no longer a Received -> Extracted status-change
-        // event for WP-013's audit log to record for newly-ingested invoices,
-        // because the invoice is never actually persisted at Received in the
-        // first place - it is created directly at its final initial status.
-        // WP-013's audit logging is untouched and still fires normally for any
-        // LATER status change (e.g. a future approval/rejection step), since those
-        // still go through IInvoiceService.UpdateAsync.
+        // discovered: there is no longer a Received -> Extracted (or, as of
+        // WP-071, -> AwaitingReview) status-change event for WP-013's audit log to
+        // record for newly-ingested invoices, because the invoice is never
+        // actually persisted at any earlier status first - it is created directly
+        // at its final initial status. WP-013's audit logging is untouched and
+        // still fires normally for any LATER status change (e.g. a future
+        // approval/rejection step), since those still go through
+        // IInvoiceService.UpdateAsync.
         Invoice? savedInvoice = null;
         bool? isPotentialDuplicate = null;
         Error? saveError = null;
@@ -294,7 +311,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
                 NetAmount = extraction.NetAmount.Value,
                 Vat = extraction.Vat.Value,
                 GrossTotal = extraction.GrossTotal.Value,
-                Status = InvoiceStatusCodes.Extracted,
+                Status = InvoiceStatusCodes.AwaitingReview,
                 SourceEmailMessageId = email.MessageId,
                 SourceDocumentBlobName = blobName,
                 SourceDocumentContentHash = contentHash,

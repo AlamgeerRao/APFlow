@@ -90,9 +90,10 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         Assert.False(string.IsNullOrWhiteSpace(persistedInvoices[1].DuplicateCheckReason));
         Assert.Contains("Supplier and Invoice Number", persistedInvoices[1].DuplicateCheckReason);
 
-        // Both invoices land directly at Extracted (WP-049: no separate Received-then-
-        // advance step, since that would require its own, separate commit).
-        Assert.All(persistedInvoices, i => Assert.Equal(InvoiceStatusCodes.Extracted, i.Status));
+        // Both invoices land directly at AwaitingReview (WP-071: no separate manual
+        // advance step from Extracted, since that would require its own, separate
+        // commit or a pointless manual first action for the reviewer).
+        Assert.All(persistedInvoices, i => Assert.Equal(InvoiceStatusCodes.AwaitingReview, i.Status));
     }
 
     [Fact]

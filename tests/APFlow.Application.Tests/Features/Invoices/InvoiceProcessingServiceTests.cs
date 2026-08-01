@@ -40,7 +40,7 @@ public class InvoiceProcessingServiceTests
 
         var invoice = Assert.Single(deps.InvoiceRepository.Invoices);
         Assert.Equal(supplier.Id, invoice.SupplierId);
-        Assert.Equal(InvoiceStatusCodes.Extracted, invoice.Status);
+        Assert.Equal(InvoiceStatusCodes.AwaitingReview, invoice.Status);
         Assert.Equal("invoices/graph-message-1/invoice.pdf", invoice.SourceDocumentBlobName);
         Assert.Equal(MessageId, invoice.SourceEmailMessageId);
         Assert.False(invoice.IsPotentialDuplicate); // persisted, not just reported - see WP-010's ruling
