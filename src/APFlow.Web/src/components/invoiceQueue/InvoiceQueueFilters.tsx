@@ -5,6 +5,12 @@ interface InvoiceQueueFiltersProps {
   onSearchChange: (value: string) => void;
   status: string | undefined;
   onStatusChange: (value: string | undefined) => void;
+  /**
+   * Hides the status dropdown, keeping just the search box (WP-074: the
+   * Query Queue view is already scoped to a fixed combined set of statuses -
+   * a dropdown offering every other status wouldn't make sense there).
+   */
+  hideStatusFilter?: boolean;
 }
 
 /**
@@ -17,6 +23,7 @@ export function InvoiceQueueFilters({
   onSearchChange,
   status,
   onStatusChange,
+  hideStatusFilter = false,
 }: InvoiceQueueFiltersProps) {
   const { template } = useWorkflowTemplate();
   const statusOptions = [...(template?.statuses ?? [])]
@@ -39,24 +46,26 @@ export function InvoiceQueueFilters({
         />
       </div>
 
-      <div>
-        <label htmlFor="invoice-status-filter" className="sr-only">
-          Filter by status
-        </label>
-        <select
-          id="invoice-status-filter"
-          value={status ?? ''}
-          onChange={(event) => onStatusChange(event.target.value === '' ? undefined : event.target.value)}
-          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600 sm:w-56"
-        >
-          <option value="">All statuses</option>
-          {statusOptions.map((option) => (
-            <option key={option.code} value={option.code}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {!hideStatusFilter && (
+        <div>
+          <label htmlFor="invoice-status-filter" className="sr-only">
+            Filter by status
+          </label>
+          <select
+            id="invoice-status-filter"
+            value={status ?? ''}
+            onChange={(event) => onStatusChange(event.target.value === '' ? undefined : event.target.value)}
+            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-600 sm:w-56"
+          >
+            <option value="">All statuses</option>
+            {statusOptions.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

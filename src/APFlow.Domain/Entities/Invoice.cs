@@ -130,7 +130,7 @@ public sealed class Invoice : TenantEntity
     public string? DuplicateCheckReason { get; set; }
 
     /// <summary>
-    /// The id of the existing invoice <see cref="DuplicateDetectionService"/> matched
+    /// The id of the existing invoice the duplicate-detection check matched
     /// this one against, if any (WP-073) - structured data a UI can link to directly,
     /// rather than a GUID a user had to parse out of <see cref="DuplicateCheckReason"/>'s
     /// free text. Null whenever <see cref="IsPotentialDuplicate"/> is false, same

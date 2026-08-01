@@ -21,12 +21,19 @@ export interface NavSection {
  * (see buildInvoiceQueueLinks below and
  * docs/WP-014-Dashboard-Shell-Decisions.md for the scoping decision).
  */
+/**
+ * WP-074: "Approved" was removed entirely as a standalone top-level link -
+ * it was a dead-end placeholder page, and approved invoices are already
+ * reachable via the Invoice Queue (either its own "all statuses" view, or
+ * a per-status nav sub-link if APPROVED is ever configured as non-terminal
+ * for a tenant) - a second, separate nav entry duplicating that isn't
+ * needed.
+ */
 export const STATIC_NAV_SECTIONS: Omit<NavSection, 'children'>[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { key: 'inbox', label: 'Inbox', path: '/inbox' },
   { key: 'invoice-queue', label: 'Invoice Queue', path: '/invoices' },
   { key: 'query-queue', label: 'Query Queue', path: '/queries' },
-  { key: 'approved', label: 'Approved', path: '/approved' },
   { key: 'suppliers', label: 'Suppliers', path: '/suppliers' },
   { key: 'administration', label: 'Administration', path: '/administration' },
 ];

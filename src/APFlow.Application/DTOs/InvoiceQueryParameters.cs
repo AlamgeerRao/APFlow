@@ -40,7 +40,7 @@ public enum InvoiceSortField
 /// JWT via the underlying EF Core query filter (see AppDbContext), the same as
 /// every other invoice read in this codebase.
 /// </summary>
-/// <param name="Status">Restrict to invoices in exactly this status, if set.</param>
+/// <param name="Status">Restrict to invoices in exactly this status, if set. Ignored when <see cref="Statuses"/> is also set.</param>
 /// <param name="SupplierId">Restrict to invoices issued by this supplier, if set.</param>
 /// <param name="InvoiceDateFrom">Restrict to invoices with <c>InvoiceDate</c> on or after this date, if set. Invoices with a null InvoiceDate never match when this is set.</param>
 /// <param name="InvoiceDateTo">Restrict to invoices with <c>InvoiceDate</c> on or before this date, if set. Invoices with a null InvoiceDate never match when this is set.</param>
@@ -66,6 +66,14 @@ public enum InvoiceSortField
 /// <param name="PageSize">Rows per page. Must be between 1 and <see cref="MaxPageSize"/>.</param>
 /// <param name="SortBy">Field to sort by. Defaults to <see cref="InvoiceSortField.CreatedAtUtc"/>.</param>
 /// <param name="SortDescending">Sort direction. Defaults to descending (newest/highest first).</param>
+/// <param name="Statuses">
+/// Restrict to invoices in any of these statuses, if set and non-empty - takes
+/// precedence over <see cref="Status"/> when both are given (WP-074, the Query
+/// Queue nav view: NEEDS_QUERY/QUERY_RAISED/AWAITING_SUPPLIER_RESPONSE combined).
+/// Added additively alongside <see cref="Status"/> rather than replacing it, so
+/// every existing single-status caller (the Invoice Queue's per-status nav
+/// sub-links, its own status filter dropdown) is unaffected.
+/// </param>
 public sealed record InvoiceQueryParameters(
     string? Status = null,
     Guid? SupplierId = null,
@@ -78,7 +86,8 @@ public sealed record InvoiceQueryParameters(
                         // primary constructor parameter default cannot reference a
                         // const declared in the same record's body.
     InvoiceSortField SortBy = InvoiceSortField.CreatedAtUtc,
-    bool SortDescending = true)
+    bool SortDescending = true,
+    IReadOnlyList<string>? Statuses = null)
 {
     /// <summary>Default page size when a caller doesn't specify one.</summary>
     public const int DefaultPageSize = 25;

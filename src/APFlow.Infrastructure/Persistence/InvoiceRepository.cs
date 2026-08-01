@@ -57,7 +57,13 @@ public sealed class InvoiceRepository : IInvoiceRepository
             .AsNoTracking()
             .AsQueryable();
 
-        if (parameters.Status is not null)
+        // WP-074: Statuses (a set) takes precedence over Status (a single value) when
+        // both are given - see InvoiceQueryParameters.Statuses' own doc comment.
+        if (parameters.Statuses is { Count: > 0 })
+        {
+            query = query.Where(i => parameters.Statuses.Contains(i.Status));
+        }
+        else if (parameters.Status is not null)
         {
             query = query.Where(i => i.Status == parameters.Status);
         }

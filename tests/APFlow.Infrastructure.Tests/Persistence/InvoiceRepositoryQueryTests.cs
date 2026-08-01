@@ -61,6 +61,54 @@ public class InvoiceRepositoryQueryTests
     }
 
     [Fact]
+    public async Task QueryAsync_FiltersByMultipleStatuses()
+    {
+        // WP-074: the Query Queue nav view (NEEDS_QUERY/QUERY_RAISED/
+        // AWAITING_SUPPLIER_RESPONSE combined) reuses this same endpoint via the
+        // new Statuses parameter, rather than needing a new one.
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId);
+        var repository = new InvoiceRepository(context);
+        var supplier = new Supplier { Name = "Acme", TenantId = tenantId };
+        context.Suppliers.Add(supplier);
+        context.Invoices.AddRange(
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.NeedsQuery },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.QueryRaised },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.AwaitingSupplierResponse },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.Received },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.Approved });
+        await context.SaveChangesAsync();
+
+        var (items, totalCount) = await repository.QueryAsync(new InvoiceQueryParameters(
+            Statuses: [InvoiceStatusCodes.NeedsQuery, InvoiceStatusCodes.QueryRaised, InvoiceStatusCodes.AwaitingSupplierResponse]));
+
+        Assert.Equal(3, totalCount);
+        Assert.All(items, i => Assert.Contains(
+            i.Status, new[] { InvoiceStatusCodes.NeedsQuery, InvoiceStatusCodes.QueryRaised, InvoiceStatusCodes.AwaitingSupplierResponse }));
+    }
+
+    [Fact]
+    public async Task QueryAsync_StatusesTakesPrecedenceOverStatus_WhenBothGiven()
+    {
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId);
+        var repository = new InvoiceRepository(context);
+        var supplier = new Supplier { Name = "Acme", TenantId = tenantId };
+        context.Suppliers.Add(supplier);
+        context.Invoices.AddRange(
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.NeedsQuery },
+            new Invoice { SupplierId = supplier.Id, TenantId = tenantId, Status = InvoiceStatusCodes.Received });
+        await context.SaveChangesAsync();
+
+        var (items, totalCount) = await repository.QueryAsync(new InvoiceQueryParameters(
+            Status: InvoiceStatusCodes.Received,
+            Statuses: [InvoiceStatusCodes.NeedsQuery]));
+
+        Assert.Equal(1, totalCount);
+        Assert.Equal(InvoiceStatusCodes.NeedsQuery, items[0].Status);
+    }
+
+    [Fact]
     public async Task QueryAsync_FiltersByDateRange()
     {
         var tenantId = Guid.NewGuid();

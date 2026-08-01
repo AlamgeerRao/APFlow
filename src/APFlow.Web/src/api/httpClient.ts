@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  params?: Record<string, string | number | undefined>;
+  params?: Record<string, string | number | string[] | undefined>;
   signal?: AbortSignal;
 }
 
@@ -39,12 +39,23 @@ const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 300;
 
+/**
+ * An array value (WP-074, e.g. `statuses`) is appended as repeated query params
+ * (`?statuses=A&statuses=B`) - ASP.NET Core's standard binding convention for a
+ * `[FromQuery] string[]` action parameter - rather than a single comma-joined
+ * value, which it does not parse into an array by default.
+ */
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const base = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '');
   const url = new URL(base + path);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== '') {
+      if (value === undefined || value === '') continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          url.searchParams.append(key, item);
+        }
+      } else {
         url.searchParams.set(key, String(value));
       }
     }

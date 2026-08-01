@@ -56,7 +56,15 @@ export class FixtureInvoiceClient implements InvoiceClient {
     const tenantInvoices = invoiceFixtures.filter((invoice) => invoice.tenantId === params.tenantId);
 
     const filtered = tenantInvoices
-      .filter((invoice) => (params.status ? invoice.status === params.status : true))
+      // WP-074: statuses (a set) takes precedence over status (a single value)
+      // when both are given, mirroring the real backend's own precedence.
+      .filter((invoice) =>
+        params.statuses && params.statuses.length > 0
+          ? params.statuses.includes(invoice.status)
+          : params.status
+            ? invoice.status === params.status
+            : true,
+      )
       .filter((invoice) => matchesInvoiceSearch(invoice, params.search ?? ''));
 
     const sorted = [...filtered].sort((a, b) => compareInvoices(a, b, params));
@@ -149,7 +157,11 @@ export class HttpInvoiceClient implements InvoiceClient {
     const response = await httpClient.get<InvoiceQueryResponseDto>('/api/invoices', {
       params: {
         invoiceNumber: params.search,
+        // WP-074: statuses (repeated ?statuses= params) takes precedence over
+        // status server-side when both are given - status is still sent for the
+        // Invoice Queue's own single-status views, unaffected by this addition.
         status: params.status,
+        statuses: params.statuses,
         sortBy: params.sortBy,
         sortDescending: params.sortDirection === 'desc' ? 'true' : 'false',
         page: params.page,

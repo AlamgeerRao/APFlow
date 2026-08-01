@@ -48,6 +48,30 @@ describe('FixtureInvoiceClient', () => {
     expect(result.items.every((invoice) => invoice.status === 'NEEDS_QUERY')).toBe(true);
   });
 
+  // WP-074: the Query Queue nav view combines these three statuses.
+  it('filters by statuses (a set), returning invoices matching any of them', async () => {
+    const result = await client.queryInvoices(
+      paramsFor({ statuses: ['NEEDS_QUERY', 'QUERY_RAISED', 'AWAITING_SUPPLIER_RESPONSE'], pageSize: 100 }),
+    );
+
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(
+      result.items.every((invoice) =>
+        ['NEEDS_QUERY', 'QUERY_RAISED', 'AWAITING_SUPPLIER_RESPONSE'].includes(invoice.status),
+      ),
+    ).toBe(true);
+    expect(new Set(result.items.map((i) => i.status)).size).toBeGreaterThan(1);
+  });
+
+  it('statuses takes precedence over status when both are given', async () => {
+    const result = await client.queryInvoices(
+      paramsFor({ status: 'RECEIVED', statuses: ['NEEDS_QUERY'], pageSize: 100 }),
+    );
+
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.items.every((invoice) => invoice.status === 'NEEDS_QUERY')).toBe(true);
+  });
+
   it('matches search against supplier name, case-insensitively', async () => {
     const result = await client.queryInvoices(paramsFor({ search: 'northwind', pageSize: 100 }));
 
@@ -120,6 +144,7 @@ describe('HttpInvoiceClient', () => {
       params: {
         invoiceNumber: 'northwind',
         status: undefined,
+        statuses: undefined,
         sortBy: 'invoiceDate',
         sortDescending: 'true',
         page: 2,
@@ -137,6 +162,22 @@ describe('HttpInvoiceClient', () => {
     expect(httpClient.get).toHaveBeenCalledWith(
       '/api/invoices',
       expect.objectContaining({ params: expect.objectContaining({ sortDescending: 'false' }) }),
+    );
+  });
+
+  // WP-074: the Query Queue nav view sends this to combine
+  // NEEDS_QUERY/QUERY_RAISED/AWAITING_SUPPLIER_RESPONSE in one request.
+  it('sends statuses as an array param, for the Query Queue combined view', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ statuses: ['NEEDS_QUERY', 'QUERY_RAISED', 'AWAITING_SUPPLIER_RESPONSE'] }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({
+        params: expect.objectContaining({ statuses: ['NEEDS_QUERY', 'QUERY_RAISED', 'AWAITING_SUPPLIER_RESPONSE'] }),
+      }),
     );
   });
 

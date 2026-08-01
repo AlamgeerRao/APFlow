@@ -31,8 +31,13 @@ export interface InvoiceQueueState {
  *
  * @param initialStatus seeds the status filter, e.g. from the
  *   `/invoices/:statusCode` route param set by WP-014's data-driven nav.
+ * @param fixedStatuses (WP-074) a fixed set of statuses to combine, for the
+ *   Query Queue view (NEEDS_QUERY/QUERY_RAISED/AWAITING_SUPPLIER_RESPONSE).
+ *   Unlike `initialStatus`/`status`, this isn't exposed as adjustable state -
+ *   there's no dropdown to narrow an already-combined view further to one of
+ *   its own statuses - it's just threaded straight through to every query.
  */
-export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
+export function useInvoiceQueue(initialStatus?: string, fixedStatuses?: string[]): InvoiceQueueState {
   const { user } = useAuth();
   const [search, setSearchInternal] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -80,12 +85,19 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
       tenantId: user?.tenantId,
       search: debouncedSearch,
       status,
+      statuses: fixedStatuses,
       sortBy,
       sortDirection,
       page,
       reloadToken,
     }),
-    [user?.tenantId, debouncedSearch, status, sortBy, sortDirection, page, reloadToken],
+    // fixedStatuses is a caller-provided fixed set for this page's lifetime
+    // (see the hook's own doc comment) - a new array reference on every
+    // render would otherwise re-trigger the query effect below on every
+    // render, so it's deliberately joined into a stable string for the
+    // dependency array rather than compared by reference.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.tenantId, debouncedSearch, status, fixedStatuses?.join(','), sortBy, sortDirection, page, reloadToken],
   );
 
   useEffect(() => {
@@ -104,6 +116,7 @@ export function useInvoiceQueue(initialStatus?: string): InvoiceQueueState {
         tenantId: queryKey.tenantId,
         search: queryKey.search,
         status: queryKey.status,
+        statuses: queryKey.statuses,
         sortBy: queryKey.sortBy,
         sortDirection: queryKey.sortDirection,
         page: queryKey.page,

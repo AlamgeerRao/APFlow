@@ -89,6 +89,25 @@ public class InvoicesControllerTests
     }
 
     [Fact]
+    public async Task GetAll_PassesStatusesArrayThroughUnchanged()
+    {
+        // WP-074: the Query Queue nav view needs GET /api/invoices to filter on
+        // multiple statuses at once, bound from repeated ?statuses= query params -
+        // reusing this same endpoint rather than needing a new one.
+        var queryService = new FakeInvoiceQueryService();
+        var controller = CreateController(new FakeInvoiceService(), new FakeAuditQueryService(), invoiceQueryService: queryService);
+        var statuses = new[] { InvoiceStatusCodes.NeedsQuery, InvoiceStatusCodes.QueryRaised, InvoiceStatusCodes.AwaitingSupplierResponse };
+
+        await controller.GetAll(
+            status: null, supplierId: null, invoiceDateFrom: null, invoiceDateTo: null, invoiceNumber: null,
+            page: 1, pageSize: 25, sortBy: InvoiceSortField.CreatedAtUtc, sortDescending: true,
+            CancellationToken.None, statuses: statuses);
+
+        Assert.NotNull(queryService.LastParameters);
+        Assert.Equal(statuses, queryService.LastParameters!.Statuses);
+    }
+
+    [Fact]
     public async Task GetAll_InvalidPage_ReturnsBadRequestWithCode()
     {
         // Validation is entirely IInvoiceQueryService's own (WP-011) - not

@@ -45,6 +45,30 @@ describe('httpClient.get', () => {
     expect(parsed.searchParams.has('empty')).toBe(false);
   });
 
+  // WP-074: an array param (e.g. statuses) is sent as repeated query params,
+  // ASP.NET Core's standard binding convention for [FromQuery] string[].
+  it('sends an array param as repeated query params, not a comma-joined value', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token');
+    vi.mocked(fetch).mockResolvedValue(jsonResponse([]));
+
+    await httpClient.get('/api/invoices', { params: { statuses: ['NEEDS_QUERY', 'QUERY_RAISED'] } });
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    const parsed = new URL(url as string);
+    expect(parsed.searchParams.getAll('statuses')).toEqual(['NEEDS_QUERY', 'QUERY_RAISED']);
+  });
+
+  it('omits an empty array param entirely', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token');
+    vi.mocked(fetch).mockResolvedValue(jsonResponse([]));
+
+    await httpClient.get('/api/invoices', { params: { statuses: [] } });
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    const parsed = new URL(url as string);
+    expect(parsed.searchParams.has('statuses')).toBe(false);
+  });
+
   it('forces sign-in and throws a 401 ApiError when there is no access token at all', async () => {
     vi.mocked(getAccessToken).mockResolvedValue(null);
 

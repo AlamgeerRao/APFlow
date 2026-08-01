@@ -49,6 +49,13 @@ export interface InvoiceQueryParams {
   search?: string;
   /** Optional single StatusReference.code to narrow the queue to. */
   status?: string;
+  /**
+   * Optional set of StatusReference.codes to narrow the queue to any of (WP-074,
+   * the Query Queue nav view: NEEDS_QUERY/QUERY_RAISED/AWAITING_SUPPLIER_RESPONSE
+   * combined). Takes precedence over `status` when both are given, mirroring the
+   * real backend's `InvoiceQueryParameters.Statuses`/`Status` precedence.
+   */
+  statuses?: string[];
   sortBy: InvoiceSortField;
   sortDirection: SortDirection;
   /** 1-based page number. */

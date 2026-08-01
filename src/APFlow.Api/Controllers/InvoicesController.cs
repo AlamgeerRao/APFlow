@@ -73,6 +73,11 @@ public sealed class InvoicesController : ControllerBase
     /// <see cref="InvoiceListItemDto"/> directly, with no additional response
     /// wrapper - task 1's own wording ("no service-layer changes needed") extends
     /// naturally to not inventing a new response shape either.
+    /// <c>statuses</c> (WP-074) is bound from repeated query params
+    /// (<c>?statuses=A&amp;statuses=B</c>), ASP.NET Core's standard array-binding
+    /// convention for <c>[FromQuery] string[]</c> - the same existing endpoint
+    /// serves the Query Queue's combined NEEDS_QUERY/QUERY_RAISED/
+    /// AWAITING_SUPPLIER_RESPONSE view, no new endpoint needed.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<InvoiceListItemDto>), StatusCodes.Status200OK)]
@@ -87,7 +92,8 @@ public sealed class InvoicesController : ControllerBase
         [FromQuery] int pageSize = InvoiceQueryParameters.DefaultPageSize,
         [FromQuery] InvoiceSortField sortBy = InvoiceSortField.CreatedAtUtc,
         [FromQuery] bool sortDescending = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [FromQuery] string[]? statuses = null)
     {
         var parameters = new InvoiceQueryParameters(
             Status: status,
@@ -97,6 +103,7 @@ public sealed class InvoicesController : ControllerBase
             InvoiceNumber: invoiceNumber,
             Page: page,
             PageSize: pageSize,
+            Statuses: statuses,
             SortBy: sortBy,
             SortDescending: sortDescending);
 
