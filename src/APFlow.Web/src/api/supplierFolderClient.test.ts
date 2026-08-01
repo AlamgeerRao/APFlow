@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { FixtureSupplierFolderClient } from '@/api/supplierFolderClient';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { FixtureSupplierFolderClient, HttpSupplierFolderClient } from '@/api/supplierFolderClient';
+import { httpClient } from '@/api/httpClient';
+
+vi.mock('@/api/httpClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/httpClient')>();
+  return { ...actual, httpClient: { ...actual.httpClient, get: vi.fn() } };
+});
 
 describe('FixtureSupplierFolderClient.getFolderCounts', () => {
   const client = new FixtureSupplierFolderClient();
@@ -148,5 +154,108 @@ describe('FixtureSupplierFolderClient.getGroupedInvoices', () => {
     const beforeCount = before.groups.flatMap((g) => g.invoices).length;
 
     expect(beforeCount).toBeGreaterThan(0);
+  });
+});
+
+describe('HttpSupplierFolderClient', () => {
+  beforeEach(() => {
+    vi.mocked(httpClient.get).mockReset();
+  });
+
+  it('getFolderCounts calls GET /api/invoices/folders with search, not tenantId', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce([]);
+    const client = new HttpSupplierFolderClient();
+
+    await client.getFolderCounts('platform-default', 'northwind');
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/invoices/folders', {
+      params: { search: 'northwind' },
+    });
+  });
+
+  it('getSuppliers calls GET /api/invoices/suppliers with folder and search, not tenantId', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce([]);
+    const client = new HttpSupplierFolderClient();
+
+    await client.getSuppliers('platform-default', 'NEEDS_QUERY', 'acme');
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/invoices/suppliers', {
+      params: { folder: 'NEEDS_QUERY', search: 'acme' },
+    });
+  });
+
+  it('getGroupedInvoices calls GET /api/invoices/grouped with folder/supplier/search/page/pageSize, not tenantId', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ groups: [], totalSuppliers: 0, page: 1, pageSize: 5 });
+    const client = new HttpSupplierFolderClient();
+
+    await client.getGroupedInvoices({
+      tenantId: 'platform-default',
+      folder: 'AWAITING_REVIEW',
+      supplier: 'Acme Skip Hire',
+      search: 'acme',
+      page: 2,
+      pageSize: 5,
+    });
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/invoices/grouped', {
+      params: {
+        folder: 'AWAITING_REVIEW',
+        supplier: 'Acme Skip Hire',
+        search: 'acme',
+        page: 2,
+        pageSize: 5,
+      },
+    });
+  });
+
+  it('maps the real InvoiceListItemDto field names (supplierInvoiceNumber/grossTotal/currency) within each group', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({
+      groups: [
+        {
+          supplierName: 'Northwind Traders Ltd',
+          count: 1,
+          invoices: [
+            {
+              id: 'inv-1',
+              supplierName: 'Northwind Traders Ltd',
+              supplierInvoiceNumber: 'NW-1001',
+              invoiceDate: '2026-07-01',
+              grossTotal: 1240.5,
+              currency: 'GBP',
+              status: 'AWAITING_REVIEW',
+              isPotentialDuplicate: false,
+              duplicateCheckReason: null,
+            },
+          ],
+        },
+      ],
+      totalSuppliers: 1,
+      page: 1,
+      pageSize: 5,
+    });
+    const client = new HttpSupplierFolderClient();
+
+    const result = await client.getGroupedInvoices({ tenantId: 'platform-default', page: 1, pageSize: 5 });
+
+    expect(result.groups).toEqual([
+      {
+        supplierName: 'Northwind Traders Ltd',
+        count: 1,
+        invoices: [
+          {
+            id: 'inv-1',
+            supplierName: 'Northwind Traders Ltd',
+            invoiceNumber: 'NW-1001',
+            invoiceDate: '2026-07-01',
+            amount: 1240.5,
+            currencyCode: 'GBP',
+            status: 'AWAITING_REVIEW',
+            isPotentialDuplicate: false,
+            duplicateCheckReason: null,
+          },
+        ],
+      },
+    ]);
+    expect(result.totalSuppliers).toBe(1);
   });
 });

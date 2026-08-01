@@ -8,6 +8,7 @@ import type { InvoiceListItem } from '@/types/invoice';
 import { invoiceFixtures } from '@/api/fixtures/invoices.fixture';
 import { matchesInvoiceSearch } from '@/api/invoiceClient';
 import { workflowTemplateClient } from '@/api/workflowTemplateClient';
+import { httpClient } from '@/api/httpClient';
 
 /**
  * Client-side contract for WP-019's Supplier & Folder Views. Consumers
@@ -15,20 +16,11 @@ import { workflowTemplateClient } from '@/api/workflowTemplateClient';
  * implementation below, so swapping in a real HTTP client is a one-line
  * change (`supplierFolderClient` below).
  *
- * STILL ON FIXTURES AS OF WP-020: unlike WP-015/016/017/018, no backend
- * endpoint exists anywhere for this WP's three operations
- * (folder-count summary, supplier-name listing, or supplier-grouped
- * invoice listing) — status-postwb-057.md §2.2's live API surface table
- * lists only `GET /api/invoices` (list), `GET /api/invoices/{id}`
- * (detail), `available-actions`, `status`, `download`, and `notes`.
- * Nothing supports grouping-by-supplier or a folder-count summary at all.
- * WP-020 task 5 asked to swap this WP's client too, but doing so would
- * mean inventing the very endpoints this client's own proposed contract
- * (see docs/WP-019-Supplier-Folder-Views-Decisions.md §1) only proposed
- * non-bindingly — exactly the kind of business/API-contract invention
- * `02_Project_Standards.md` §7 prohibits. Flagged as a new backlog item
- * (docs/WP-020-Real-Auth-And-Api-Integration-Decisions.md §4) rather than
- * silently left unswapped without explanation.
+ * WP-059 Part A delivered the real backend endpoints this WP's three
+ * operations map onto (`GET /api/invoices/folders`, `/suppliers`,
+ * `/grouped`); WP-065 swaps this client over to them (see
+ * `HttpSupplierFolderClient` below). `FixtureSupplierFolderClient` is kept
+ * only for its existing unit tests.
  */
 export interface SupplierFolderClient {
   /** Per-folder invoice counts for the tenant's non-terminal statuses, honouring the current search text. */
@@ -124,8 +116,104 @@ export class FixtureSupplierFolderClient implements SupplierFolderClient {
 }
 
 /**
- * The client instance the app uses. Swap this single line for a real
- * HTTP-backed implementation once a backend contract is confirmed — no
- * other file needs to change.
+ * Real DTOs for WP-059's `GET /api/invoices/folders|suppliers|grouped`
+ * (`FolderSummaryDto`/`SupplierGroupedInvoicesDto`/`SupplierGroupDto` in
+ * `SupplierFolderDto.cs`). `FolderSummaryDto`'s fields
+ * (`statusCode`/`statusLabel`/`count`) already match `FolderSummary`
+ * exactly — no mapping needed there. `SupplierGroupDto.Invoices` reuses
+ * the real `InvoiceListItemDto` shape (`supplierInvoiceNumber`/
+ * `grossTotal`/`currency`), same field-name conflict `invoiceClient.ts`'s
+ * `HttpInvoiceClient` already resolved for `GET /api/invoices` — backend
+ * wins, so the same mapping is reused here rather than duplicated.
  */
-export const supplierFolderClient: SupplierFolderClient = new FixtureSupplierFolderClient();
+interface InvoiceListItemResponseDto {
+  id: string;
+  supplierName: string;
+  supplierInvoiceNumber: string;
+  invoiceDate: string;
+  grossTotal: number;
+  currency: string;
+  status: string;
+  isPotentialDuplicate: boolean;
+  duplicateCheckReason: string | null;
+}
+
+interface SupplierGroupResponseDto {
+  supplierName: string;
+  count: number;
+  invoices: InvoiceListItemResponseDto[];
+}
+
+interface SupplierGroupedInvoicesResponseDto {
+  groups: SupplierGroupResponseDto[];
+  totalSuppliers: number;
+  page: number;
+  pageSize: number;
+}
+
+function mapListItem(dto: InvoiceListItemResponseDto): InvoiceListItem {
+  return {
+    id: dto.id,
+    supplierName: dto.supplierName,
+    invoiceNumber: dto.supplierInvoiceNumber,
+    invoiceDate: dto.invoiceDate,
+    amount: dto.grossTotal,
+    currencyCode: dto.currency,
+    status: dto.status,
+    isPotentialDuplicate: dto.isPotentialDuplicate,
+    duplicateCheckReason: dto.duplicateCheckReason,
+  };
+}
+
+function mapGroup(dto: SupplierGroupResponseDto): SupplierGroup {
+  return {
+    supplierName: dto.supplierName,
+    count: dto.count,
+    invoices: dto.invoices.map(mapListItem),
+  };
+}
+
+/**
+ * Real HTTP-backed implementation, calling WP-059's
+ * `GET /api/invoices/folders|suppliers|grouped` (WP-065). `tenantId` is
+ * deliberately NOT sent as a query parameter on any of the three calls —
+ * same reasoning as `HttpInvoiceClient`: the API resolves the acting
+ * tenant from the caller's own Bearer token
+ * (`SupplierFolderQueryParameters`'s own doc comment), never from
+ * client-supplied input.
+ */
+export class HttpSupplierFolderClient implements SupplierFolderClient {
+  async getFolderCounts(_tenantId: string, search?: string): Promise<FolderSummary[]> {
+    return httpClient.get<FolderSummary[]>('/api/invoices/folders', { params: { search } });
+  }
+
+  async getSuppliers(_tenantId: string, folder?: string, search?: string): Promise<string[]> {
+    return httpClient.get<string[]>('/api/invoices/suppliers', { params: { folder, search } });
+  }
+
+  async getGroupedInvoices(params: SupplierFolderQueryParams): Promise<SupplierFolderQueryResult> {
+    const response = await httpClient.get<SupplierGroupedInvoicesResponseDto>('/api/invoices/grouped', {
+      params: {
+        folder: params.folder,
+        supplier: params.supplier,
+        search: params.search,
+        page: params.page,
+        pageSize: params.pageSize,
+      },
+    });
+
+    return {
+      groups: response.groups.map(mapGroup),
+      totalSuppliers: response.totalSuppliers,
+      page: response.page,
+      pageSize: response.pageSize,
+    };
+  }
+}
+
+/**
+ * The client instance the app uses. `HttpSupplierFolderClient` as of
+ * WP-065 — swap this single line back to `new FixtureSupplierFolderClient()`
+ * if the real API becomes unreachable during local development.
+ */
+export const supplierFolderClient: SupplierFolderClient = new HttpSupplierFolderClient();
