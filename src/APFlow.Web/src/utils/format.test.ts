@@ -29,6 +29,20 @@ describe('formatCurrency', () => {
   it('returns a fallback instead of throwing for an empty string', () => {
     expect(formatCurrency(1240.5, '')).toBe('— 1240.50');
   });
+
+  // A real invoice reached this with a null amount too - Document Intelligence
+  // extracted no gross total for it - and null.toFixed() throws a TypeError.
+  it('returns a fallback instead of throwing for a null amount', () => {
+    expect(formatCurrency(null, 'GBP')).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for a null amount and null currency', () => {
+    expect(formatCurrency(null, null)).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for an undefined amount', () => {
+    expect(formatCurrency(undefined, 'GBP')).toBe('—');
+  });
 });
 
 describe('formatDate', () => {

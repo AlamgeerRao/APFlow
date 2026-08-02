@@ -2,15 +2,17 @@
  * Formats an amount using the given ISO 4217 currency code, e.g.
  * formatCurrency(1240.5, 'GBP') -> "£1,240.50".
  *
- * `currencyCode` is genuinely nullable on the wire (backend `string? Currency`
- * falls back through GrossTotal/NetAmount/Vat and can end up null if Document
- * Intelligence never detected a currency symbol on the source PDF) - not just
- * a fixture/test gap. `Intl.NumberFormat` throws a RangeError on a null/empty
- * currency, which previously crashed the whole Invoice Queue row (and table)
- * it rendered in, so this renders the plain number with the fallback marker
- * instead of throwing - same pattern as `formatDate`.
+ * Both `amount` and `currencyCode` are genuinely nullable on the wire
+ * (backend `decimal? GrossTotal` / `string? Currency` - Document
+ * Intelligence doesn't always extract either from the source PDF) - not
+ * just a fixture/test gap. `Intl.NumberFormat` throws a RangeError on a
+ * null/empty currency, and `null.toFixed()` throws a TypeError, either of
+ * which previously crashed the whole Invoice Queue row (and table) it
+ * rendered in, so this renders a fallback instead of throwing - same
+ * pattern as `formatDate`.
  */
-export function formatCurrency(amount: number, currencyCode: string | null | undefined): string {
+export function formatCurrency(amount: number | null | undefined, currencyCode: string | null | undefined): string {
+  if (amount == null) return '—';
   if (!currencyCode) return `— ${amount.toFixed(2)}`;
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currencyCode }).format(amount);
 }

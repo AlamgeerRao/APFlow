@@ -23,7 +23,12 @@ export interface InvoiceListItem {
    * `DateOnly? InvoiceDate` - genuinely nullable, not just a fixture gap).
    */
   invoiceDate: string | null;
-  amount: number;
+  /**
+   * Or null if Document Intelligence never extracted a gross total for this
+   * invoice (backend `decimal? GrossTotal` - genuinely nullable, same class
+   * of gap as `invoiceDate` above).
+   */
+  amount: number | null;
   /**
    * ISO 4217 currency code, e.g. "GBP", or null if Document Intelligence
    * never detected a currency symbol for this invoice (backend `string?

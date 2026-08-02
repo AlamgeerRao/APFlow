@@ -105,7 +105,7 @@ describe('FixtureInvoiceClient', () => {
 
     const ascAmounts = ascending.items.map((i) => i.amount);
     const descAmounts = descending.items.map((i) => i.amount);
-    expect(ascAmounts).toEqual([...ascAmounts].sort((a, b) => a - b));
+    expect(ascAmounts).toEqual([...ascAmounts].sort((a, b) => (a ?? 0) - (b ?? 0)));
     expect(descAmounts).toEqual([...ascAmounts].reverse());
   });
 

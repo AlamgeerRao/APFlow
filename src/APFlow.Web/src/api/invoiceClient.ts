@@ -30,7 +30,9 @@ function compareInvoices(a: InvoiceListItem, b: InvoiceListItem, params: Invoice
 
   switch (params.sortBy) {
     case 'amount':
-      return (a.amount - b.amount) * direction;
+      // amount is genuinely nullable (WP-072-style DI extraction gap, see
+      // formatCurrency) - a missing amount sorts as if zero, rather than throwing.
+      return ((a.amount ?? 0) - (b.amount ?? 0)) * direction;
     case 'invoiceDate':
       // WP-072: invoiceDate is genuinely nullable - a missing date sorts as if empty,
       // rather than throwing, consistent with formatDate's own "never throw" fix.
