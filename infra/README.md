@@ -189,6 +189,53 @@ siblings rather than a new top-level `scripts/` folder.
 **No other resource's runtime stack needed changing** — `APFlow.Api` runs
 `DOTNETCORE|9.0`, which isn't affected by this issue.
 
+## What changed in wp-024 (Logging, Monitoring & Application Insights)
+
+New module, **`infra/modules/monitoring.bicep`**, deployed alongside
+`resources.bicep` from `main.bicep`. Adds:
+
+- **Two availability (ping) tests** (`Microsoft.Insights/webtests`, Standard
+  type) — `APFlow.Api`'s `/health/ready` and `APFlow.Web`'s `/`, both pinged
+  every 5 minutes from two locations.
+- **An action group** (`ag-apflow-dev-ops`, email-only) and **five alert
+  rules** (`Microsoft.Insights/scheduledQueryRules`, log alerts against the
+  Application Insights component): application failures, database Unhealthy
+  (the one hard-blocking rule — Sev 1, action group attached), Blob Storage
+  failures, Graph failures, and an optional IngestionIssue (WP-076) burst
+  alert. Blob/Graph/IngestionIssue rules deliberately have **no action
+  group** — see `docs/WP-004-Health-Check-Severity-Decision.md`'s ruling
+  that Graph/Blob being Degraded in dev is expected, not incident-worthy.
+  These rules distinguish SQL/Blob/Graph failures via Application Insights'
+  **automatic dependency telemetry** (`dependencies.type`/`target`), not the
+  `/health/ready` response body — that endpoint still has no per-component
+  tag (`docs/Backlog.md` — "Component tags on health check responses",
+  flagged in WP-004, still open).
+- **An operations dashboard** (`dash-apflow-dev-ops`,
+  `Microsoft.Portal/dashboards`) — health (availability-test results),
+  request rate, failure rate (both App Services), and dependency latency.
+
+**New required parameter: `alertEmail`** (no default — deploying a
+genuinely new environment via the manual `az deployment sub create ...
+--parameters` form shown in "Deployment order" below must now also pass
+`alertEmail="<address>"`, or the deployment fails). For the existing `dev`
+environment this is already set in `main.dev.bicepparam`.
+
+**Investigated the recurring post-deploy blip** (the first live request
+after a deploy intermittently 404/500ing, self-resolving on retry — seen
+across WP-073/074/075). Root cause, confirmed via the App Service's own
+platform-level logs (`AppServiceHTTPLogs`/`AppServicePlatformLogs` in the
+Log Analytics workspace — **not** visible in Application Insights at all,
+which has zero `requests` rows for either failing request despite capturing
+everything else moments later): this plan is **Basic B1, single instance,
+no deployment slot** — Basic tier doesn't support slots. Every deploy fully
+recreates the container (~65 seconds: image pull → mount → start → Azure's
+own warm-up-probe wait), and a request can land while that probe is still
+pending, or hit the app's own genuine first request paying every cold-start
+cost (Managed Identity, SQL, Graph, Blob) at once. **Documented as expected
+for this tier, not fixed** — see "What's intentionally NOT in this WP"
+below, now updated to reflect this as a real, evaluated tradeoff rather than
+an unconsidered gap.
+
 ## What changed in wp-021d (QA-caught naming correction)
 
 QA compared `wp-021c`'s change against the actual decision record and found
@@ -316,7 +363,8 @@ az deployment sub create \
   --parameters \
       location="ukwest" \
       sqlAadAdminObjectId="<object-id-from-step-0>" \
-      sqlAadAdminLogin="<display-name-of-that-user-or-group>"
+      sqlAadAdminLogin="<display-name-of-that-user-or-group>" \
+      alertEmail="<address-to-receive-application/database-alerts>"
 ```
 
 Note there are **two separate `--location`-type values here, both needed**:
@@ -399,7 +447,8 @@ az deployment sub create \
       entraTenantId="641fc267-7902-48d0-8e1c-1d3d0166c8ac" \
       entraSpaClientId="<from-step-2>" \
       entraApiClientId="<from-step-2>" \
-      entraApiScope="<from-step-2>"
+      entraApiScope="<from-step-2>" \
+      alertEmail="<address-to-receive-application/database-alerts>"
 ```
 
 — but creating the params file at this point instead is strongly
@@ -456,7 +505,25 @@ az monitor app-insights component show -g rg-apflow-dev -a <appInsightsName>
 
 # Diagnostic settings are attached
 az monitor diagnostic-settings list --resource <apiAppService-resource-id>
+
+# WP-024: availability tests, alert rules, dashboard all exist
+az resource list -g rg-apflow-dev --resource-type "Microsoft.Insights/webtests" -o table
+az resource list -g rg-apflow-dev --resource-type "Microsoft.Insights/scheduledQueryRules" -o table
+az resource show -g rg-apflow-dev -n dash-apflow-dev-ops --resource-type "Microsoft.Portal/dashboards"
+
+# WP-024: availability tests are actually reporting real pings (wait a few
+# minutes after first deploy)
+az monitor app-insights query -g rg-apflow-dev -a <appInsightsName> \
+  --analytics-query "availabilityResults | where timestamp > ago(15m) | summarize successCount=countif(success=='1'), total=count() by name"
 ```
+
+**Windows/Git Bash note (WP-024):** any `az` command whose argument is a raw
+ARM resource ID (e.g. `--resource <apiAppService-resource-id>` above) gets
+silently mangled by MSYS2's automatic POSIX-to-Windows path conversion in
+Git Bash, producing a confusing generic `usage error` with no hint that
+path conversion is the cause. Prefix the command with `MSYS_NO_PATHCONV=1`
+to fix it — e.g. `MSYS_NO_PATHCONV=1 az monitor diagnostic-settings list
+--resource <id>`. Not needed in PowerShell or a real Linux shell.
 
 ---
 
@@ -493,6 +560,10 @@ confirmed (see STOP items above / `docs/M365-Dev-Mailbox-Tenant.md`).
 - Log Analytics + Application Insights: pay-as-you-go on ingested GB — at dev
   traffic levels, low single-digit £/month; watch this as usage grows since
   it's the one line item that scales with activity rather than being flat
+- WP-024 monitoring additions: two availability tests pinging every 5
+  minutes (~17k executions/month combined, a few pence), five log-alert
+  rules evaluated every 5–60 minutes (negligible), the dashboard itself is
+  free — together, low single-digit pence/month at dev volume.
 
 Roughly **£20–25/month** all-in for dev.
 
@@ -502,5 +573,12 @@ Roughly **£20–25/month** all-in for dev.
 - CORS configuration on the API (explicitly scoped elsewhere — this WP only
   supplies the two URLs it needs)
 - The real GB Skips Entra tenant (Task 1 is a dev-only stand-in tenant)
-- VNet integration, Private Endpoints, deployment slots — no concrete
-  requirement for these yet
+- VNet integration, Private Endpoints — still no concrete requirement.
+- **Deployment slots — no longer "no concrete requirement," now a
+  real, evaluated tradeoff.** WP-024 root-caused the recurring post-deploy
+  blip (WP-073/074/075) to this plan's Basic-tier, single-instance, no-slot
+  hosting: every deploy fully recreates the container. Genuinely eliminating
+  the blip needs a Standard-tier upgrade (cost increase) plus a deployment
+  slot with slot-swap wired into CI/CD — a real cost/architecture decision
+  for whoever owns that tradeoff, not implemented here. See "What changed in
+  wp-024" above and `docs/Backlog.md`.
