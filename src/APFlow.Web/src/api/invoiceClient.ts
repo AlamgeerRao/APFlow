@@ -1,4 +1,4 @@
-import type { InvoiceListItem, InvoiceQueryParams, InvoiceQueryResult } from '@/types/invoice';
+import type { InvoiceListItem, InvoiceQueryParams, InvoiceQueryResult, InvoiceSortField } from '@/types/invoice';
 import { invoiceFixtures } from '@/api/fixtures/invoices.fixture';
 import { httpClient } from '@/api/httpClient';
 
@@ -161,10 +161,29 @@ function mapListItem(dto: InvoiceListItemResponseDto): InvoiceListItem {
  * client's original, fixture-only search semantics — see
  * `matchesInvoiceSearch` above) is NOT possible through this endpoint as
  * it exists today; this is a real capability reduction versus the
- * fixture, not a bug in this mapping. `sortBy` is sent as-is (unconfirmed
- * but not contradicted by anything reviewed); `sortDirection` maps to the
- * real `sortDescending: boolean` parameter.
+ * fixture, not a bug in this mapping. `sortDirection` maps to the real
+ * `sortDescending: boolean` parameter.
  */
+
+/**
+ * Maps this client's own `InvoiceSortField` values to the real backend
+ * `InvoiceSortField` enum's member names (`InvoiceQueryParameters.cs`) -
+ * `supplierName`/`invoiceDate`/`status` happen to already match their enum
+ * member case-insensitively, but `invoiceNumber` and `amount` don't
+ * (`SupplierInvoiceNumber`/`GrossTotal` on the backend, matching this
+ * client's own field-name translation for the response - see mapListItem
+ * below). Sending the unmapped value directly - what this client did
+ * before - returned a 400 for exactly these two, breaking the "Invoice
+ * Number" and "Amount" column sorts in the live Invoice Queue.
+ */
+const SORT_FIELD_TO_API: Record<InvoiceSortField, string> = {
+  supplierName: 'SupplierName',
+  invoiceNumber: 'SupplierInvoiceNumber',
+  invoiceDate: 'InvoiceDate',
+  amount: 'GrossTotal',
+  status: 'Status',
+};
+
 export class HttpInvoiceClient implements InvoiceClient {
   async queryInvoices(params: InvoiceQueryParams): Promise<InvoiceQueryResult> {
     const response = await httpClient.get<InvoiceQueryResponseDto>('/api/invoices', {
@@ -175,7 +194,7 @@ export class HttpInvoiceClient implements InvoiceClient {
         // Invoice Queue's own single-status views, unaffected by this addition.
         status: params.status,
         statuses: params.statuses,
-        sortBy: params.sortBy,
+        sortBy: SORT_FIELD_TO_API[params.sortBy],
         sortDescending: params.sortDirection === 'desc' ? 'true' : 'false',
         page: params.page,
         pageSize: params.pageSize,

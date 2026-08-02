@@ -204,12 +204,65 @@ describe('HttpInvoiceClient', () => {
         invoiceNumber: 'northwind',
         status: undefined,
         statuses: undefined,
-        sortBy: 'invoiceDate',
+        sortBy: 'InvoiceDate',
         sortDescending: 'true',
         page: 2,
         pageSize: 10,
       },
     });
+  });
+
+  // The real backend InvoiceSortField enum (InvoiceQueryParameters.cs) names these
+  // members SupplierInvoiceNumber/GrossTotal, not InvoiceNumber/Amount - sending
+  // this client's own field names directly returned a real, live 400
+  // ("The value 'invoiceNumber' is not valid.") that broke the Invoice Queue's
+  // "Invoice Number" and "Amount" column sorts entirely.
+  it('maps sortBy=invoiceNumber to the real enum member SupplierInvoiceNumber', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ sortBy: 'invoiceNumber', sortDirection: 'asc' }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ sortBy: 'SupplierInvoiceNumber' }) }),
+    );
+  });
+
+  it('maps sortBy=amount to the real enum member GrossTotal', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ sortBy: 'amount', sortDirection: 'asc' }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ sortBy: 'GrossTotal' }) }),
+    );
+  });
+
+  it('maps sortBy=supplierName to the real enum member SupplierName', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ sortBy: 'supplierName', sortDirection: 'asc' }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ sortBy: 'SupplierName' }) }),
+    );
+  });
+
+  it('maps sortBy=status to the real enum member Status', async () => {
+    vi.mocked(httpClient.get).mockResolvedValueOnce({ items: [], totalCount: 0, page: 1, pageSize: 10 });
+    const client = new HttpInvoiceClient();
+
+    await client.queryInvoices(paramsFor({ sortBy: 'status', sortDirection: 'asc' }));
+
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/invoices',
+      expect.objectContaining({ params: expect.objectContaining({ sortBy: 'Status' }) }),
+    );
   });
 
   it('sends sortDescending: "false" for ascending sort', async () => {
