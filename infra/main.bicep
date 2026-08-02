@@ -68,6 +68,9 @@ param graphClientId string = ''
 @description('The mailbox UPN/address APFlow.Api reads via Graph (Graph:MailboxUserPrincipalName).')
 param graphMailboxUpn string = ''
 
+@description('Email address that receives alert notifications (WP-024): application failures and database-Unhealthy. Blob/Graph alert rules deliberately have no action group - see infra/modules/monitoring.bicep.')
+param alertEmail string
+
 var resourceGroupName = 'rg-${namePrefix}-${environmentName}'
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -103,6 +106,22 @@ module resources 'modules/resources.bicep' = {
   }
 }
 
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'apflow-monitoring-${environmentName}'
+  scope: rg
+  params: {
+    location: location
+    namePrefix: namePrefix
+    environmentName: environmentName
+    appInsightsId: resources.outputs.appInsightsId
+    apiAppServiceId: resources.outputs.apiAppServiceId
+    apiAppServiceUrl: resources.outputs.apiAppServiceUrl
+    webAppServiceId: resources.outputs.webAppServiceId
+    webAppServiceUrl: resources.outputs.webAppServiceUrl
+    alertEmail: alertEmail
+  }
+}
+
 output resourceGroupName string = resourceGroupName
 output apiAppServiceName string = resources.outputs.apiAppServiceName
 output apiAppServiceUrl string = resources.outputs.apiAppServiceUrl
@@ -117,3 +136,7 @@ output appInsightsName string = resources.outputs.appInsightsName
 output logAnalyticsWorkspaceName string = resources.outputs.logAnalyticsWorkspaceName
 output docIntelName string = resources.outputs.docIntelName
 output docIntelEndpoint string = resources.outputs.docIntelEndpoint
+output actionGroupId string = monitoring.outputs.actionGroupId
+output apiAvailabilityTestName string = monitoring.outputs.apiAvailabilityTestName
+output webAvailabilityTestName string = monitoring.outputs.webAvailabilityTestName
+output dashboardName string = monitoring.outputs.dashboardName

@@ -51,3 +51,6 @@ param entraAuthority = 'https://rameezjav.ciamlogin.com/641fc267-7902-48d0-8e1c-
 param graphTenantId = '1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf'
 param graphClientId = '40d63c64-ff18-4028-ba92-01ca93c1c432'
 param graphMailboxUpn = 'invoices@acoounts01.onmicrosoft.com'
+
+// WP-024: alert notifications (application failures, database Unhealthy).
+param alertEmail = 'raoalamgeer25@gmail.com'

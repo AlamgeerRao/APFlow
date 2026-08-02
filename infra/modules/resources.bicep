@@ -563,8 +563,10 @@ resource docIntelDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-p
 // Outputs
 // ----------------------------------------------------------------------------
 output apiAppServiceName string = apiAppService.name
+output apiAppServiceId string = apiAppService.id
 output apiAppServiceUrl string = 'https://${apiAppService.properties.defaultHostName}'
 output webAppServiceName string = webAppService.name
+output webAppServiceId string = webAppService.id
 output webAppServiceUrl string = 'https://${webAppService.properties.defaultHostName}'
 output keyVaultName string = keyVault.name
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
@@ -572,6 +574,7 @@ output sqlDatabaseName string = sqlDatabaseName
 output storageAccountName string = storageAccount.name
 output blobContainerName string = blobContainerName
 output appInsightsName string = appInsights.name
+output appInsightsId string = appInsights.id
 output logAnalyticsWorkspaceName string = logAnalytics.name
 output docIntelName string = docIntel.name
 output docIntelEndpoint string = docIntel.properties.endpoint
