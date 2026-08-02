@@ -21,7 +21,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_HappyPath_CreatesSupplierAndInvoice_MarksEmailProcessed()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
 
@@ -58,7 +58,7 @@ public class InvoiceProcessingServiceTests
         // every field) must now land on the saved invoice's ExtractedFields,
         // not be discarded once .Value is copied onto the scalar columns.
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
 
@@ -96,7 +96,7 @@ public class InvoiceProcessingServiceTests
         // outcome (ExtractedField<T>'s own doc comment) - must persist as a null
         // Value, not block processing or fabricate a placeholder.
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd") with
         {
@@ -116,7 +116,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_RunTwiceOverSameInput_SecondRunSkipsAlreadyProcessedAttachment()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
 
@@ -144,7 +144,7 @@ public class InvoiceProcessingServiceTests
         var existingSupplier = new Supplier { Name = "Acme Ltd" };
         deps.SupplierRepository.Suppliers.Add(existingSupplier);
 
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "  acme ltd  "); // different case/whitespace
 
@@ -163,7 +163,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_NoSupplierNameExtracted_ItemFails_NoSupplierOrInvoiceCreated()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: null);
 
@@ -191,7 +191,7 @@ public class InvoiceProcessingServiceTests
         deps.DuplicateDetection.ResultFactory = (candidate, _) => new DuplicateCheckResult(
             candidate.Id, true, [new DuplicateMatch(existingInvoiceId, "INV-1", ["Supplier", "InvoiceNumber"], "Matches existing invoice on Supplier and Invoice Number.")]);
 
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
 
@@ -229,7 +229,7 @@ public class InvoiceProcessingServiceTests
                 new DuplicateMatch(secondMatchId, "INV-1", ["Supplier", "InvoiceNumber"], "Matches an existing invoice on Supplier and Invoice Number ('INV-1')."),
             ]);
 
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
 
@@ -255,7 +255,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_PdfExtractionFails_ItemFailed_EmailNotMarkedProcessed()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.FailuresByMessageId[MessageId] = new Error("Graph.AttachmentReadFailed", "boom");
 
         var result = await service.ProcessUnreadEmailsAsync();
@@ -272,7 +272,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_NoAttachments_EmailMarkedProcessed_NoItems()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         // No entry in AttachmentsByMessageId -> fake returns an empty list, matching
         // IPdfExtractionService's documented "zero attachments is success" behavior.
 
@@ -297,7 +297,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_NoProcessablePdf_RecordsAttachmentFilenamesAndTypes()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         // A .png is on the email, but never a processable PDF - AttachmentsByMessageId
         // stays empty (no PDF survivors); AllAttachmentsByMessageId describes what was
         // actually there, same as the real PdfExtractionService reports today.
@@ -317,13 +317,13 @@ public class InvoiceProcessingServiceTests
         const string firstMessageId = "graph-message-first";
         const string secondMessageId = "graph-message-second";
         const string sharedConversationId = "shared-conversation";
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
         deps.PdfExtraction.AllAttachmentsByMessageId[firstMessageId] = [new AttachmentInfoDto("receipt.png", "image/png")];
 
         await service.ProcessUnreadEmailsAsync();
 
-        deps.EmailSync.UnreadEmails.Clear();
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Re: Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
+        deps.EmailSync.UnprocessedEmails.Clear();
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(secondMessageId, "Re: Invoice?", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, sharedConversationId));
         deps.PdfExtraction.AllAttachmentsByMessageId[secondMessageId] = [new AttachmentInfoDto("receipt2.png", "image/png")];
 
         var result = await service.ProcessUnreadEmailsAsync();
@@ -342,8 +342,8 @@ public class InvoiceProcessingServiceTests
         var (service, deps) = CreateService();
         const string firstMessageId = "graph-message-first";
         const string secondMessageId = "graph-message-second";
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "A", "a@example.com", "A Ltd", DateTimeOffset.UtcNow, "conversation-a"));
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "B", "b@example.com", "B Ltd", DateTimeOffset.UtcNow, "conversation-b"));
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(firstMessageId, "A", "a@example.com", "A Ltd", DateTimeOffset.UtcNow, "conversation-a"));
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(secondMessageId, "B", "b@example.com", "B Ltd", DateTimeOffset.UtcNow, "conversation-b"));
 
         var result = await service.ProcessUnreadEmailsAsync();
 
@@ -356,7 +356,7 @@ public class InvoiceProcessingServiceTests
     public async Task ProcessUnreadEmailsAsync_OneOfTwoAttachmentsFails_PartialSuccess_EmailNotMarkedProcessed()
     {
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] =
         [
             NewAttachment("good.pdf"),
@@ -381,7 +381,7 @@ public class InvoiceProcessingServiceTests
         // WP-049 task 3: a failure in the duplicate-check/save step (e.g. a
         // transient database error) must not fail the whole ingestion batch.
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
         deps.InvoiceRepository.SaveChangesExceptionFactory = () => new InvalidOperationException("transient database error");
@@ -403,8 +403,8 @@ public class InvoiceProcessingServiceTests
         var (service, deps) = CreateService();
         const string firstMessageId = "graph-message-first";
         const string secondMessageId = "graph-message-second";
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice 1", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-first"));
-        deps.EmailSync.UnreadEmails.Add(new EmailSummaryDto(secondMessageId, "Invoice 2", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-second"));
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(firstMessageId, "Invoice 1", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-first"));
+        deps.EmailSync.UnprocessedEmails.Add(new EmailSummaryDto(secondMessageId, "Invoice 2", "supplier@example.com", "Acme Ltd", DateTimeOffset.UtcNow, "conversation-second"));
         deps.PdfExtraction.AttachmentsByMessageId[firstMessageId] = [NewAttachment("first.pdf")];
         deps.PdfExtraction.AttachmentsByMessageId[secondMessageId] = [NewAttachment("second.pdf")];
         deps.DocumentAnalysis.NextResult = NewExtraction(supplierName: "Acme Ltd");
@@ -434,7 +434,7 @@ public class InvoiceProcessingServiceTests
         // blob-name-based key (messageId + fileName) would have collided here,
         // silently dropping the second one. The content-hash key does not.
         var (service, deps) = CreateService();
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] =
         [
             new PdfAttachmentDto("invoice.pdf", 1024, "application/pdf", [1, 2, 3]),
@@ -459,7 +459,7 @@ public class InvoiceProcessingServiceTests
         // document's actual bytes, not what either copy happens to be named.
         var (service, deps) = CreateService();
         var identicalContent = System.Text.Encoding.UTF8.GetBytes("identical-pdf-bytes");
-        deps.EmailSync.UnreadEmails.Add(NewEmail());
+        deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] =
         [
             new PdfAttachmentDto("copy-a.pdf", 1024, "application/pdf", identicalContent),

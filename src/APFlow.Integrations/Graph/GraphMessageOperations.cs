@@ -1,4 +1,5 @@
 using APFlow.Application.DTOs;
+using Microsoft.Extensions.Options;
 using Microsoft.Graph;
 
 namespace APFlow.Integrations.Graph;
@@ -17,8 +18,13 @@ namespace APFlow.Integrations.Graph;
 /// </summary>
 internal interface IGraphMessageOperations
 {
-    /// <summary>Returns metadata for every unread message in the given mailbox.</summary>
-    Task<IReadOnlyList<EmailSummaryDto>> GetUnreadMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken);
+    /// <summary>
+    /// Returns metadata for every message in the given mailbox that does not yet
+    /// carry the configured processed category (GraphOptions.ProcessedCategoryName) -
+    /// NOT simply every unread message. See IEmailSyncService.SyncUnprocessedEmailsAsync
+    /// for why read status specifically must not gate this.
+    /// </summary>
+    Task<IReadOnlyList<EmailSummaryDto>> GetUnprocessedMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken);
 
     /// <summary>Returns the current category list for the given message.</summary>
     Task<IReadOnlyList<string>> GetMessageCategoriesAsync(string mailboxUserPrincipalName, string messageId, CancellationToken cancellationToken);
@@ -38,18 +44,30 @@ internal interface IGraphMessageOperations
 internal sealed class GraphMessageOperations : IGraphMessageOperations
 {
     private readonly GraphServiceClient _graphClient;
+    private readonly GraphOptions _options;
 
-    public GraphMessageOperations(GraphServiceClient graphClient)
+    public GraphMessageOperations(GraphServiceClient graphClient, IOptions<GraphOptions> options)
     {
         _graphClient = graphClient;
+        _options = options.Value;
     }
 
-    public async Task<IReadOnlyList<EmailSummaryDto>> GetUnreadMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<EmailSummaryDto>> GetUnprocessedMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken)
     {
+        // Filtering on isRead eq false previously meant a message read by anyone
+        // (a human previewing the mailbox, not just this app) before the next poll
+        // cycle dropped out of consideration forever - it would never come back to
+        // "unread" on its own, and nothing else in the pipeline would ever look at
+        // it again, so it was silently never turned into an invoice. The processed
+        // category is the pipeline's own durable marker (set in MarkAsProcessedAsync)
+        // and is never touched by simply opening a message, so filtering on its
+        // absence is what "not yet handled" actually means here.
+        var categoryLiteral = _options.ProcessedCategoryName.Replace("'", "''");
         var response = await _graphClient.Users[mailboxUserPrincipalName].Messages.GetAsync(config =>
         {
-            config.QueryParameters.Filter = "isRead eq false";
+            config.QueryParameters.Filter = $"not(categories/any(c:c eq '{categoryLiteral}'))";
             config.QueryParameters.Select = ["id", "subject", "from", "receivedDateTime", "conversationId"];
+            config.Headers.Add("ConsistencyLevel", "eventual");
         }, cancellationToken);
 
         var messages = response?.Value ?? [];

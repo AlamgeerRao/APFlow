@@ -8,29 +8,29 @@ namespace APFlow.Integrations.Tests.Graph;
 
 public class EmailSyncServiceTests
 {
-    // --- SyncUnreadEmailsAsync ------------------------------------------------
+    // --- SyncUnprocessedEmailsAsync ------------------------------------------------
 
     [Fact]
-    public async Task SyncUnreadEmailsAsync_MailboxNotConfigured_ReturnsFailure()
+    public async Task SyncUnprocessedEmailsAsync_MailboxNotConfigured_ReturnsFailure()
     {
         var (service, _) = CreateService(mailboxUpn: "");
 
-        var result = await service.SyncUnreadEmailsAsync();
+        var result = await service.SyncUnprocessedEmailsAsync();
 
         Assert.True(result.IsFailure);
         Assert.Equal("EmailSync.MailboxNotConfigured", result.Error.Code);
     }
 
     [Fact]
-    public async Task SyncUnreadEmailsAsync_Success_ReturnsMessages()
+    public async Task SyncUnprocessedEmailsAsync_Success_ReturnsMessages()
     {
         var (service, ops) = CreateService();
-        ops.UnreadMessages =
+        ops.UnprocessedMessages =
         [
             new EmailSummaryDto("msg-1", "Invoice attached", "vendor@example.com", "Vendor Co", DateTimeOffset.UtcNow, "conversation-1"),
         ];
 
-        var result = await service.SyncUnreadEmailsAsync();
+        var result = await service.SyncUnprocessedEmailsAsync();
 
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value);
@@ -38,26 +38,26 @@ public class EmailSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncUnreadEmailsAsync_GraphFails_ReturnsFailure_DoesNotPropagate()
+    public async Task SyncUnprocessedEmailsAsync_GraphFails_ReturnsFailure_DoesNotPropagate()
     {
         var (service, ops) = CreateService();
         ops.Mode = FakeGraphMessageOperations.Behavior.ThrowGeneric;
 
-        var result = await service.SyncUnreadEmailsAsync();
+        var result = await service.SyncUnprocessedEmailsAsync();
 
         Assert.True(result.IsFailure);
         Assert.Equal("EmailSync.SyncFailed", result.Error.Code);
     }
 
     [Fact]
-    public async Task SyncUnreadEmailsAsync_CallerCancels_PropagatesCancellation()
+    public async Task SyncUnprocessedEmailsAsync_CallerCancels_PropagatesCancellation()
     {
         var (service, ops) = CreateService();
         ops.Mode = FakeGraphMessageOperations.Behavior.ThrowOperationCanceled;
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.SyncUnreadEmailsAsync(cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.SyncUnprocessedEmailsAsync(cts.Token));
     }
 
     // --- MarkAsProcessedAsync --------------------------------------------------

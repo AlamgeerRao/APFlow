@@ -84,7 +84,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         _logger.LogInformation("Invoice processing pipeline run starting.");
 
         var syncResult = await ExecuteWithRetryAsync(
-            () => _emailSyncService.SyncUnreadEmailsAsync(cancellationToken), "SyncUnreadEmails", cancellationToken);
+            () => _emailSyncService.SyncUnprocessedEmailsAsync(cancellationToken), "SyncUnprocessedEmails", cancellationToken);
 
         if (syncResult.IsFailure)
         {
@@ -95,7 +95,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         }
 
         var emails = syncResult.Value;
-        _logger.LogInformation("Synced {EmailCount} unread email(s).", emails.Count);
+        _logger.LogInformation("Synced {EmailCount} unprocessed email(s).", emails.Count);
 
         var items = new List<InvoiceProcessingItemResult>();
         var emailsMarkedProcessed = 0;
@@ -138,7 +138,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     /// as processed: true if every attachment either processed successfully or was
     /// already processed by a prior run (including the "no PDF attachments" case -
     /// nothing left to do); false if any attachment failed, so the email is left
-    /// unread for the next run to retry.
+    /// unmarked (no processed category applied) for the next run to retry.
     /// </summary>
     private async Task<bool> ProcessEmailAsync(EmailSummaryDto email, List<InvoiceProcessingItemResult> items, CancellationToken cancellationToken)
     {

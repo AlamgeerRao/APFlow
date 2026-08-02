@@ -53,8 +53,8 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         const string supplierName = "Acme Ltd";
         const string invoiceNumber = "INV-100";
 
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
         pdfExtraction.AttachmentsByMessageId["msg-1"] = [new PdfAttachmentDto("invoice1.pdf", 1024, "application/pdf", [1, 2, 3])];
         pdfExtraction.AttachmentsByMessageId["msg-2"] = [new PdfAttachmentDto("invoice2.pdf", 1024, "application/pdf", [4, 5, 6])];
         documentAnalysis.ResultsByFileContent[1] = NewExtraction(supplierName, invoiceNumber);
@@ -122,8 +122,8 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
 
         const string supplierName = "Acme Ltd";
 
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
-        emailSync.UnreadEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-1", "Invoice 1", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-2", "Invoice 2", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
         pdfExtraction.AttachmentsByMessageId["msg-1"] = [new PdfAttachmentDto("invoice1.pdf", 1024, "application/pdf", [1, 2, 3])];
         pdfExtraction.AttachmentsByMessageId["msg-2"] = [new PdfAttachmentDto("invoice2.pdf", 1024, "application/pdf", [4, 5, 6])];
         documentAnalysis.ResultsByFileContent[1] = NewExtraction(supplierName, "INV-100");
@@ -182,11 +182,11 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
 
     private sealed class FakeEmailSyncService : IEmailSyncService
     {
-        public List<EmailSummaryDto> UnreadEmails { get; } = [];
+        public List<EmailSummaryDto> UnprocessedEmails { get; } = [];
         public List<string> MarkedAsProcessedMessageIds { get; } = [];
 
-        public Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnreadEmailsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Result.Success<IReadOnlyList<EmailSummaryDto>>(UnreadEmails));
+        public Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnprocessedEmailsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success<IReadOnlyList<EmailSummaryDto>>(UnprocessedEmails));
 
         public Task<Result> MarkAsProcessedAsync(string messageId, CancellationToken cancellationToken = default)
         {

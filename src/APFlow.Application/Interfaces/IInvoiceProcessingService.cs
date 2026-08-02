@@ -25,7 +25,9 @@ namespace APFlow.Application.Interfaces;
 public interface IInvoiceProcessingService
 {
     /// <summary>
-    /// Runs one full pipeline pass: syncs unread emails, and for every PDF
+    /// Runs one full pipeline pass: syncs unprocessed emails (see
+    /// <c>IEmailSyncService.SyncUnprocessedEmailsAsync</c> - not simply "unread"
+    /// ones), and for every PDF
     /// attachment found, extracts it, uploads it to Blob Storage, analyzes it via
     /// Document Intelligence, resolves its supplier, saves it as a new invoice, and
     /// checks it for potential duplicates. Idempotent - safe to call repeatedly

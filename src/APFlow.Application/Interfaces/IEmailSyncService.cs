@@ -5,7 +5,7 @@ namespace APFlow.Application.Interfaces;
 
 /// <summary>
 /// Synchronises emails from the configured Microsoft 365 mailbox (see
-/// APFlow.Integrations.Graph.EmailSyncService). WP-006 scope: reads unread email
+/// APFlow.Integrations.Graph.EmailSyncService). WP-006 scope: reads unprocessed email
 /// metadata and marks messages as processed via an application category. Does not
 /// read email body content, download attachments, or do anything with PDF
 /// extraction/AI processing/invoice parsing - all explicitly out of scope.
@@ -17,12 +17,18 @@ namespace APFlow.Application.Interfaces;
 public interface IEmailSyncService
 {
     /// <summary>
-    /// Reads unread email metadata from the configured mailbox. Does not mark
-    /// anything as read or processed - that is a separate, explicit step via
+    /// Reads unprocessed email metadata from the configured mailbox - messages that
+    /// don't yet carry the <c>GraphOptions.ProcessedCategoryName</c> category, NOT
+    /// simply "unread" ones. A message a human reads in Outlook before this runs must
+    /// still be picked up here; if this instead filtered on Graph's own `isRead`
+    /// status, a message read by anyone (even just previewed) before the next poll
+    /// cycle would silently and permanently vanish from the pipeline, since read
+    /// status can never un-happen and nothing else would ever surface it again. Does
+    /// not mark anything as processed itself - that is a separate, explicit step via
     /// <see cref="MarkAsProcessedAsync"/>, so a caller can choose which synced emails
     /// it actually finished processing.
     /// </summary>
-    Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnreadEmailsAsync(CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnprocessedEmailsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks the given message as processed by applying the configured application

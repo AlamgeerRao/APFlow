@@ -8,7 +8,7 @@ namespace APFlow.Application.Tests.Features.Invoices;
 /// <summary>
 /// Hand-written fake, same pattern as every Graph/Blob fake elsewhere in this
 /// codebase. Unlike a real mailbox, does NOT remove an email from
-/// <see cref="UnreadEmails"/> when <see cref="MarkAsProcessedAsync"/> succeeds -
+/// <see cref="UnprocessedEmails"/> when <see cref="MarkAsProcessedAsync"/> succeeds -
 /// deliberately dumb, so idempotency tests can call
 /// <c>ProcessUnreadEmailsAsync</c> twice against unchanged input and prove the
 /// pipeline's OWN idempotency check (not this fake's state) is what prevents
@@ -16,13 +16,13 @@ namespace APFlow.Application.Tests.Features.Invoices;
 /// </summary>
 internal sealed class FakeEmailSyncService : IEmailSyncService
 {
-    public List<EmailSummaryDto> UnreadEmails { get; } = [];
+    public List<EmailSummaryDto> UnprocessedEmails { get; } = [];
     public List<string> MarkedAsProcessedMessageIds { get; } = [];
     public Result<IReadOnlyList<EmailSummaryDto>>? SyncResultOverride { get; set; }
     public Func<string, Result>? MarkAsProcessedResultFactory { get; set; }
 
-    public Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnreadEmailsAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(SyncResultOverride ?? Result.Success<IReadOnlyList<EmailSummaryDto>>(UnreadEmails));
+    public Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnprocessedEmailsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(SyncResultOverride ?? Result.Success<IReadOnlyList<EmailSummaryDto>>(UnprocessedEmails));
 
     public Task<Result> MarkAsProcessedAsync(string messageId, CancellationToken cancellationToken = default)
     {

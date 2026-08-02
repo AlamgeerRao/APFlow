@@ -18,14 +18,14 @@ internal sealed class FakeGraphMessageOperations : IGraphMessageOperations
     }
 
     public Behavior Mode { get; set; } = Behavior.Succeed;
-    public IReadOnlyList<EmailSummaryDto> UnreadMessages { get; set; } = [];
+    public IReadOnlyList<EmailSummaryDto> UnprocessedMessages { get; set; } = [];
     public IReadOnlyList<string> ExistingCategories { get; set; } = [];
     public IReadOnlyList<string>? LastSetCategories { get; private set; }
     public bool SetMessageCategoriesCalled { get; private set; }
 
-    public Task<IReadOnlyList<EmailSummaryDto>> GetUnreadMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken) => Mode switch
+    public Task<IReadOnlyList<EmailSummaryDto>> GetUnprocessedMessagesAsync(string mailboxUserPrincipalName, CancellationToken cancellationToken) => Mode switch
     {
-        Behavior.Succeed => Task.FromResult(UnreadMessages),
+        Behavior.Succeed => Task.FromResult(UnprocessedMessages),
         Behavior.ThrowOperationCanceled => throw new OperationCanceledException(cancellationToken),
         _ => throw new InvalidOperationException("Simulated sync failure."),
     };

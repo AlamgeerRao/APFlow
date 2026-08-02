@@ -35,7 +35,7 @@ public sealed class EmailSyncService : IEmailSyncService
     }
 
     /// <inheritdoc />
-    public async Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnreadEmailsAsync(CancellationToken cancellationToken = default)
+    public async Task<Result<IReadOnlyList<EmailSummaryDto>>> SyncUnprocessedEmailsAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.MailboxUserPrincipalName))
         {
@@ -48,7 +48,7 @@ public sealed class EmailSyncService : IEmailSyncService
 
         try
         {
-            var messages = await _messageOperations.GetUnreadMessagesAsync(_options.MailboxUserPrincipalName, cancellationToken);
+            var messages = await _messageOperations.GetUnprocessedMessagesAsync(_options.MailboxUserPrincipalName, cancellationToken);
 
             _logger.LogInformation(
                 "Email sync completed for mailbox {Mailbox}: {Count} unread message(s) found.",
