@@ -189,6 +189,26 @@ siblings rather than a new top-level `scripts/` folder.
 **No other resource's runtime stack needed changing** — `APFlow.Api` runs
 `DOTNETCORE|9.0`, which isn't affected by this issue.
 
+## What changed in wp-061 (Azure AI Document Intelligence provisioning)
+
+Real `Microsoft.CognitiveServices/accounts` resource added (`kind:
+FormRecognizer`, `S0`/Standard tier) — closing the gap that had forced
+`APFlow.Api`'s non-Development startup to depend on a manual, non-durable
+`ASPNETCORE_ENVIRONMENT=Development` override, since `DocumentIntelligence:Endpoint`
+didn't exist for the fail-fast startup check to read. `customSubDomainName`
+is set explicitly and is **required**, not cosmetic — Cognitive Services
+resources only support Managed Identity/Azure AD auth (what this app uses)
+when a custom subdomain is assigned; without it, only API-key auth works,
+silently breaking the `DefaultAzureCredential` path. Same secretless
+pattern as Graph/Blob/SQL: only the non-secret endpoint is wired into
+`APFlow.Api`'s app settings (`DocumentIntelligence__Endpoint`) —
+`DocumentIntelligenceOptions.ApiKey` stays unset, backed by a `Cognitive
+Services User` RBAC grant on this one resource instead of a stored key.
+Diagnostic setting added matching every other resource in this file. The
+Architect revised this WP's own original task on the spot when flagged as
+inconsistent with the rest of the codebase's secretless design (it had
+originally asked for a Key Vault-sourced API key).
+
 ## What changed in wp-024 (Logging, Monitoring & Application Insights)
 
 New module, **`infra/modules/monitoring.bicep`**, deployed alongside
