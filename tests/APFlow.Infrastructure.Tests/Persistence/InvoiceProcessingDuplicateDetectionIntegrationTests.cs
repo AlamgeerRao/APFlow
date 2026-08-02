@@ -98,6 +98,81 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         Assert.All(persistedInvoices, i => Assert.Equal(InvoiceStatusCodes.AwaitingReview, i.Status));
     }
 
+    /// <summary>
+    /// WP-080: live-test-confirmed gap - resending the exact same PDF as a genuinely
+    /// separate email (Ahmed's real scenario) was silently skipped by the old
+    /// content-hash-alone idempotency key, as if it were a retry of the first email,
+    /// instead of flowing through to duplicate detection where a second, distinct
+    /// invoice with identical content belongs. Narrowing the key to
+    /// (SourceEmailMessageId, contentHash) together fixes this: two different
+    /// emails with byte-identical attachments both process fully, and the second is
+    /// flagged by the same Supplier+InvoiceNumber check
+    /// ProcessUnreadEmailsAsync_TwoInvoicesSameSupplierAndInvoiceNumber_SecondFlaggedAndPersisted
+    /// above already proves works - the only difference here is the attachment
+    /// bytes are also identical, which must no longer matter to that outcome.
+    /// </summary>
+    [Fact]
+    public async Task ProcessUnreadEmailsAsync_TwoEmailsIdenticalAttachmentContent_SecondFlaggedAsDuplicate_NotSkipped()
+    {
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId);
+
+        var invoiceRepository = new InvoiceRepository(context);
+        var supplierRepository = new SupplierRepository(context);
+        var auditLogRepository = new AuditLogRepository(context);
+        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
+        var invoiceService = new InvoiceService(
+            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
+        var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
+        var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
+
+        var emailSync = new FakeEmailSyncService();
+        var pdfExtraction = new FakePdfExtractionService();
+        var blobStorage = new FakeBlobStorageService();
+        var documentAnalysis = new FakeDocumentAnalysisService();
+
+        const string supplierName = "Acme Ltd";
+        const string invoiceNumber = "INV-100";
+        byte[] identicalContent = [9, 9, 9]; // same bytes on both emails - this is the point of the test
+
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-1", "Invoice", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-1"));
+        emailSync.UnprocessedEmails.Add(new EmailSummaryDto("msg-2", "Invoice (resend)", "supplier@example.com", supplierName, DateTimeOffset.UtcNow, "conversation-2"));
+        pdfExtraction.AttachmentsByMessageId["msg-1"] = [new PdfAttachmentDto("invoice.pdf", 1024, "application/pdf", identicalContent)];
+        pdfExtraction.AttachmentsByMessageId["msg-2"] = [new PdfAttachmentDto("invoice.pdf", 1024, "application/pdf", identicalContent)];
+        documentAnalysis.ResultsByFileContent[9] = NewExtraction(supplierName, invoiceNumber);
+
+        var ingestionIssueRepository = new IngestionIssueRepository(context);
+
+        var service = new InvoiceProcessingService(
+            emailSync, pdfExtraction, blobStorage, documentAnalysis, duplicateDetectionService,
+            invoiceService, supplierService, invoiceRepository, ingestionIssueRepository, NullLogger<InvoiceProcessingService>.Instance);
+
+        var result = await service.ProcessUnreadEmailsAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Items.Count);
+        // Neither is AlreadyProcessed - identical content across two DIFFERENT
+        // emails must flow through to full processing, not be silently skipped.
+        Assert.All(result.Value.Items, item => Assert.Equal(InvoiceProcessingOutcome.Processed, item.Outcome));
+
+        var firstItem = result.Value.Items[0];
+        var secondItem = result.Value.Items[1];
+        Assert.False(firstItem.IsPotentialDuplicate);
+        Assert.True(secondItem.IsPotentialDuplicate);
+
+        var persistedInvoices = await context.Invoices.AsNoTracking().OrderBy(i => i.CreatedAtUtc).ToListAsync();
+        Assert.Equal(2, persistedInvoices.Count);
+        // Genuinely two separate rows from two separate emails...
+        Assert.NotEqual(persistedInvoices[0].SourceEmailMessageId, persistedInvoices[1].SourceEmailMessageId);
+        // ...that happen to share byte-identical content - confirming this test
+        // actually exercises the case it claims to, not just two different PDFs.
+        Assert.Equal(persistedInvoices[0].SourceDocumentContentHash, persistedInvoices[1].SourceDocumentContentHash);
+        Assert.True(persistedInvoices[1].IsPotentialDuplicate);
+        Assert.Contains("Supplier and Invoice Number", persistedInvoices[1].DuplicateCheckReason);
+    }
+
     [Fact]
     public async Task ProcessUnreadEmailsAsync_DifferentInvoiceNumbers_NeitherFlagged()
     {

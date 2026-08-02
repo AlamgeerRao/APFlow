@@ -115,6 +115,11 @@ public class InvoiceProcessingServiceTests
     [Fact]
     public async Task ProcessUnreadEmailsAsync_RunTwiceOverSameInput_SecondRunSkipsAlreadyProcessedAttachment()
     {
+        // WP-080: still the exact same email (NewEmail()'s hardcoded MessageId) on
+        // both runs - confirms narrowing the idempotency key to
+        // (SourceEmailMessageId, contentHash) didn't weaken the original guarantee
+        // this test was built for: a retry of processing the SAME email must not
+        // create a second row.
         var (service, deps) = CreateService();
         deps.EmailSync.UnprocessedEmails.Add(NewEmail());
         deps.PdfExtraction.AttachmentsByMessageId[MessageId] = [NewAttachment()];
@@ -457,6 +462,11 @@ public class InvoiceProcessingServiceTests
         // WP-052 Part B required scenario: two attachments with different file
         // names but IDENTICAL content are deduplicated - the dedup key follows the
         // document's actual bytes, not what either copy happens to be named.
+        // WP-080: still true here specifically because both attachments arrive on
+        // the SAME email (same MessageId) - see
+        // ProcessUnreadEmailsAsync_TwoEmailsIdenticalAttachmentContent_SecondFlaggedAsDuplicate_NotSkipped
+        // in InvoiceProcessingDuplicateDetectionIntegrationTests.cs for the
+        // cross-email case, which WP-080 narrowed this dedup key to no longer cover.
         var (service, deps) = CreateService();
         var identicalContent = System.Text.Encoding.UTF8.GetBytes("identical-pdf-bytes");
         deps.EmailSync.UnprocessedEmails.Add(NewEmail());

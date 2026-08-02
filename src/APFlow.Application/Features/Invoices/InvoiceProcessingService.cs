@@ -278,11 +278,26 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
             return Failed(email.MessageId, attachment.FileName, existingInvoicesResult.Error);
         }
 
-        var existing = existingInvoicesResult.Value.FirstOrDefault(i => i.SourceDocumentContentHash == contentHash);
+        // WP-080: content hash alone was too broad a key - it was live-test-confirmed
+        // to also match a genuinely SEPARATE invoice that happens to have identical
+        // attachment bytes (e.g. the same supplier's PDF template resent for a
+        // different real invoice, or the same invoice legitimately re-sent as its
+        // own new email), silently skipping it instead of letting it flow through
+        // to duplicate detection where it belongs. Idempotency's actual job is
+        // narrower than that: recognize a RETRY of processing this exact email (a
+        // transient failure partway through, then a re-sync of the same still-unread
+        // message), not "any invoice anywhere with byte-identical content." Scoping
+        // to (SourceEmailMessageId, contentHash) together keeps the original retry
+        // guarantee intact while letting a second, different email with identical
+        // content proceed to full processing and IDuplicateDetectionService's own
+        // Supplier+InvoiceNumber check - the mechanism actually designed to flag
+        // that case, rather than a side effect of the idempotency key being too wide.
+        var existing = existingInvoicesResult.Value.FirstOrDefault(
+            i => i.SourceDocumentContentHash == contentHash && i.SourceEmailMessageId == email.MessageId);
         if (existing is not null)
         {
             _logger.LogInformation(
-                "Attachment {FileName} on email {MessageId} was already processed as invoice {InvoiceId} (matched by content hash).",
+                "Attachment {FileName} on email {MessageId} was already processed as invoice {InvoiceId} (matched by content hash within the same email).",
                 attachment.FileName, email.MessageId, existing.Id);
             return new InvoiceProcessingItemResult(
                 email.MessageId, attachment.FileName, InvoiceProcessingOutcome.AlreadyProcessed, existing.Id, IsPotentialDuplicate: null, null, null);
