@@ -13,6 +13,22 @@ describe('formatCurrency', () => {
   it('formats a different currency code with its own symbol', () => {
     expect(formatCurrency(100, 'USD')).toBe('US$100.00');
   });
+
+  // A real invoice reached this with a null currencyCode - Document Intelligence
+  // extracted no currency symbol for it - and crashed the entire Invoice Queue
+  // table, since Intl.NumberFormat() throws RangeError: invalid currency code
+  // rather than returning anything.
+  it('returns a fallback instead of throwing for null', () => {
+    expect(formatCurrency(1240.5, null)).toBe('— 1240.50');
+  });
+
+  it('returns a fallback instead of throwing for undefined', () => {
+    expect(formatCurrency(1240.5, undefined)).toBe('— 1240.50');
+  });
+
+  it('returns a fallback instead of throwing for an empty string', () => {
+    expect(formatCurrency(1240.5, '')).toBe('— 1240.50');
+  });
 });
 
 describe('formatDate', () => {

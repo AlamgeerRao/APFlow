@@ -24,8 +24,13 @@ export interface InvoiceListItem {
    */
   invoiceDate: string | null;
   amount: number;
-  /** ISO 4217 currency code, e.g. "GBP". */
-  currencyCode: string;
+  /**
+   * ISO 4217 currency code, e.g. "GBP", or null if Document Intelligence
+   * never detected a currency symbol for this invoice (backend `string?
+   * Currency` - genuinely nullable, same class of gap as `invoiceDate`
+   * above).
+   */
+  currencyCode: string | null;
   /** StatusReference.code for the acting tenant's WorkflowTemplate (WP-050). */
   status: string;
   isPotentialDuplicate: boolean;
