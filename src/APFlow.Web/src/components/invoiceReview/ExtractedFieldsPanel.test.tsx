@@ -27,4 +27,19 @@ describe('ExtractedFieldsPanel', () => {
 
     expect(screen.getByText(/No extracted fields available/i)).toBeInTheDocument();
   });
+
+  // WP-077: value is genuinely nullable (backend `string? Value` on
+  // InvoiceExtractedField) - Document Intelligence not finding a given field
+  // is a normal outcome, not an error, same as every other extraction gap
+  // fixed this WP.
+  it('renders a fallback instead of a blank cell for a null value', () => {
+    render(
+      <ExtractedFieldsPanel
+        fields={[{ fieldKey: 'dueDate', label: 'Due Date', value: null, confidenceScore: null }]}
+      />,
+    );
+
+    expect(screen.getByText('Due Date')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
 });

@@ -20,7 +20,7 @@ export function ExtractedFieldsPanel({ fields }: ExtractedFieldsPanelProps) {
             <li key={field.fieldKey} className="flex items-center justify-between gap-4 py-2">
               <div className="min-w-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{field.label}</p>
-                <p className="truncate text-sm text-ink-900">{field.value}</p>
+                <p className="truncate text-sm text-ink-900">{field.value ?? '—'}</p>
               </div>
               <ConfidenceBadge score={field.confidenceScore} />
             </li>

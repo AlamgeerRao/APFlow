@@ -15,8 +15,22 @@
 /** A single invoice row as displayed in the work queue. */
 export interface InvoiceListItem {
   id: string;
-  supplierName: string;
-  invoiceNumber: string;
+  /**
+   * WP-077: or null if the invoice's Supplier navigation didn't resolve
+   * (backend `string? SupplierName` - `invoice.Supplier?.Name`, defensively
+   * null-propagated in the query projection even though `Supplier.Name`
+   * itself is never null once a Supplier row exists). Structurally rare
+   * (every invoice has a non-null `SupplierId`) but still a real, typed
+   * possibility on the wire, not just a fixture gap.
+   */
+  supplierName: string | null;
+  /**
+   * WP-077: or null if Document Intelligence never extracted an invoice
+   * number for this invoice (backend `string? SupplierInvoiceNumber` -
+   * genuinely nullable, same class of gap as `invoiceDate`/`amount`/
+   * `currencyCode` below).
+   */
+  invoiceNumber: string | null;
   /**
    * ISO 8601 date string, e.g. "2026-07-18", or null if Document Intelligence
    * couldn't extract one for this invoice (WP-072: the real backend field is

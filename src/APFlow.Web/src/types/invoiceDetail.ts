@@ -17,7 +17,13 @@ import type { InvoiceListItem } from '@/types/invoice';
 export interface ExtractedField {
   fieldKey: string;
   label: string;
-  value: string;
+  /**
+   * WP-077: or null if Document Intelligence did not extract this field for
+   * this invoice (backend `string? Value` on `InvoiceExtractedField` - a
+   * normal, expected outcome per that entity's own doc comment, independent
+   * of whether `confidenceScore` below is also null).
+   */
+  value: string | null;
   /**
    * 0–1 confidence score for this specific field, as returned by Azure AI
    * Document Intelligence — or null. Confirmed null for the `Currency`
@@ -49,8 +55,14 @@ export interface InvoiceDetail extends InvoiceListItem {
    * load entirely.
    */
   pdfUrl: string | null;
-  /** Traceability field confirmed by the WP-012 report (Invoice.SourceDocumentBlobName). */
-  sourceDocumentBlobName: string;
+  /**
+   * Traceability field confirmed by the WP-012 report (Invoice.SourceDocumentBlobName).
+   * WP-077: or null for an invoice not created via the email pipeline (backend
+   * `string? SourceDocumentBlobName`) - not rendered directly anywhere today
+   * (the PDF itself is fetched via a fixed `/download` endpoint, not this
+   * field), but typed accurately regardless.
+   */
+  sourceDocumentBlobName: string | null;
   /** ISO 8601 timestamp the invoice was first received. */
   receivedAt: string;
   extractedFields: ExtractedField[];

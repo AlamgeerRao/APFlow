@@ -1,6 +1,7 @@
 interface InvoicePdfViewerProps {
   pdfUrl: string | null;
-  invoiceNumber: string;
+  /** WP-077: genuinely nullable - see InvoiceListItem.invoiceNumber. */
+  invoiceNumber: string | null;
 }
 
 /**
@@ -61,7 +62,7 @@ export function InvoicePdfViewer({ pdfUrl, invoiceNumber }: InvoicePdfViewerProp
       <object
         data={pdfUrl}
         type="application/pdf"
-        aria-label={`PDF for invoice ${invoiceNumber}`}
+        aria-label={`PDF for invoice ${invoiceNumber ?? '—'}`}
         className="h-[70vh] w-full rounded border border-slate-200"
       >
         <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-600">

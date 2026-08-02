@@ -33,8 +33,8 @@ export function InvoiceHeaderSummary({ invoice }: InvoiceHeaderSummaryProps) {
         <ConfidenceBadge score={invoice.overallConfidenceScore} label="Overall confidence" />
       </div>
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Field label="Supplier" value={invoice.supplierName} />
-        <Field label="Invoice Number" value={invoice.invoiceNumber} />
+        <Field label="Supplier" value={invoice.supplierName ?? '—'} />
+        <Field label="Invoice Number" value={invoice.invoiceNumber ?? '—'} />
         <Field label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
         <Field label="Amount" value={formatCurrency(invoice.amount, invoice.currencyCode)} />
         <Field label="Status" value={<InvoiceStatusBadge statusCode={invoice.status} />} />

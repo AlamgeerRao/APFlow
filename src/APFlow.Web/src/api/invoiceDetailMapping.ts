@@ -19,18 +19,23 @@ import type { InvoiceDetail, ExtractedField, AuditEntry } from '@/types/invoiceD
 export interface InvoiceDetailResponseDto {
   invoice: {
     id: string;
-    supplierName: string;
-    supplierInvoiceNumber: string;
+    /** WP-077: genuinely nullable on the wire - `InvoiceDto.SupplierName`, same as InvoiceListItem.supplierName. */
+    supplierName: string | null;
+    /** WP-077: genuinely nullable on the wire - `InvoiceDto.SupplierInvoiceNumber`. */
+    supplierInvoiceNumber: string | null;
     /** Genuinely nullable on the wire - see InvoiceListItem.invoiceDate (WP-072). */
     invoiceDate: string | null;
-    grossTotal: number;
-    currency: string;
+    /** WP-077: genuinely nullable on the wire - `InvoiceDto.GrossTotal`. */
+    grossTotal: number | null;
+    /** WP-077: genuinely nullable on the wire - `InvoiceDto.Currency`. */
+    currency: string | null;
     status: string;
     isPotentialDuplicate: boolean;
     duplicateCheckReason: string | null;
     /** The matched existing invoice's id, if any (WP-073). */
     duplicateMatchInvoiceId: string | null;
-    sourceDocumentBlobName: string;
+    /** WP-077: genuinely nullable on the wire - `InvoiceDto.SourceDocumentBlobName`. */
+    sourceDocumentBlobName: string | null;
     createdAtUtc: string;
   };
   recentAuditEntries: AuditLogResponseDto[];

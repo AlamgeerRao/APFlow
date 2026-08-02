@@ -42,4 +42,14 @@ describe('InvoicePdfViewer', () => {
     expect(container.querySelector('object')).toBeNull();
     expect(screen.getByText('No PDF is available for this invoice.')).toBeInTheDocument();
   });
+
+  // WP-077: invoiceNumber is genuinely nullable (backend `string?
+  // SupplierInvoiceNumber`) - a template-literal aria-label doesn't throw on
+  // null, but would otherwise render the literal text "PDF for invoice null".
+  it('renders a fallback in the aria-label instead of "null" for a null invoiceNumber', () => {
+    const { container } = render(<InvoicePdfViewer pdfUrl="/sample-invoices/inv-pd-001.pdf" invoiceNumber={null} />);
+
+    const object = container.querySelector('object');
+    expect(object).toHaveAttribute('aria-label', 'PDF for invoice —');
+  });
 });

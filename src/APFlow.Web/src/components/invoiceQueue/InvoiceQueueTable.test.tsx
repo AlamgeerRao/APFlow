@@ -56,6 +56,37 @@ const missingDateInvoice: InvoiceListItem = {
   duplicateMatchInvoiceId: 'inv-99',
 };
 
+// WP-077: mirrors the real live invoice (DigitalOcean) with a null
+// supplierInvoiceNumber - Document Intelligence extracted no invoice number
+// for it, same class of gap as missingDateInvoice's invoiceDate above.
+const missingInvoiceNumberInvoice: InvoiceListItem = {
+  id: 'inv-4',
+  supplierName: 'DigitalOcean',
+  invoiceNumber: null,
+  invoiceDate: '2026-08-01',
+  amount: null,
+  currencyCode: null,
+  status: 'AWAITING_REVIEW',
+  isPotentialDuplicate: false,
+  duplicateCheckReason: null,
+  duplicateMatchInvoiceId: null,
+};
+
+// WP-077: supplierName is also genuinely nullable (invoice.Supplier?.Name),
+// even though it's structurally rare in practice.
+const missingSupplierNameInvoice: InvoiceListItem = {
+  id: 'inv-5',
+  supplierName: null,
+  invoiceNumber: 'UNK-1',
+  invoiceDate: '2026-08-01',
+  amount: 50,
+  currencyCode: 'GBP',
+  status: 'AWAITING_REVIEW',
+  isPotentialDuplicate: false,
+  duplicateCheckReason: null,
+  duplicateMatchInvoiceId: null,
+};
+
 // InvoiceStatusBadge internally calls useWorkflowTemplate, which requires an
 // authenticated acting user in context to resolve a tenant.
 const authValue: AuthContextValue = {
@@ -163,5 +194,26 @@ describe('InvoiceQueueTable', () => {
     expect(screen.getByText('Veygo')).toBeInTheDocument();
     expect(screen.getByText('2W4WVCTZ-0001')).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('renders a row with a missing invoiceNumber as a fallback instead of crashing the table', async () => {
+    renderTable([nonDuplicateInvoice, missingInvoiceNumberInvoice]);
+    await waitForStatusBadgesToSettle();
+
+    expect(screen.getByText('Northwind Traders Ltd')).toBeInTheDocument();
+    expect(screen.getByText('DigitalOcean')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Review invoice — from DigitalOcean/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders a row with a missing supplierName as a fallback instead of crashing the table', async () => {
+    renderTable([nonDuplicateInvoice, missingSupplierNameInvoice]);
+    await waitForStatusBadgesToSettle();
+
+    expect(screen.getByText('UNK-1')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Review invoice UNK-1 from —/i }),
+    ).toBeInTheDocument();
   });
 });

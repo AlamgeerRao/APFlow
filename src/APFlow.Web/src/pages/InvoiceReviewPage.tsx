@@ -56,7 +56,7 @@ export function InvoiceReviewPage() {
 
   return (
     <>
-      <PageHeading title={`Invoice ${invoice.invoiceNumber}`} description={invoice.supplierName} />
+      <PageHeading title={`Invoice ${invoice.invoiceNumber ?? '—'}`} description={invoice.supplierName ?? undefined} />
 
       <InvoiceReviewNavBar previousId={previousId} nextId={nextId} position={position} total={total} />
 

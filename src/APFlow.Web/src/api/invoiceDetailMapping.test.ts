@@ -22,6 +22,62 @@ function responseWith(recentAuditEntries: InvoiceDetailResponseDto['recentAuditE
   };
 }
 
+// WP-077: every one of these invoice fields is genuinely nullable on the wire
+// (InvoiceDto.cs's SupplierName/SupplierInvoiceNumber/GrossTotal/Currency/
+// SourceDocumentBlobName are all string?/decimal?) - this DTO previously
+// declared them all non-nullable, which mapInvoiceDetailResponse's straight
+// pass-through would have silently forwarded regardless, but a type this
+// inaccurate risks a future call site trusting it and calling a method that
+// throws on null, the same way formatCurrency's old signature did.
+function invoiceResponseWith(overrides: Partial<InvoiceDetailResponseDto['invoice']>): InvoiceDetailResponseDto {
+  return {
+    invoice: {
+      id: 'inv-1',
+      supplierName: 'Northwind Traders Ltd',
+      supplierInvoiceNumber: 'NW-1001',
+      invoiceDate: '2026-07-01',
+      grossTotal: 1240.5,
+      currency: 'GBP',
+      status: 'AWAITING_REVIEW',
+      isPotentialDuplicate: false,
+      duplicateCheckReason: null,
+      duplicateMatchInvoiceId: null,
+      sourceDocumentBlobName: 'blob-1',
+      createdAtUtc: '2026-07-01T08:00:00Z',
+      ...overrides,
+    },
+    recentAuditEntries: [],
+    extractedFields: [],
+  };
+}
+
+describe('mapInvoiceDetailResponse - null field mapping', () => {
+  it('maps a null supplierName through without throwing', () => {
+    const result = mapInvoiceDetailResponse(invoiceResponseWith({ supplierName: null }));
+    expect(result.supplierName).toBeNull();
+  });
+
+  it('maps a null supplierInvoiceNumber through without throwing', () => {
+    const result = mapInvoiceDetailResponse(invoiceResponseWith({ supplierInvoiceNumber: null }));
+    expect(result.invoiceNumber).toBeNull();
+  });
+
+  it('maps a null grossTotal through without throwing', () => {
+    const result = mapInvoiceDetailResponse(invoiceResponseWith({ grossTotal: null }));
+    expect(result.amount).toBeNull();
+  });
+
+  it('maps a null currency through without throwing', () => {
+    const result = mapInvoiceDetailResponse(invoiceResponseWith({ currency: null }));
+    expect(result.currencyCode).toBeNull();
+  });
+
+  it('maps a null sourceDocumentBlobName through without throwing', () => {
+    const result = mapInvoiceDetailResponse(invoiceResponseWith({ sourceDocumentBlobName: null }));
+    expect(result.sourceDocumentBlobName).toBeNull();
+  });
+});
+
 // WP-072 follow-up: recentAuditEntries was, until now, cast directly to the
 // frontend's AuditEntry shape (timestamp/actor/description) with no mapping at
 // all - the real wire shape (AuditLogDto.cs) has performedAtUtc/

@@ -89,7 +89,7 @@ export function InvoiceQueueTable({ invoices, sortBy, sortDirection, onSortChang
               data-duplicate={invoice.isPotentialDuplicate}
               tabIndex={0}
               role="button"
-              aria-label={`Review invoice ${invoice.invoiceNumber} from ${invoice.supplierName}`}
+              aria-label={`Review invoice ${invoice.invoiceNumber ?? '—'} from ${invoice.supplierName ?? '—'}`}
               onClick={() => navigate(`/invoices/review/${invoice.id}`)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -98,8 +98,8 @@ export function InvoiceQueueTable({ invoices, sortBy, sortDirection, onSortChang
                 }
               }}
             >
-              <td className="px-4 py-3 text-ink-900">{invoice.supplierName}</td>
-              <td className="px-4 py-3 text-ink-900">{invoice.invoiceNumber}</td>
+              <td className="px-4 py-3 text-ink-900">{invoice.supplierName ?? '—'}</td>
+              <td className="px-4 py-3 text-ink-900">{invoice.invoiceNumber ?? '—'}</td>
               <td className="px-4 py-3 text-ink-900">{formatDate(invoice.invoiceDate)}</td>
               <td className="px-4 py-3 text-ink-900">{formatCurrency(invoice.amount, invoice.currencyCode)}</td>
               <td className="px-4 py-3">

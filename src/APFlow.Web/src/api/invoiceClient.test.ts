@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { FixtureInvoiceClient, HttpInvoiceClient } from '@/api/invoiceClient';
-import type { InvoiceQueryParams } from '@/types/invoice';
+import { FixtureInvoiceClient, HttpInvoiceClient, matchesInvoiceSearch, compareInvoices } from '@/api/invoiceClient';
+import type { InvoiceListItem, InvoiceQueryParams } from '@/types/invoice';
 import { httpClient } from '@/api/httpClient';
 
 vi.mock('@/api/httpClient', async (importOriginal) => {
@@ -18,6 +18,65 @@ function paramsFor(overrides: Partial<InvoiceQueryParams>): InvoiceQueryParams {
     ...overrides,
   };
 }
+
+// WP-077: supplierName/invoiceNumber are both genuinely nullable
+// (invoice.Supplier?.Name / string? SupplierInvoiceNumber) - matchesInvoiceSearch
+// and compareInvoices previously called string methods on them unconditionally,
+// which would throw the same way formatCurrency did on a null currencyCode.
+function invoiceWith(overrides: Partial<InvoiceListItem>): InvoiceListItem {
+  return {
+    id: 'inv-x',
+    supplierName: 'Northwind Traders Ltd',
+    invoiceNumber: 'NW-1001',
+    invoiceDate: '2026-07-01',
+    amount: 1240.5,
+    currencyCode: 'GBP',
+    status: 'AWAITING_REVIEW',
+    isPotentialDuplicate: false,
+    duplicateCheckReason: null,
+    duplicateMatchInvoiceId: null,
+    ...overrides,
+  };
+}
+
+describe('matchesInvoiceSearch', () => {
+  it('returns a fallback (no match) instead of throwing for a null supplierName', () => {
+    const invoice = invoiceWith({ supplierName: null });
+    expect(() => matchesInvoiceSearch(invoice, 'northwind')).not.toThrow();
+    expect(matchesInvoiceSearch(invoice, 'northwind')).toBe(false);
+  });
+
+  it('returns a fallback (no match) instead of throwing for a null invoiceNumber', () => {
+    const invoice = invoiceWith({ invoiceNumber: null });
+    expect(() => matchesInvoiceSearch(invoice, 'nw-1001')).not.toThrow();
+    expect(matchesInvoiceSearch(invoice, 'nw-1001')).toBe(false);
+  });
+
+  it('still matches on whichever field is non-null when the other is null', () => {
+    const invoice = invoiceWith({ supplierName: null, invoiceNumber: 'NW-1001' });
+    expect(matchesInvoiceSearch(invoice, 'nw-1001')).toBe(true);
+  });
+});
+
+describe('compareInvoices', () => {
+  it('sorts a null invoiceNumber as if empty instead of throwing', () => {
+    const withNumber = invoiceWith({ invoiceNumber: 'NW-1001' });
+    const withoutNumber = invoiceWith({ id: 'inv-y', invoiceNumber: null });
+    const params = paramsFor({ sortBy: 'invoiceNumber', sortDirection: 'asc' });
+
+    expect(() => compareInvoices(withNumber, withoutNumber, params)).not.toThrow();
+    expect(compareInvoices(withNumber, withoutNumber, params)).toBeGreaterThan(0);
+  });
+
+  it('sorts a null supplierName as if empty instead of throwing', () => {
+    const withName = invoiceWith({ supplierName: 'Northwind Traders Ltd' });
+    const withoutName = invoiceWith({ id: 'inv-y', supplierName: null });
+    const params = paramsFor({ sortBy: 'supplierName', sortDirection: 'asc' });
+
+    expect(() => compareInvoices(withName, withoutName, params)).not.toThrow();
+    expect(compareInvoices(withName, withoutName, params)).toBeGreaterThan(0);
+  });
+});
 
 describe('FixtureInvoiceClient', () => {
   const client = new FixtureInvoiceClient();
@@ -76,7 +135,7 @@ describe('FixtureInvoiceClient', () => {
     const result = await client.queryInvoices(paramsFor({ search: 'northwind', pageSize: 100 }));
 
     expect(result.items.length).toBeGreaterThan(0);
-    expect(result.items.every((invoice) => invoice.supplierName.toLowerCase().includes('northwind'))).toBe(
+    expect(result.items.every((invoice) => invoice.supplierName?.toLowerCase().includes('northwind'))).toBe(
       true,
     );
   });

@@ -43,6 +43,9 @@ export interface SupplierFolderClient {
   getGroupedInvoices(params: SupplierFolderQueryParams): Promise<SupplierFolderQueryResult>;
 }
 
+/** WP-077: fallback label for a fixture invoice with a null supplierName - see getSuppliers/getGroupedInvoices. */
+const UNKNOWN_SUPPLIER_NAME = '(Unknown Supplier)';
+
 type FixtureInvoice = InvoiceListItem & { tenantId: string };
 
 function toListItem(invoice: FixtureInvoice): InvoiceListItem {
@@ -93,7 +96,15 @@ export class FixtureSupplierFolderClient implements SupplierFolderClient {
         matchesInvoiceSearch(invoice, search),
     );
 
-    return [...new Set(matching.map((invoice) => invoice.supplierName))].sort((a, b) => a.localeCompare(b));
+    // WP-077: supplierName is genuinely nullable on InvoiceListItem, but
+    // SupplierGroup.supplierName (this method's own return shape) is not -
+    // matches the real SupplierGroupDto.SupplierName contract, which the
+    // backend never sends null (see supplierName below). A fallback label
+    // keeps that contract true here too rather than grouping every
+    // unresolved-supplier invoice under a literal "null" string.
+    return [...new Set(matching.map((invoice) => invoice.supplierName ?? UNKNOWN_SUPPLIER_NAME))].sort((a, b) =>
+      a.localeCompare(b),
+    );
   }
 
   async getGroupedInvoices(params: SupplierFolderQueryParams): Promise<SupplierFolderQueryResult> {
@@ -107,9 +118,10 @@ export class FixtureSupplierFolderClient implements SupplierFolderClient {
 
     const bySupplier = new Map<string, InvoiceListItem[]>();
     for (const invoice of matching) {
-      const existing = bySupplier.get(invoice.supplierName) ?? [];
+      const key = invoice.supplierName ?? UNKNOWN_SUPPLIER_NAME;
+      const existing = bySupplier.get(key) ?? [];
       existing.push(toListItem(invoice));
-      bySupplier.set(invoice.supplierName, existing);
+      bySupplier.set(key, existing);
     }
 
     const allGroups: SupplierGroup[] = [...bySupplier.entries()]
@@ -142,11 +154,14 @@ export class FixtureSupplierFolderClient implements SupplierFolderClient {
  */
 interface InvoiceListItemResponseDto {
   id: string;
-  supplierName: string;
-  supplierInvoiceNumber: string;
-  invoiceDate: string;
-  grossTotal: number;
-  currency: string;
+  // WP-077: genuinely nullable per-invoice fields (InvoiceListItemDto.cs) -
+  // distinct from SupplierGroupResponseDto.supplierName below, which the
+  // backend's SupplierGroupDto.SupplierName never sends null.
+  supplierName: string | null;
+  supplierInvoiceNumber: string | null;
+  invoiceDate: string | null;
+  grossTotal: number | null;
+  currency: string | null;
   status: string;
   isPotentialDuplicate: boolean;
   duplicateCheckReason: string | null;

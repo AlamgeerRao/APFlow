@@ -20,12 +20,16 @@ export interface InvoiceClient {
 export function matchesInvoiceSearch(invoice: InvoiceListItem, search: string): boolean {
   const term = search.trim().toLowerCase();
   if (!term) return true;
+  // WP-077: supplierName/invoiceNumber are both genuinely nullable - a missing
+  // one just never matches non-empty search text, rather than throwing.
   return (
-    invoice.supplierName.toLowerCase().includes(term) || invoice.invoiceNumber.toLowerCase().includes(term)
+    (invoice.supplierName?.toLowerCase().includes(term) ?? false) ||
+    (invoice.invoiceNumber?.toLowerCase().includes(term) ?? false)
   );
 }
 
-function compareInvoices(a: InvoiceListItem, b: InvoiceListItem, params: InvoiceQueryParams): number {
+/** Exported for direct null-safety testing (WP-077) - same reasoning as matchesInvoiceSearch above. */
+export function compareInvoices(a: InvoiceListItem, b: InvoiceListItem, params: InvoiceQueryParams): number {
   const direction = params.sortDirection === 'desc' ? -1 : 1;
 
   switch (params.sortBy) {
@@ -38,12 +42,14 @@ function compareInvoices(a: InvoiceListItem, b: InvoiceListItem, params: Invoice
       // rather than throwing, consistent with formatDate's own "never throw" fix.
       return (a.invoiceDate ?? '').localeCompare(b.invoiceDate ?? '') * direction;
     case 'invoiceNumber':
-      return a.invoiceNumber.localeCompare(b.invoiceNumber) * direction;
+      // WP-077: invoiceNumber is genuinely nullable - a missing one sorts as if empty.
+      return (a.invoiceNumber ?? '').localeCompare(b.invoiceNumber ?? '') * direction;
     case 'status':
       return a.status.localeCompare(b.status) * direction;
     case 'supplierName':
     default:
-      return a.supplierName.localeCompare(b.supplierName) * direction;
+      // WP-077: supplierName is genuinely nullable - a missing one sorts as if empty.
+      return (a.supplierName ?? '').localeCompare(b.supplierName ?? '') * direction;
   }
 }
 
@@ -104,11 +110,16 @@ export class FixtureInvoiceClient implements InvoiceClient {
  */
 interface InvoiceListItemResponseDto {
   id: string;
-  supplierName: string;
-  supplierInvoiceNumber: string;
-  invoiceDate: string;
-  grossTotal: number;
-  currency: string;
+  // WP-077: every one of these is genuinely nullable on the wire
+  // (InvoiceListItemDto.cs) - this interface previously declared them all
+  // non-nullable, which happened to be harmless here (mapListItem below is a
+  // straight pass-through with no method calls on any of them) but was still
+  // an inaccurate contract.
+  supplierName: string | null;
+  supplierInvoiceNumber: string | null;
+  invoiceDate: string | null;
+  grossTotal: number | null;
+  currency: string | null;
   status: string;
   isPotentialDuplicate: boolean;
   duplicateCheckReason: string | null;
