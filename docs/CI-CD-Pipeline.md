@@ -1,9 +1,11 @@
 # AP Flow — WP-022: CI/CD Pipeline (Development)
 
-<!-- WP-078 path-filter retest, 2026-08-03: docs-only change, pushed on its
-own after the fetch-depth: 0 fix, to confirm detect-changes now sets
-backend-changed/frontend-changed both false and every build/test/deploy
-job is actually skipped this time. Safe to remove once confirmed. -->
+<!-- WP-078 path-filter retest #2, 2026-08-03: docs-only change, pushed on
+its own after the fetch-depth: 50 fix (the fetch-depth: 0 attempt hit a
+transient RPC 503 and didn't actually fix anything), to confirm
+detect-changes now sets backend-changed/frontend-changed both false and
+every build/test/deploy job is actually skipped this time. Safe to remove
+once confirmed. -->
 
 Scope: **Development environment only**, deploying to the two App Services
 provisioned in WP-021:
