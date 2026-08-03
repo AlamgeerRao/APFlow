@@ -87,36 +87,47 @@ root files) or a `workflow_dispatch` manual trigger forces both flags
 `true` — deliberately narrow filters, wide safe default, so an ambiguous
 change never silently skips something that might matter.
 
-**Live-tested 2026-08-03 and found broken, then fixed:** a docs-only push
-(touching only `docs/CI-CD-Pipeline.md`) still ran the full pipeline
-instead of skipping it. Root cause: the `detect-changes` job's
-`actions/checkout@v4` step had no `fetch-depth` set, defaulting to `1`
-(shallow — only the pushed commit itself, no history). `dorny/paths-filter`
-needs the *previous* commit available locally to diff against on a `push`
-event; with no history at all it falls back to its own documented "no
-common ancestor → treat every file as added" behavior, which is
-functionally identical to the `other` filter always matching — so every
-push, no matter how narrowly scoped, always resolved both flags `true`.
-This had been true since the very first WP-078 commit; the docs-only-skip
-path had never actually worked, only the "run everything" path had been
-exercised (WP-078's own initial commit touched the workflow file, so it
-never surfaced there). First fix attempt (`fetch-depth: 0`, full history)
-made it *worse*, not better: a fresh full-history clone on every run hit a
-transient `RPC failed; HTTP 503` against GitHub's own git backend (only
-diagnosable via the job's check-run annotations, `GET
-/repos/{owner}/{repo}/check-runs/{id}/annotations` — raw job logs need
-repo-admin rights even on a public repo, which wasn't available here);
-`actions/checkout`'s own retry logic swallowed the error and still
-reported the step as successful, but the resulting history was evidently
-still incomplete, so `paths-filter` hit the identical "no common ancestor"
-fallback a second time. **Actual fix: `fetch-depth: 50`** (a small, fixed
-depth — `paths-filter` has its own doubling-retry logic to fetch deeper if
-the merge-base isn't found within it, so this only needs to comfortably
-cover a normal multi-commit push, not the whole repo history). Also added
-a `Log detect-changes result` step that emits the resolved filter/output
-values as an `::notice::` (check-run annotation) on every run, so any
-future regression here is diagnosable without needing log-download
-permissions again.
+**Live-tested 2026-08-03 and found broken, through three rounds before the
+real root cause surfaced:**
+
+1. A docs-only push (touching only `docs/CI-CD-Pipeline.md`) still ran the
+   full pipeline instead of skipping it. First hypothesis: the
+   `detect-changes` job's `actions/checkout@v4` step had no `fetch-depth`
+   set, defaulting to `1` (shallow — only the pushed commit itself, no
+   history), so `paths-filter` couldn't find the previous commit to diff
+   against. Fixed with `fetch-depth: 0` (full history) — but the docs-only
+   retest still ran everything.
+2. Diagnosed via the job's check-run annotations (`GET
+   /repos/{owner}/{repo}/check-runs/{id}/annotations` — the only surface
+   available without repo-admin rights, which raw job-log download
+   requires even on a public repo): the full-history clone hit a transient
+   `RPC failed; HTTP 503` against GitHub's own git backend.
+   `actions/checkout`'s retry logic swallowed the error and still reported
+   the step successful, but the resulting history was evidently still
+   incomplete. Replaced `fetch-depth: 0` with a small, fixed
+   `fetch-depth: 50` instead (`paths-filter` has its own doubling-retry
+   logic to fetch deeper if the merge-base isn't found within it, so this
+   only needs to comfortably cover a normal multi-commit push, not the
+   whole repo history) — also added a `Log detect-changes result` step
+   that emits the resolved filter/output values as an `::notice::`
+   (check-run annotation) on every run, precisely so the next debugging
+   pass wouldn't be this blind.
+3. That notice immediately paid off: the next docs-only retest showed
+   `filter.backend=false filter.frontend=false` (correct!) but
+   `filter.other=true` (still wrong) — proving the checkout depth was
+   never the real problem for the `other` filter specifically.
+   **Actual root cause:** `dorny/paths-filter`'s default
+   `predicate-quantifier` is `'some'` — a filter matches if it matches
+   *any* one of its patterns, negated (`!...`) ones included, so a `!`
+   pattern under `'some'` is just another pattern to OR against, not a
+   real exclude. The `other` filter's first pattern is `'**'`, which
+   always matches, so `other` had resolved `true` on **every single run
+   since WP-078's first commit**, independent of the checkout/history work
+   above — the `!docs/**`/`!README.md`/`!src/APFlow.*/**` negations had
+   been no-ops the whole time. Fixed by setting
+   `predicate-quantifier: 'some-with-excludes'` on the `Filter changed
+   paths` step, the quantifier that actually gives negation patterns their
+   intended "matches a positive pattern AND no negated pattern" meaning.
 
 Found and fixed while building the original job: a *skipped* `needs:` dependency still satisfies
 GitHub Actions' default `success()` check, so `migrate-development-database`/

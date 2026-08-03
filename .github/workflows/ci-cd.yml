@@ -75,6 +75,19 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@v4
         with:
+          # dorny/paths-filter's own default predicate-quantifier is 'some'
+          # - a filter matches if ANY of its patterns match, including
+          # negated ('!...') ones, which under 'some' are just additional
+          # patterns to OR against rather than real excludes. The 'other'
+          # filter below starts with '**' (matches everything), so under
+          # the default quantifier it was true on every single run
+          # regardless of the '!docs/**'/'!README.md'/'!src/APFlow.*/**'
+          # negations - confirmed live via the detect-changes job's own
+          # diagnostic notice: a genuinely docs-only push still resolved
+          # filter.other=true. 'some-with-excludes' is the quantifier that
+          # actually gives negation patterns their intended meaning: matches
+          # at least one positive pattern AND no negated pattern.
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             backend:
               - 'src/APFlow.Api/**'
