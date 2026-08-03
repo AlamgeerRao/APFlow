@@ -64,6 +64,25 @@ both bug fixes are now in place; none of it has been exercised by a real
 pipeline run yet** — the next push/`workflow_dispatch` run is the actual
 end-to-end verification, not the setup completion itself.
 
+**Post-wp-078 note (2026-08-03): path-based filtering added.** A new
+`detect-changes` job (`dorny/paths-filter@v4`) runs first and gates every
+downstream job on which side of the codebase the push/PR actually touched —
+the 5 `backend-build-test` matrix legs, `backend-publish`,
+`migrate-development-database`, and `deploy-api` only run when
+`backend-changed` is `true` (the six `src/APFlow.*` backend project
+directories); `frontend-build-test` and `deploy-web` only run when
+`frontend-changed` is `true` (`src/APFlow.Web/**`). Anything outside both
+path sets (this workflow file itself, `infra/**`, `tests/**`, `docs/**`,
+root files) or a `workflow_dispatch` manual trigger forces both flags
+`true` — deliberately narrow filters, wide safe default, so an ambiguous
+change never silently skips something that might matter. Found and fixed
+while building this: a *skipped* `needs:` dependency still satisfies
+GitHub Actions' default `success()` check, so `migrate-development-database`/
+`deploy-api`/`deploy-web` each needed their own explicit
+`needs.detect-changes.outputs.*` check — inheriting the skip through
+`needs:` alone was not enough to actually stop them running on an
+irrelevant change.
+
 ---
 
 ## Files created

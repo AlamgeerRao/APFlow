@@ -28,11 +28,69 @@ env:
 
 jobs:
   # ============================================================================
+  # WP-078: detect which side(s) of the codebase actually changed, so the
+  # rest of the pipeline can skip irrelevant jobs. Deliberately narrow -
+  # only the six backend src/ project directories and the one frontend src/
+  # directory count as "clearly scoped to one side"; everything else
+  # (this workflow file itself, infra/**, tests/**, docs/**, root files) is
+  # genuinely ambiguous and falls through to the "other" filter below,
+  # which forces both flags true - never let an ambiguous change silently
+  # skip something that might matter. workflow_dispatch (no natural git
+  # diff base for a manual trigger) is treated the same way, unconditionally.
+  # ============================================================================
+  detect-changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend-changed: ${{ steps.combine.outputs.backend }}
+      frontend-changed: ${{ steps.combine.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            backend:
+              - 'src/APFlow.Api/**'
+              - 'src/APFlow.Application/**'
+              - 'src/APFlow.Domain/**'
+              - 'src/APFlow.Infrastructure/**'
+              - 'src/APFlow.Integrations/**'
+              - 'src/APFlow.Workers/**'
+            frontend:
+              - 'src/APFlow.Web/**'
+            other:
+              - '**'
+              - '!src/APFlow.Api/**'
+              - '!src/APFlow.Application/**'
+              - '!src/APFlow.Domain/**'
+              - '!src/APFlow.Infrastructure/**'
+              - '!src/APFlow.Integrations/**'
+              - '!src/APFlow.Workers/**'
+              - '!src/APFlow.Web/**'
+
+      - name: Combine with safe default
+        id: combine
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.filter.outputs.other }}" = "true" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ============================================================================
   # Backend: build .NET solution, run all 5 test projects
   # ============================================================================
   backend-build-test:
     name: Backend build & test (${{ matrix.test-project }})
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.backend-changed == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -77,7 +135,8 @@ jobs:
   backend-publish:
     name: Publish APFlow.Api
     runs-on: ubuntu-latest
-    needs: [backend-build-test]
+    needs: [detect-changes, backend-build-test]
+    if: needs.detect-changes.outputs.backend-changed == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -105,6 +164,8 @@ jobs:
   frontend-build-test:
     name: Frontend build & test (APFlow.Web)
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.frontend-changed == 'true'
     # Required for the "Build production bundle" step's vars.* references
     # (ENTRA_SPA_CLIENT_ID, ENTRA_AUTHORITY, ENTRA_API_SCOPE,
     # API_APP_SERVICE_NAME) to resolve at all: GitHub Environment-scoped
@@ -220,8 +281,14 @@ jobs:
   migrate-development-database:
     name: Apply EF Core migrations (Development)
     runs-on: ubuntu-latest
-    needs: [backend-publish, frontend-build-test]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [detect-changes, backend-publish, frontend-build-test]
+    # WP-078: schema changes only ever come from the backend side - tied to
+    # backend-changed in addition to the existing push/workflow_dispatch gate,
+    # not just left to inherit backend-publish's own skip (a skipped
+    # dependency still satisfies the default success() check, so without this
+    # explicit check migrations would run on a frontend-only change whenever
+    # frontend-build-test itself succeeded).
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.detect-changes.outputs.backend-changed == 'true'
     environment:
       name: development
     permissions:
@@ -362,7 +429,11 @@ jobs:
   deploy-api:
     name: Deploy APFlow.Api (Development)
     runs-on: ubuntu-latest
-    needs: [migrate-development-database]
+    needs: [detect-changes, migrate-development-database]
+    # WP-078: same reasoning as migrate-development-database above - a
+    # skipped migrate-development-database still satisfies success(), so
+    # this needs its own explicit check rather than relying on that alone.
+    if: needs.detect-changes.outputs.backend-changed == 'true'
     environment:
       name: development
       url: https://app-apflow-dev-api-ryd3y6fyfloxu.azurewebsites.net
@@ -403,7 +474,9 @@ jobs:
   deploy-web:
     name: Deploy APFlow.Web (Development)
     runs-on: ubuntu-latest
-    needs: [migrate-development-database]
+    needs: [detect-changes, migrate-development-database]
+    # WP-078: same reasoning as deploy-api above.
+    if: needs.detect-changes.outputs.frontend-changed == 'true'
     environment:
       name: development
       url: https://app-apflow-dev-web-ryd3y6fyfloxu.azurewebsites.net
