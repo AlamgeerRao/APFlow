@@ -47,7 +47,16 @@ jobs:
       backend-changed: ${{ steps.combine.outputs.backend }}
       frontend-changed: ${{ steps.combine.outputs.frontend }}
     steps:
+      # fetch-depth: 0 (full history) - dorny/paths-filter needs the
+      # previous commit locally to diff against on a push event.
+      # actions/checkout's default fetch-depth: 1 (shallow, no history)
+      # left it unable to find any common ancestor, so it silently fell
+      # back to "no common ancestor -> treat every file as changed" on
+      # every single run, defeating the path filters below entirely -
+      # found live: a docs-only push still ran the full pipeline.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Filter changed paths
         id: filter

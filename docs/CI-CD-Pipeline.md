@@ -83,8 +83,25 @@ or deploy needed for a docs-only change). Anything else outside all three
 recognized sets (this workflow file itself, `infra/**`, `tests/**`, other
 root files) or a `workflow_dispatch` manual trigger forces both flags
 `true` — deliberately narrow filters, wide safe default, so an ambiguous
-change never silently skips something that might matter. Found and fixed
-while building this: a *skipped* `needs:` dependency still satisfies
+change never silently skips something that might matter.
+
+**Live-tested 2026-08-03 and found broken, then fixed:** a docs-only push
+(touching only `docs/CI-CD-Pipeline.md`) still ran the full pipeline
+instead of skipping it. Root cause: the `detect-changes` job's
+`actions/checkout@v4` step had no `fetch-depth` set, defaulting to `1`
+(shallow — only the pushed commit itself, no history). `dorny/paths-filter`
+needs the *previous* commit available locally to diff against on a `push`
+event; with no history at all it falls back to its own documented "no
+common ancestor → treat every file as added" behavior, which is
+functionally identical to the `other` filter always matching — so every
+push, no matter how narrowly scoped, always resolved both flags `true`.
+This had been true since the very first WP-078 commit; the docs-only-skip
+path had never actually worked, only the "run everything" path had been
+exercised (WP-078's own initial commit touched the workflow file, so it
+never surfaced there). Fixed by setting `fetch-depth: 0` (full history) on
+that checkout step.
+
+Found and fixed while building the original job: a *skipped* `needs:` dependency still satisfies
 GitHub Actions' default `success()` check, so `migrate-development-database`/
 `deploy-api`/`deploy-web` each needed their own explicit
 `needs.detect-changes.outputs.*` check — inheriting the skip through
