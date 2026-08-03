@@ -116,18 +116,35 @@ real root cause surfaced:**
    `filter.backend=false filter.frontend=false` (correct!) but
    `filter.other=true` (still wrong) — proving the checkout depth was
    never the real problem for the `other` filter specifically.
-   **Actual root cause:** `dorny/paths-filter`'s default
-   `predicate-quantifier` is `'some'` — a filter matches if it matches
-   *any* one of its patterns, negated (`!...`) ones included, so a `!`
-   pattern under `'some'` is just another pattern to OR against, not a
-   real exclude. The `other` filter's first pattern is `'**'`, which
-   always matches, so `other` had resolved `true` on **every single run
-   since WP-078's first commit**, independent of the checkout/history work
-   above — the `!docs/**`/`!README.md`/`!src/APFlow.*/**` negations had
-   been no-ops the whole time. Fixed by setting
-   `predicate-quantifier: 'some-with-excludes'` on the `Filter changed
-   paths` step, the quantifier that actually gives negation patterns their
-   intended "matches a positive pattern AND no negated pattern" meaning.
+   **Root cause:** `dorny/paths-filter`'s default `predicate-quantifier`
+   is `'some'` — a filter matches if it matches *any* one of its patterns,
+   negated (`!...`) ones included, so a `!` pattern under `'some'` is just
+   another pattern to OR against, not a real exclude. The `other` filter's
+   first pattern is `'**'`, which always matches, so `other` had resolved
+   `true` on **every single run since WP-078's first commit**, independent
+   of the checkout/history work above — the
+   `!docs/**`/`!README.md`/`!src/APFlow.*/**` negations had been no-ops
+   the whole time.
+4. First fix attempt — `predicate-quantifier: 'some-with-excludes'` on the
+   single `Filter changed paths` step — **failed outright**: that value
+   doesn't exist in this action at all. The job's own failure annotation
+   confirmed it: `Input parameter 'predicate-quantifier' is set to invalid
+   value 'some-with-excludes'. Valid values: every, some`. A bad
+   assumption carried over from an imprecise secondary summary of the
+   action's docs, not something ever actually in its real input schema.
+   **Real fix:** `predicate-quantifier` is a step-level input applying to
+   *every* filter defined in that step, and `backend`/`frontend` need
+   OR-across-alternatives semantics (`'some'`, the default — matches if
+   *any* listed directory is touched) while `other` needs
+   AND-across-negations semantics (`'every'` — matches only if the file
+   clears *every* `!excluded/**` check, which is exactly "not inside any
+   excluded directory" once you note each negated pattern already
+   evaluates as "does NOT match the underlying glob"). Split into two
+   separate `dorny/paths-filter@v4` steps instead of one — `Filter changed
+   paths (backend/frontend)` (no `predicate-quantifier` override, i.e.
+   `'some'`) and `Filter changed paths (other/ambiguous)`
+   (`predicate-quantifier: 'every'`) — so each can use the quantifier its
+   own pattern shape actually needs.
 
 Found and fixed while building the original job: a *skipped* `needs:` dependency still satisfies
 GitHub Actions' default `success()` check, so `migrate-development-database`/

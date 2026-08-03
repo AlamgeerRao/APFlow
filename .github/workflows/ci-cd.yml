@@ -70,24 +70,23 @@ jobs:
         with:
           fetch-depth: 50
 
-      - name: Filter changed paths
+      # Two separate paths-filter invocations, not one, because
+      # predicate-quantifier is a step-level input applying to every filter
+      # in that step - and backend/frontend need OR-across-alternatives
+      # semantics (quantifier 'some', the default: matches if ANY listed
+      # directory is touched) while 'other' needs AND-across-negations
+      # semantics (quantifier 'every': matches only if the file clears
+      # every single '!excluded/**' check) to work as a real exclusion
+      # list. A single step tried first with predicate-quantifier:
+      # 'some-with-excludes' failed outright - that value doesn't exist in
+      # this action at all ("Valid values: every, some", confirmed via the
+      # job's own failure annotation) - a bad secondary-source assumption,
+      # not something actually in dorny/paths-filter's real input schema.
+      - name: Filter changed paths (backend/frontend)
         id: filter
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@v4
         with:
-          # dorny/paths-filter's own default predicate-quantifier is 'some'
-          # - a filter matches if ANY of its patterns match, including
-          # negated ('!...') ones, which under 'some' are just additional
-          # patterns to OR against rather than real excludes. The 'other'
-          # filter below starts with '**' (matches everything), so under
-          # the default quantifier it was true on every single run
-          # regardless of the '!docs/**'/'!README.md'/'!src/APFlow.*/**'
-          # negations - confirmed live via the detect-changes job's own
-          # diagnostic notice: a genuinely docs-only push still resolved
-          # filter.other=true. 'some-with-excludes' is the quantifier that
-          # actually gives negation patterns their intended meaning: matches
-          # at least one positive pattern AND no negated pattern.
-          predicate-quantifier: 'some-with-excludes'
           filters: |
             backend:
               - 'src/APFlow.Api/**'
@@ -98,6 +97,23 @@ jobs:
               - 'src/APFlow.Workers/**'
             frontend:
               - 'src/APFlow.Web/**'
+
+      # 'every' quantifier here: for a pattern list of one positive ('**',
+      # always matches) plus N negations, negated patterns already
+      # individually mean "does NOT match the underlying glob" - so
+      # requiring the file to satisfy every pattern in the list is exactly
+      # "not inside any of the N excluded directories", which is the real
+      # exclusion semantics this filter needs. Confirmed live: this is the
+      # bug that made the prior single-step 'some' (default) version
+      # resolve 'other' true on every run regardless of which files
+      # changed, since '**' alone already satisfies 'some'.
+      - name: Filter changed paths (other/ambiguous)
+        id: filter-other
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: 'every'
+          filters: |
             other:
               - '**'
               - '!src/APFlow.Api/**'
@@ -113,7 +129,7 @@ jobs:
       - name: Combine with safe default
         id: combine
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.filter.outputs.other }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.filter-other.outputs.other }}" = "true" ]; then
             echo "backend=true" >> "$GITHUB_OUTPUT"
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           else
@@ -129,7 +145,7 @@ jobs:
       # far longer to find than it should have.
       - name: Log detect-changes result
         run: |
-          echo "::notice title=detect-changes::event=${{ github.event_name }} filter.other=${{ steps.filter.outputs.other }} filter.backend=${{ steps.filter.outputs.backend }} filter.frontend=${{ steps.filter.outputs.frontend }} -> backend-changed=${{ steps.combine.outputs.backend }} frontend-changed=${{ steps.combine.outputs.frontend }}"
+          echo "::notice title=detect-changes::event=${{ github.event_name }} filter.backend=${{ steps.filter.outputs.backend }} filter.frontend=${{ steps.filter.outputs.frontend }} filter-other.other=${{ steps.filter-other.outputs.other }} -> backend-changed=${{ steps.combine.outputs.backend }} frontend-changed=${{ steps.combine.outputs.frontend }}"
 
   # ============================================================================
   # Backend: build .NET solution, run all 5 test projects
