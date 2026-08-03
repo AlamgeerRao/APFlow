@@ -42,6 +42,19 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     private const int MaxRetryAttempts = 3;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(500);
 
+    // WP-082: bounds the "no processable attachment" reprocessing loop QA found live
+    // (one email reprocessed 719 times over ~12.4 hours - root-caused to a since-fixed
+    // isRead-based Graph filter bug, 7bb3e04, that predates this cap). Independent of
+    // that specific root cause: nothing before this WP capped how many times a single
+    // conversation could be re-extracted and re-recorded if it keeps coming back as
+    // "unprocessed" for any reason, including a future, different bug of the same
+    // shape. Once OccurrenceCount reaches this, further cycles skip re-extraction and
+    // re-recording entirely (see the cap check in ProcessEmailAsync) - but still
+    // attempt MarkAsProcessedAsync each cycle, so a transient mark failure can still
+    // self-resolve without needing this cap to ever have been hit for a "real",
+    // fixable reason.
+    private const int MaxIngestionIssueOccurrences = 5;
+
     private readonly IEmailSyncService _emailSyncService;
     private readonly IPdfExtractionService _pdfExtractionService;
     private readonly IBlobStorageService _blobStorageService;
@@ -142,6 +155,23 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     /// </summary>
     private async Task<bool> ProcessEmailAsync(EmailSummaryDto email, List<InvoiceProcessingItemResult> items, CancellationToken cancellationToken)
     {
+        // WP-082 cap check, before doing any of this cycle's real work: a
+        // conversation that has already hit MaxIngestionIssueOccurrences from prior
+        // cycles is skipped here rather than re-extracted and re-recorded again.
+        // Looked up once and threaded into RecordIngestionIssueAsync below (for the
+        // not-yet-capped path) instead of a second, redundant lookup there.
+        var existingIssue = await _ingestionIssueRepository.GetByConversationIdAsync(email.ConversationId, cancellationToken);
+        if (existingIssue is not null && existingIssue.OccurrenceCount >= MaxIngestionIssueOccurrences)
+        {
+            _logger.LogError(
+                "Email {MessageId} (conversation {ConversationId}) has reached the {MaxOccurrences}-occurrence " +
+                "reprocessing cap (currently at {OccurrenceCount}) and will not be re-extracted or re-recorded this " +
+                "cycle. MarkAsProcessed will still be attempted, so this can still resolve on its own if that " +
+                "succeeds - see docs/Backlog.md WP-082.",
+                email.MessageId, email.ConversationId, MaxIngestionIssueOccurrences, existingIssue.OccurrenceCount);
+            return true;
+        }
+
         var extractResult = await ExecuteWithRetryAsync(
             () => _pdfExtractionService.ExtractPdfAttachmentsAsync(email.MessageId, cancellationToken), "ExtractPdfAttachments", cancellationToken);
 
@@ -159,7 +189,7 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         var attachments = extractResult.Value.PdfAttachments;
         if (attachments.Count == 0)
         {
-            await RecordIngestionIssueAsync(email, extractResult.Value.AllAttachments, cancellationToken);
+            await RecordIngestionIssueAsync(email, extractResult.Value.AllAttachments, existingIssue, cancellationToken);
             return true;
         }
 
@@ -191,9 +221,12 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
     /// diagnostic side record, not the pipeline's core job of deciding whether the
     /// email had anything to process (it didn't, regardless of whether this write
     /// succeeds), so a transient database error here must not leave an otherwise-fine
-    /// "nothing to process" email stuck unmarked forever.
+    /// "nothing to process" email stuck unmarked forever. <c>existing</c> is the same
+    /// conversation's row, if any - already looked up by the caller
+    /// (<see cref="ProcessEmailAsync"/>'s WP-082 cap check), so this method doesn't
+    /// re-query for it.
     /// </summary>
-    private async Task RecordIngestionIssueAsync(EmailSummaryDto email, IReadOnlyList<AttachmentInfoDto> allAttachments, CancellationToken cancellationToken)
+    private async Task RecordIngestionIssueAsync(EmailSummaryDto email, IReadOnlyList<AttachmentInfoDto> allAttachments, IngestionIssue? existing, CancellationToken cancellationToken)
     {
         var attachmentsFound = allAttachments.Count == 0
             ? "(none)"
@@ -202,7 +235,6 @@ public sealed class InvoiceProcessingService : IInvoiceProcessingService
         try
         {
             var nowUtc = DateTimeOffset.UtcNow;
-            var existing = await _ingestionIssueRepository.GetByConversationIdAsync(email.ConversationId, cancellationToken);
 
             if (existing is not null)
             {

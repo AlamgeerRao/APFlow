@@ -358,6 +358,38 @@ public class InvoiceProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessUnreadEmailsAsync_SameConversation_NoProcessablePdf_RetriedUpToCap_ThenStopsIncrementing()
+    {
+        // WP-082: reproduces the shape of the live incident QA found (one
+        // conversation kept coming back as "unprocessed" every single cycle,
+        // regardless of the underlying reason) across 7 simulated poll cycles.
+        // Occurrence 5 (MaxIngestionIssueOccurrences) is where the cap kicks in -
+        // cycles 6 and 7 must not increment further, must not re-extract, but must
+        // still attempt MarkAsProcessedAsync each time so a fixable underlying
+        // cause can still self-resolve without ever needing the cap again.
+        var (service, deps) = CreateService();
+        const string conversationId = "reprocessing-loop-conversation";
+
+        for (var cycle = 1; cycle <= 7; cycle++)
+        {
+            var messageId = $"graph-message-cycle-{cycle}";
+            deps.EmailSync.UnprocessedEmails.Clear();
+            deps.EmailSync.UnprocessedEmails.Add(
+                new EmailSummaryDto(messageId, "Fwd: Reservation Confirmation", "sender@example.com", "Sender", DateTimeOffset.UtcNow, conversationId));
+            deps.PdfExtraction.AllAttachmentsByMessageId[messageId] = [new AttachmentInfoDto("inline.jpg", "image/jpeg")];
+
+            var result = await service.ProcessUnreadEmailsAsync();
+
+            Assert.True(result.IsSuccess);
+            Assert.Contains(messageId, deps.EmailSync.MarkedAsProcessedMessageIds); // every cycle, capped or not
+        }
+
+        var issue = Assert.Single(deps.IngestionIssueRepository.Issues);
+        Assert.Equal(5, issue.OccurrenceCount); // stopped incrementing after the 5th real occurrence
+        Assert.Equal("graph-message-cycle-5", issue.MessageId); // never updated by the capped cycles 6-7
+    }
+
+    [Fact]
     public async Task ProcessUnreadEmailsAsync_OneOfTwoAttachmentsFails_PartialSuccess_EmailNotMarkedProcessed()
     {
         var (service, deps) = CreateService();
