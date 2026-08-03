@@ -1,9 +1,9 @@
 # Sprint 1 — Acceptance Criteria
 
-**Status:** Ready for WP-025 execution — all blocking pre-conditions satisfied
+**Status:** Executed — see `docs/QA/WP-025-Sprint1-QA-Report.md` for the actual QA pass and findings
 **Prepared by:** Chief Technical Architect
 **For:** Senior QA Engineer (WP-025)
-**Revision:** v2, 2026-08-02 — updated following WP-061 through WP-076
+**Revision:** v3, 2026-08-03 — corrected §10's nav-vs-API conflation (LOW-1, found by WP-025 itself)
 
 ---
 
@@ -71,7 +71,10 @@
 
 **Updated:** the live system uses GB Skips' full, confirmed 15-status template (WP-070/075), not the simplified 4-stage description originally circulated. Test against the real graph below, not the earlier simplified version.
 
-- [ ] The nav's Invoice Queue sub-links show all 15 GB Skips statuses in the correct order, including `Checked & Ready to Approve` and `Needs Review by Febina` positioned between `Awaiting Review` and `Approved` (WP-075 — this was recently broken and fixed; worth confirming explicitly given the history).
+**Correction (2026-08-03, following WP-025's LOW-1 finding):** the line below previously said the nav shows all 15 statuses. That was wrong, and the error was mine, not a code defect — it conflated two separate things: the `workflow-template` API correctly returns all 15 statuses (WP-075's actual, correct deliverable), but the **nav** has always deliberately shown only *non-terminal, actionable* statuses (a WP-014-era design decision, unrelated to and predating WP-075). `ARCHIVED` (terminal) is correctly excluded from the nav by design. Corrected below.
+
+- [ ] The **API** (`GET /api/workflow-template`) returns all 15 GB Skips statuses, including the two extras (`Checked & Ready to Approve`, `Needs Review by Febina`) positioned between `Awaiting Review` and `Approved`, and the terminal `Archived` status (WP-075).
+- [ ] The **nav's** Invoice Queue sub-links show the 14 *non-terminal* GB Skips statuses, in the correct order, including both extras — `Archived` is correctly absent from the nav (by design, not a defect).
 - [ ] Every workflow action shown reflects only transitions genuinely valid for the invoice's status and the acting user's role (live from `available-actions`, WP-054).
 - [ ] Full flow: `AWAITING_REVIEW → CHECKED_READY_TO_APPROVE` (Reviewer) → `APPROVED` (Approver only) works end-to-end.
 - [ ] Confirm `AWAITING_REVIEW → APPROVED` directly is **not possible** for GB Skips (the two-tier gate can't be bypassed).
@@ -99,3 +102,9 @@
 QA should return one of: **PASS**, **PASS WITH ISSUES** (each categorised Critical/High/Medium/Low), or **FAIL** — per the existing Sprint 1 QA work package format.
 
 **Context for calibrating severity:** this system has been extensively live-verified at the API/data level throughout its build (documented in `docs/Backlog.md`'s Closed section), but this is its first real UI walkthrough. Finding UI-level issues that API-level testing couldn't have caught is the expected, valuable outcome of this pass — not a sign the system is less ready than believed. Weight findings accordingly: a rendering/UX issue is not the same class of problem as a data-integrity or security gap, even though both may surface for the first time in this pass.
+
+---
+
+## Result — WP-025 executed 2026-08-03
+
+**PASS WITH ISSUES.** Full report: `docs/QA/WP-025-Sprint1-QA-Report.md`. Two follow-ups raised: WP-081 (header role-label source, Medium) and WP-082 (719-occurrence reprocessing loop root cause, reliability). Neither blocks Sprint 1 sign-off — see the report's Risk Assessment for the Chief Technical Architect's reasoning.
