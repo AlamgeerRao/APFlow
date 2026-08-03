@@ -1,14 +1,5 @@
 # AP Flow — WP-022: CI/CD Pipeline (Development)
 
-<!-- WP-078 path-filter retest #3, 2026-08-03: docs-only change, pushed on
-its own after splitting the paths-filter step in two (backend/frontend
-with the default 'some' quantifier, other with 'every') - the actual root
-cause of the "docs-only push still runs everything" bug was a
-predicate-quantifier issue, not the checkout depth. This should finally
-confirm detect-changes sets backend-changed/frontend-changed both false
-and every build/test/deploy job is actually skipped. Safe to remove once
-confirmed. -->
-
 Scope: **Development environment only**, deploying to the two App Services
 provisioned in WP-021:
 
@@ -147,6 +138,15 @@ real root cause surfaced:**
    `'some'`) and `Filter changed paths (other/ambiguous)`
    (`predicate-quantifier: 'every'`) — so each can use the quantifier its
    own pattern shape actually needs.
+
+**Live-confirmed 2026-08-03:** a real docs-only push (touching only this
+file) resolved `filter.backend=false filter.frontend=false
+filter-other.other=false → backend-changed=false frontend-changed=false`
+(read straight from the `Log detect-changes result` notice), and every one
+of `backend-build-test` (all 5 matrix legs), `frontend-build-test`,
+`backend-publish`, `migrate-development-database`, `deploy-api`, and
+`deploy-web` showed `completed skipped` on the actual run. The path-based
+skip this WP set out to build finally works end to end.
 
 Found and fixed while building the original job: a *skipped* `needs:` dependency still satisfies
 GitHub Actions' default `success()` check, so `migrate-development-database`/
