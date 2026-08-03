@@ -98,8 +98,23 @@ push, no matter how narrowly scoped, always resolved both flags `true`.
 This had been true since the very first WP-078 commit; the docs-only-skip
 path had never actually worked, only the "run everything" path had been
 exercised (WP-078's own initial commit touched the workflow file, so it
-never surfaced there). Fixed by setting `fetch-depth: 0` (full history) on
-that checkout step.
+never surfaced there). First fix attempt (`fetch-depth: 0`, full history)
+made it *worse*, not better: a fresh full-history clone on every run hit a
+transient `RPC failed; HTTP 503` against GitHub's own git backend (only
+diagnosable via the job's check-run annotations, `GET
+/repos/{owner}/{repo}/check-runs/{id}/annotations` — raw job logs need
+repo-admin rights even on a public repo, which wasn't available here);
+`actions/checkout`'s own retry logic swallowed the error and still
+reported the step as successful, but the resulting history was evidently
+still incomplete, so `paths-filter` hit the identical "no common ancestor"
+fallback a second time. **Actual fix: `fetch-depth: 50`** (a small, fixed
+depth — `paths-filter` has its own doubling-retry logic to fetch deeper if
+the merge-base isn't found within it, so this only needs to comfortably
+cover a normal multi-commit push, not the whole repo history). Also added
+a `Log detect-changes result` step that emits the resolved filter/output
+values as an `::notice::` (check-run annotation) on every run, so any
+future regression here is diagnosable without needing log-download
+permissions again.
 
 Found and fixed while building the original job: a *skipped* `needs:` dependency still satisfies
 GitHub Actions' default `success()` check, so `migrate-development-database`/

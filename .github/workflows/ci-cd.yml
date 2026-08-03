@@ -47,16 +47,28 @@ jobs:
       backend-changed: ${{ steps.combine.outputs.backend }}
       frontend-changed: ${{ steps.combine.outputs.frontend }}
     steps:
-      # fetch-depth: 0 (full history) - dorny/paths-filter needs the
-      # previous commit locally to diff against on a push event.
-      # actions/checkout's default fetch-depth: 1 (shallow, no history)
-      # left it unable to find any common ancestor, so it silently fell
-      # back to "no common ancestor -> treat every file as changed" on
-      # every single run, defeating the path filters below entirely -
-      # found live: a docs-only push still ran the full pipeline.
+      # dorny/paths-filter needs the previous commit locally to diff
+      # against on a push event. actions/checkout's default fetch-depth: 1
+      # (shallow, no history) left it unable to find any common ancestor,
+      # so it silently fell back to "no common ancestor -> treat every file
+      # as changed" on every run, defeating the path filters below
+      # entirely - found live: a docs-only push still ran the full
+      # pipeline. fetch-depth: 0 (full history) was tried first and made it
+      # *worse*, not better: cloning the entire repo history on every run
+      # hit a transient `RPC failed; HTTP 503` against GitHub's git
+      # backend (confirmed via the job's check-run annotations, the only
+      # diagnostic surface available without repo-admin log access) -
+      # checkout's own retry logic swallowed the error and still reported
+      # step success, but the resulting history was evidently still
+      # incomplete, so paths-filter hit the exact same "no common
+      # ancestor" fallback again. Fixed with a small, fixed fetch-depth
+      # instead - paths-filter has its own doubling-retry logic
+      # (https://github.com/dorny/paths-filter) to fetch deeper if the
+      # merge-base isn't found within this depth, so this only needs to
+      # comfortably cover a normal multi-commit push, not the whole repo.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 50
 
       - name: Filter changed paths
         id: filter
@@ -95,6 +107,16 @@ jobs:
             echo "backend=${{ steps.filter.outputs.backend }}" >> "$GITHUB_OUTPUT"
             echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
           fi
+
+      # Emits the resolved values as a check-run annotation, visible via
+      # `GET /repos/{owner}/{repo}/check-runs/{id}/annotations` - the one
+      # diagnostic surface this repo's setup can read without repo-admin
+      # rights (raw job logs need admin: true even on a public repo).
+      # Added after this exact gap made the RPC-503 root cause above take
+      # far longer to find than it should have.
+      - name: Log detect-changes result
+        run: |
+          echo "::notice title=detect-changes::event=${{ github.event_name }} filter.other=${{ steps.filter.outputs.other }} filter.backend=${{ steps.filter.outputs.backend }} filter.frontend=${{ steps.filter.outputs.frontend }} -> backend-changed=${{ steps.combine.outputs.backend }} frontend-changed=${{ steps.combine.outputs.frontend }}"
 
   # ============================================================================
   # Backend: build .NET solution, run all 5 test projects
