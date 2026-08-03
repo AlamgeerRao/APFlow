@@ -31,12 +31,14 @@ jobs:
   # WP-078: detect which side(s) of the codebase actually changed, so the
   # rest of the pipeline can skip irrelevant jobs. Deliberately narrow -
   # only the six backend src/ project directories and the one frontend src/
-  # directory count as "clearly scoped to one side"; everything else
-  # (this workflow file itself, infra/**, tests/**, docs/**, root files) is
-  # genuinely ambiguous and falls through to the "other" filter below,
-  # which forces both flags true - never let an ambiguous change silently
-  # skip something that might matter. workflow_dispatch (no natural git
-  # diff base for a manual trigger) is treated the same way, unconditionally.
+  # directory count as "clearly scoped to one side"; docs/** and README.md
+  # are recognized as doc-only (no build/test/deploy needed at all - see the
+  # "other" filter below); everything else (this workflow file itself,
+  # infra/**, tests/**, other root files) is genuinely ambiguous and falls
+  # through to "other", which forces both flags true - never let an
+  # ambiguous change silently skip something that might matter.
+  # workflow_dispatch (no natural git diff base for a manual trigger) is
+  # treated the same way, unconditionally.
   # ============================================================================
   detect-changes:
     name: Detect changed paths
@@ -71,6 +73,8 @@ jobs:
               - '!src/APFlow.Integrations/**'
               - '!src/APFlow.Workers/**'
               - '!src/APFlow.Web/**'
+              - '!docs/**'
+              - '!README.md'
 
       - name: Combine with safe default
         id: combine

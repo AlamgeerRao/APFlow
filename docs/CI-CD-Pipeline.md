@@ -71,8 +71,11 @@ the 5 `backend-build-test` matrix legs, `backend-publish`,
 `migrate-development-database`, and `deploy-api` only run when
 `backend-changed` is `true` (the six `src/APFlow.*` backend project
 directories); `frontend-build-test` and `deploy-web` only run when
-`frontend-changed` is `true` (`src/APFlow.Web/**`). Anything outside both
-path sets (this workflow file itself, `infra/**`, `tests/**`, `docs/**`,
+`frontend-changed` is `true` (`src/APFlow.Web/**`). `docs/**` and
+`README.md` are recognized as doc-only — a change confined to those paths
+sets **both** flags `false`, skipping every downstream job (no build, test,
+or deploy needed for a docs-only change). Anything else outside all three
+recognized sets (this workflow file itself, `infra/**`, `tests/**`, other
 root files) or a `workflow_dispatch` manual trigger forces both flags
 `true` — deliberately narrow filters, wide safe default, so an ambiguous
 change never silently skips something that might matter. Found and fixed
