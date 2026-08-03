@@ -42,32 +42,19 @@ describe('deriveActingUser', () => {
     expect(user.displayName).toBe('fallback@example.com');
   });
 
-  it('maps the roles claim when present', () => {
-    const user = deriveActingUser(account({ idTokenClaims: { roles: ['FINANCE_MANAGER', 'AP_REVIEWER'] } }));
-
-    expect(user.roles).toEqual(['FINANCE_MANAGER', 'AP_REVIEWER']);
-  });
-
-  it('defaults to an empty roles array when the claim is absent', () => {
-    const user = deriveActingUser(account({ idTokenClaims: {} }));
-
-    expect(user.roles).toEqual([]);
-  });
-
-  it('filters out non-string entries in a malformed roles claim rather than throwing', () => {
-    const malformedAccount = {
-      ...account(),
-      idTokenClaims: { roles: ['AP_REVIEWER', 42, null] },
-    } as unknown as AccountInfo;
-
-    const user = deriveActingUser(malformedAccount);
-
-    expect(user.roles).toEqual(['AP_REVIEWER']);
-  });
-
   it('falls back tenantName to the tenantId, since no standard claim carries a friendly org name', () => {
     const user = deriveActingUser(account({ tenantId: 'tenant-xyz' }));
 
     expect(user.tenantName).toBe('tenant-xyz');
+  });
+
+  it('does not attempt to derive roles - see decodeAccessTokenRoles.ts (WP-081)', () => {
+    // The ID token structurally never carries app-role claims (see this
+    // module's own doc comment), so deriveActingUser's return type
+    // excludes `roles` entirely rather than always returning [] and
+    // inviting a caller to trust it.
+    const user = deriveActingUser(account({ idTokenClaims: { roles: ['FINANCE_MANAGER'] } }));
+
+    expect(user).not.toHaveProperty('roles');
   });
 });

@@ -94,15 +94,24 @@ public sealed class DocumentAnalysisService : IDocumentAnalysisService
         }
     }
 
+    /// <summary>
+    /// WP-083: Debug, not Information - called once per field (8x per invoice
+    /// analyzed), the highest-cardinality logging call in the codebase. The
+    /// per-invoice summary above (`LogInformation "Invoice document analysis
+    /// completed..."`) already covers presence at Information level; this
+    /// finer-grained, per-field detail is available on demand (raise the
+    /// minimum level when actually debugging extraction quality) without
+    /// costing anything by default.
+    /// </summary>
     private void LogConfidence(string fieldName, double? confidence)
     {
         if (confidence.HasValue)
         {
-            _logger.LogInformation("Extracted field {FieldName} with confidence {Confidence:P1}.", fieldName, confidence.Value);
+            _logger.LogDebug("Extracted field {FieldName} with confidence {Confidence:P1}.", fieldName, confidence.Value);
         }
         else
         {
-            _logger.LogInformation("Field {FieldName} was not extracted from the document.", fieldName);
+            _logger.LogDebug("Field {FieldName} was not extracted from the document.", fieldName);
         }
     }
 }

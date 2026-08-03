@@ -1,8 +1,10 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { AuthContext, type ActingUser, type AuthContextValue } from '@/auth/authContextDefinition';
 import { apiTokenRequest } from '@/auth/msalConfig';
 import { deriveActingUser } from '@/auth/deriveActingUser';
+import { getAccessToken } from '@/auth/tokenProvider';
+import { decodeAccessTokenRoles } from '@/auth/decodeAccessTokenRoles';
 
 export type { ActingUser };
 
@@ -21,13 +23,46 @@ export type { ActingUser };
  * who they are. `LoginPage.tsx` was updated for this; every other
  * consumer only ever called `signOut()`/read `user`, so nothing else
  * needed touching.
+ *
+ * WP-081: `user.roles` is sourced from the *access token* (fetched here
+ * via the same `getAccessToken()` httpClient.ts already uses for real API
+ * calls), not the ID token `deriveActingUser` derives everything else
+ * from — see `deriveActingUser.ts`'s doc comment for why the ID token
+ * structurally never carries app-role claims. This makes the role fetch
+ * asynchronous (a token acquisition, not a synchronous claim read), so
+ * `user.roles` starts as `[]` and updates once the access token resolves
+ * — the same "no roles yet" state `getActingRoleLabel` already treats as
+ * "nothing to show," so this doesn't need special-casing in `Header.tsx`.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { instance, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
 
   const account = accounts[0] ?? null;
-  const user = useMemo<ActingUser | null>(() => (account ? deriveActingUser(account) : null), [account]);
+  const [roles, setRoles] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!account) {
+      setRoles([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    void getAccessToken().then((token) => {
+      if (cancelled) return;
+      setRoles(token ? decodeAccessTokenRoles(token) : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account]);
+
+  const user = useMemo<ActingUser | null>(
+    () => (account ? { ...deriveActingUser(account), roles } : null),
+    [account, roles],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({

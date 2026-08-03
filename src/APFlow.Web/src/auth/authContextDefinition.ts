@@ -18,8 +18,11 @@ export interface ActingUser {
    * Application roles held by the acting user (see
    * `06_Domain_Reference_Data.md` §1 for the approved catalogue —
    * `PLATFORM_ADMIN`, `AP_REVIEWER`, `FINANCE_MANAGER`, `CREDIT_CONTROLLER`,
-   * `ACCOUNTS_ADMIN`, `READ_ONLY`). Sourced from Entra's `roles` app-roles
-   * claim as of WP-020.
+   * `ACCOUNTS_ADMIN`, `READ_ONLY`). Sourced from the *access token's*
+   * `roles` app-roles claim (WP-081) — not the ID token, which Entra never
+   * issues app-role claims on, since these roles are assigned against the
+   * API's service principal, not the SPA's. See
+   * `AuthContext.tsx`/`decodeAccessTokenRoles.ts`.
    */
   roles: string[];
 }
