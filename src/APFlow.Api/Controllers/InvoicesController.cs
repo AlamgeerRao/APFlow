@@ -239,13 +239,16 @@ public sealed class InvoicesController : ControllerBase
     /// resubmits them unchanged alongside the new status, because
     /// <c>UpdateAsync</c>'s contract is a full field replace, not a partial
     /// patch - this endpoint's own request body only carries
-    /// <see cref="UpdateInvoiceStatusRequest.TargetStatusCode"/> (plus optional
-    /// notes), so every other field is round-tripped as-is. On success, an
-    /// optional freeform note is recorded via the existing
-    /// <see cref="IInvoiceService.AddNoteAsync"/> mechanism (WP-009) - not a new
-    /// per-transition note type (task 4). <c>InvoiceService.UpdateAsync</c>
-    /// already stages an <c>InvoiceStatusChanged</c> audit entry itself (WP-013)
-    /// for the status change; this endpoint does not duplicate that (task 5).
+    /// <see cref="UpdateInvoiceStatusRequest.TargetStatusCode"/> (plus notes), so
+    /// every other field is round-tripped as-is.
+    /// <see cref="UpdateInvoiceStatusRequest.Notes"/> (WP-084) is now required
+    /// for any actual transition - <c>UpdateAsync</c> itself rejects the request
+    /// (<c>Invoice.NoteRequiredForTransition</c>) if it's missing or empty, and
+    /// creates the linked <c>InvoiceNote</c> atomically with the status change
+    /// (one commit, not two) when it's present. <c>UpdateAsync</c> already stages
+    /// an <c>InvoiceStatusChanged</c> audit entry itself (WP-013) for the status
+    /// change and now a <c>NoteAdded</c> entry for the note too; this endpoint
+    /// does not duplicate either.
     /// </summary>
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType(typeof(InvoiceDetailResponse), StatusCodes.Status200OK)]
@@ -270,27 +273,19 @@ public sealed class InvoicesController : ControllerBase
             NetAmount: current.NetAmount,
             Vat: current.Vat,
             GrossTotal: current.GrossTotal,
-            Status: request.TargetStatusCode);
+            Status: request.TargetStatusCode,
+            Notes: request.Notes);
 
+        // WP-084: UpdateAsync now creates the note atomically with the status
+        // change itself (staged and committed by its own single SaveChangesAsync
+        // call), and rejects the request outright (Invoice.NoteRequiredForTransition)
+        // if Notes is missing/empty for an actual transition - no separate
+        // best-effort AddNoteAsync follow-up call here any more (that was the real
+        // gap WP-084's investigation found: two independent commits, not one).
         var updateResult = await _invoiceService.UpdateAsync(id, updateRequest, cancellationToken);
         if (updateResult.IsFailure)
         {
             return ErrorProblem(updateResult.Error);
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Notes))
-        {
-            var noteResult = await _invoiceService.AddNoteAsync(id, request.Notes, cancellationToken);
-            if (noteResult.IsFailure)
-            {
-                // Same reasoning as every audit/side-effect failure path
-                // elsewhere in this codebase: the status change itself already
-                // succeeded and committed, so a failed note is a smaller
-                // problem than hiding or reverting that success because of it.
-                _logger.LogWarning(
-                    "Failed to add note for invoice {InvoiceId} during status change: {ErrorCode} - {ErrorMessage}",
-                    id, noteResult.Error.Code, noteResult.Error.Message);
-            }
         }
 
         return Ok(await BuildDetailResponseAsync(updateResult.Value, cancellationToken));

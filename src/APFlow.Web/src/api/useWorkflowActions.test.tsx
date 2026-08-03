@@ -94,14 +94,14 @@ describe('useWorkflowActions', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const updated = await act(async () =>
-      result.current.executeAction({ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }),
+      result.current.executeAction({ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }, 'Approved after review.'),
     );
 
     expect(updated?.status).toBe('APPROVED');
     expect(updated).not.toHaveProperty('pdfUrl');
     expect(httpClient.patch).toHaveBeenCalledWith('/api/invoices/inv-gb-002/status', {
       targetStatusCode: 'APPROVED',
-      notes: null,
+      notes: 'Approved after review.',
     });
     expect(result.current.executeError).toBeNull();
   });
@@ -118,7 +118,7 @@ describe('useWorkflowActions', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const updated = await act(async () =>
-      result.current.executeAction({ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }),
+      result.current.executeAction({ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }, 'Approving.'),
     );
 
     expect(updated).toBeNull();

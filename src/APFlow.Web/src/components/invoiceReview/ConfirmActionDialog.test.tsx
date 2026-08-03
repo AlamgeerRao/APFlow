@@ -17,7 +17,49 @@ describe('ConfirmActionDialog', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent(/Approve/);
   });
 
-  it('calls onConfirm when Confirm is clicked', async () => {
+  it('shows clear messaging that a note is required (WP-084)', () => {
+    render(
+      <ConfirmActionDialog
+        action={{ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isSubmitting={false}
+      />,
+    );
+
+    expect(screen.getByText(/A note explaining this action is required/i)).toBeInTheDocument();
+  });
+
+  it('Confirm is disabled with no note entered (WP-084)', () => {
+    render(
+      <ConfirmActionDialog
+        action={{ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isSubmitting={false}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+  });
+
+  it('Confirm stays disabled for whitespace-only text (WP-084)', async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmActionDialog
+        action={{ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isSubmitting={false}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Note'), '   ');
+
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();
+  });
+
+  it('Confirm becomes enabled once real text is entered, and calls onConfirm with the trimmed note (WP-084)', async () => {
     const onConfirm = vi.fn();
     const user = userEvent.setup();
     render(
@@ -29,9 +71,15 @@ describe('ConfirmActionDialog', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
+    const confirmButton = screen.getByRole('button', { name: 'Confirm' });
+    expect(confirmButton).toBeDisabled();
 
-    expect(onConfirm).toHaveBeenCalled();
+    await user.type(screen.getByLabelText('Note'), '  Looks correct, approving.  ');
+    expect(confirmButton).toBeEnabled();
+
+    await user.click(confirmButton);
+
+    expect(onConfirm).toHaveBeenCalledWith('Looks correct, approving.');
   });
 
   it('calls onCancel when Cancel is clicked', async () => {
@@ -51,8 +99,20 @@ describe('ConfirmActionDialog', () => {
     expect(onCancel).toHaveBeenCalled();
   });
 
-  it('disables both buttons while submitting', () => {
-    render(
+  it('disables both buttons while submitting, even with a note entered', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ConfirmActionDialog
+        action={{ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isSubmitting={false}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Note'), 'A note.');
+
+    rerender(
       <ConfirmActionDialog
         action={{ targetStatusCode: 'APPROVED', targetStatusLabel: 'Approve' }}
         onConfirm={vi.fn()}

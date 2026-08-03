@@ -16,6 +16,13 @@ interface WorkflowActionsPanelProps {
    * trip, unlike WP-018's original `retry()`-based design).
    */
   onStatusChanged: (updated: InvoiceDetail) => void;
+  /**
+   * Called after a note is successfully created as part of a transition
+   * (WP-084) - the caller uses this to refresh the Notes panel, which
+   * otherwise has no way to know a note was created server-side, atomically
+   * with the status change, rather than through its own `AddNoteForm`.
+   */
+  onNoteCreated?: () => void;
 }
 
 /**
@@ -26,7 +33,7 @@ interface WorkflowActionsPanelProps {
  * the acting tenant's workflow configuration and the acting user's role
  * permit for that status (tasks 1–3).
  */
-export function WorkflowActionsPanel({ invoice, onStatusChanged }: WorkflowActionsPanelProps) {
+export function WorkflowActionsPanel({ invoice, onStatusChanged, onNoteCreated }: WorkflowActionsPanelProps) {
   const { actions, isLoading, error, isExecuting, executeError, executeAction } = useWorkflowActions(
     invoice.id,
     invoice.status,
@@ -34,11 +41,11 @@ export function WorkflowActionsPanel({ invoice, onStatusChanged }: WorkflowActio
   const [pendingAction, setPendingAction] = useState<WorkflowAction | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  async function handleConfirm() {
+  async function handleConfirm(notes: string) {
     if (!pendingAction) return;
 
     setSuccessMessage(null);
-    const updated = await executeAction(pendingAction);
+    const updated = await executeAction(pendingAction, notes);
     if (updated) {
       setSuccessMessage(`Invoice marked as "${pendingAction.targetStatusLabel}" successfully.`);
       setPendingAction(null);
@@ -46,6 +53,11 @@ export function WorkflowActionsPanel({ invoice, onStatusChanged }: WorkflowActio
       // invoiceDetailMapping.ts) — the document hasn't changed, so reuse
       // the already-resolved blob URL rather than re-fetching the PDF.
       onStatusChanged({ ...updated, pdfUrl: invoice.pdfUrl });
+      // WP-084: the note was just created atomically with the status change
+      // on the server - nothing else in this component's own state knows
+      // that, so tell the caller to refresh the (separately-owned) Notes
+      // panel rather than leaving it stale until the next full page load.
+      onNoteCreated?.();
     }
     // On failure, leave the confirmation open with executeError displayed
     // (from the hook) so the user can see why and decide whether to retry.
@@ -79,6 +91,12 @@ export function WorkflowActionsPanel({ invoice, onStatusChanged }: WorkflowActio
 
       {pendingAction && (
         <ConfirmActionDialog
+          // WP-084: keyed on the target status so switching which action is
+          // pending (possible without cancelling first - WorkflowActionButtons
+          // only disables while isExecuting, not while merely pending) forces
+          // a fresh mount, resetting the dialog's own note text rather than
+          // carrying a note typed for one transition over to a different one.
+          key={pendingAction.targetStatusCode}
           action={pendingAction}
           onConfirm={handleConfirm}
           onCancel={handleCancel}

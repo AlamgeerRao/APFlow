@@ -1,9 +1,19 @@
+import { useEffect } from 'react';
 import { useInvoiceNotes } from '@/api/useInvoiceNotes';
 import { NotesList } from '@/components/invoiceReview/NotesList';
 import { AddNoteForm } from '@/components/invoiceReview/AddNoteForm';
 
 interface NotesPanelProps {
   invoiceId: string;
+  /**
+   * Bump this (e.g. a counter) whenever a note may have been created outside
+   * this panel's own `AddNoteForm` - specifically, WP-084's mandatory
+   * per-transition note, created server-side atomically with the status
+   * change by `WorkflowActionsPanel`, not through this panel's `addNote`.
+   * Without this, the notes list would silently go stale after a workflow
+   * action until the next full page load.
+   */
+  refreshToken?: number;
 }
 
 /**
@@ -15,8 +25,17 @@ interface NotesPanelProps {
  * owns `useInvoiceNotes` itself rather than threading note state through
  * the page.
  */
-export function NotesPanel({ invoiceId }: NotesPanelProps) {
+export function NotesPanel({ invoiceId, refreshToken }: NotesPanelProps) {
   const { notes, isLoading, error, isSubmitting, submitError, addNote, retry } = useInvoiceNotes(invoiceId);
+
+  useEffect(() => {
+    if (refreshToken !== undefined) {
+      retry();
+    }
+    // Deliberately reacts to refreshToken changing only - retry is stable
+    // (useCallback in useInvoiceNotes) but including it here too is
+    // harmless and keeps the lint rule honest about the real dependency.
+  }, [refreshToken, retry]);
 
   return (
     <section aria-labelledby="notes-heading" className="rounded-md border border-slate-200 bg-white p-4">

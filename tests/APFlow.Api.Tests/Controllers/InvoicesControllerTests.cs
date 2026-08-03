@@ -402,19 +402,26 @@ public class InvoicesControllerTests
     }
 
     [Fact]
-    public async Task UpdateStatus_WithNotes_AddsNoteAfterSuccessfulStatusChange()
+    public async Task UpdateStatus_WithNotes_PassesNotesThroughToUpdateAsync()
     {
+        // WP-084: the note is no longer added via a separate, independently-failable
+        // IInvoiceService.AddNoteAsync follow-up call after the status change - it's
+        // threaded through UpdateInvoiceRequest.Notes so InvoiceService.UpdateAsync
+        // can create it atomically with the status change itself, in one commit.
         var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto(), UpdateResultToReturn = NewInvoiceDto() };
         var controller = CreateController(invoiceService, new FakeAuditQueryService());
 
         await controller.UpdateStatus(
             InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: "Approved after review"), CancellationToken.None);
 
-        Assert.Equal((InvoiceId, "Approved after review"), invoiceService.LastNoteAdded);
+        Assert.Equal("Approved after review", invoiceService.LastUpdateRequest?.Notes);
+        // Confirms there is no separate AddNoteAsync call any more - the note's
+        // only path into the system for this endpoint is through UpdateAsync now.
+        Assert.Null(invoiceService.LastNoteAdded);
     }
 
     [Fact]
-    public async Task UpdateStatus_NoNotes_DoesNotCallAddNoteAsync()
+    public async Task UpdateStatus_NoNotes_PassesNullNotesThroughToUpdateAsync()
     {
         var invoiceService = new FakeInvoiceService { InvoiceToReturn = NewInvoiceDto(), UpdateResultToReturn = NewInvoiceDto() };
         var controller = CreateController(invoiceService, new FakeAuditQueryService());
@@ -422,7 +429,31 @@ public class InvoicesControllerTests
         await controller.UpdateStatus(
             InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
 
+        Assert.Null(invoiceService.LastUpdateRequest?.Notes);
         Assert.Null(invoiceService.LastNoteAdded);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_NoteRequiredForTransitionRejectedByService_ReturnsBadRequest()
+    {
+        // WP-084: the controller does not duplicate this validation - it's a thin
+        // wrapper, same as every other rule InvoiceService.UpdateAsync enforces.
+        // This confirms the rejection surfaces correctly as a 400 through the
+        // controller's existing ErrorProblem mapping (unmatched codes -> 400).
+        var invoiceService = new FakeInvoiceService
+        {
+            InvoiceToReturn = NewInvoiceDto(),
+            UpdateFailureToReturn = new Error("Invoice.NoteRequiredForTransition", "A note is required to change an invoice's status."),
+        };
+        var controller = CreateController(invoiceService, new FakeAuditQueryService());
+
+        var actionResult = await controller.UpdateStatus(
+            InvoiceId, new UpdateInvoiceStatusRequest(InvoiceStatusCodes.Approved, Notes: null), CancellationToken.None);
+
+        var problemResult = Assert.IsType<ObjectResult>(actionResult);
+        Assert.Equal(StatusCodes.Status400BadRequest, problemResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(problemResult.Value);
+        Assert.Equal("Invoice.NoteRequiredForTransition", problem.Extensions["code"]);
     }
 
     [Fact]

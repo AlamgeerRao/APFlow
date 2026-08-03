@@ -51,7 +51,7 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
-            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+            "INV-1-REV", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved, Notes: "Approved after review."));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.Approved, result.Value.Status);
@@ -78,18 +78,24 @@ public class InvoiceServiceTests
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-1", null, null, "GBP", 100m, 20m, 120m, null));
 
         var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
-            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted, Notes: "Moved to extracted."));
 
         Assert.True(result.IsSuccess);
-        // CreateAsync (WP-052 Part C) also stages its own InvoiceCreated entry -
-        // this test is about the status-change entry specifically, so it filters
-        // to that one rather than assuming it's the only entry present.
-        Assert.Equal(2, auditLogRepo.AuditLogs.Count);
+        // CreateAsync (WP-052 Part C) also stages its own InvoiceCreated entry, and
+        // WP-084's now-mandatory note stages its own NoteAdded entry alongside the
+        // status change - this test is about the status-change entry specifically,
+        // so it filters to that one rather than assuming it's the only entry present.
+        Assert.Equal(3, auditLogRepo.AuditLogs.Count);
         var entry = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.InvoiceStatusChanged);
         Assert.Equal(nameof(Invoice), entry.EntityName);
         Assert.Equal(created.Value.Id, entry.EntityId);
         Assert.Equal(InvoiceStatusCodes.Received.ToString(), entry.PreviousValue); // CreateAsync always starts at Received
         Assert.Equal(InvoiceStatusCodes.Extracted.ToString(), entry.NewValue);
+
+        // WP-084: the note is staged and committed atomically with the status
+        // change, not as a separate, independently-failable follow-up call.
+        var noteEntry = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.NoteAdded);
+        Assert.Equal("Moved to extracted.", noteEntry.NewValue);
 
         // Staged, not independently saved - InvoiceService.UpdateAsync's own
         // SaveChangesAsync call is what commits it (see IAuditService.LogAsync's
@@ -152,7 +158,7 @@ public class InvoiceServiceTests
         var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
 
         var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
-            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved, Notes: "Approved by finance manager."));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.Approved, result.Value.Status);
@@ -212,7 +218,7 @@ public class InvoiceServiceTests
         var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, fromStatus);
 
         var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
-            "INV-1", null, null, "GBP", 100m, 20m, 120m, toStatus));
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, toStatus, Notes: "Transition note."));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(toStatus, result.Value.Status);
@@ -230,7 +236,7 @@ public class InvoiceServiceTests
         var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.AwaitingReview);
 
         var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
-            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved));
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved, Notes: "Approved directly (platform default)."));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.Approved, result.Value.Status);
@@ -273,6 +279,60 @@ public class InvoiceServiceTests
 
         Assert.True(result.IsFailure);
         Assert.Equal("Workflow.TransitionNotAllowed", result.Error.Code);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task UpdateAsync_GatedTransition_MissingOrEmptyNote_Rejected_InvoiceUnchanged(string? notes)
+    {
+        // WP-084: an otherwise-valid, otherwise-authorized GATED transition
+        // (CHECKED_READY_TO_APPROVE -> APPROVED, role-gated per RoleGatedTransitions)
+        // is still rejected if the note is missing, empty, or whitespace-only - the
+        // acting user genuinely holds FINANCE_MANAGER here, so this proves the note
+        // requirement is a real, independent check, not just incidentally passing
+        // because the role gate already failed first.
+        var (service, invoiceRepo, currentUser, policyRepo, templateRepo) = CreateServiceWithApproval();
+        SeedGbSkipsTemplate(templateRepo);
+        SeedGbSkipsInvoiceApprovalPolicy(policyRepo);
+        currentUser.RolesList.Add(Roles.FinanceManager);
+        var invoice = await CreateInvoiceAtCheckedReadyToApproveAsync(service, invoiceRepo);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Approved, Notes: notes));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Invoice.NoteRequiredForTransition", result.Error.Code);
+
+        var unchanged = invoiceRepo.Invoices.Single(i => i.Id == invoice.Id);
+        Assert.Equal(InvoiceStatusCodes.CheckedReadyToApprove, unchanged.Status);
+        Assert.Empty(unchanged.Notes);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task UpdateAsync_UngatedTransition_MissingOrEmptyNote_Rejected_InvoiceUnchanged(string? notes)
+    {
+        // WP-084: applies to EVERY human-initiated transition, not just the
+        // role-gated ones - RECEIVED -> PROCESSING carries no role gate at all
+        // (RoleGatedTransitions doesn't cover it) and is still rejected without a
+        // note.
+        var (service, invoiceRepo, _, _, templateRepo) = CreateServiceWithApproval();
+        SeedPlatformDefaultTemplate(templateRepo);
+        var invoice = await CreateInvoiceAtStatusAsync(invoiceRepo, InvoiceStatusCodes.Received);
+
+        var result = await service.UpdateAsync(invoice.Id, new UpdateInvoiceRequest(
+            "INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Processing, Notes: notes));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Invoice.NoteRequiredForTransition", result.Error.Code);
+
+        var unchanged = invoiceRepo.Invoices.Single(i => i.Id == invoice.Id);
+        Assert.Equal(InvoiceStatusCodes.Received, unchanged.Status);
+        Assert.Empty(unchanged.Notes);
     }
 
     [Fact]

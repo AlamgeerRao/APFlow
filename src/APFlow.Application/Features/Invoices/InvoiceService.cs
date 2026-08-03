@@ -136,7 +136,11 @@ public sealed class InvoiceService : IInvoiceService
             return Result.Failure<InvoiceDto>(validationError);
         }
 
-        var invoice = await _invoiceRepository.GetByIdAsync(id, cancellationToken);
+        // WP-084: loaded with Notes now (not plain GetByIdAsync) - a status-changing
+        // request stages a linked InvoiceNote directly onto this same tracked
+        // instance further down, committed by the one SaveChangesAsync call at the
+        // end of this method, not a separate save.
+        var invoice = await _invoiceRepository.GetByIdWithNotesAsync(id, cancellationToken);
         if (invoice is null)
         {
             return Result.Failure<InvoiceDto>(new Error("Invoice.NotFound", $"Invoice '{id}' was not found."));
@@ -145,10 +149,11 @@ public sealed class InvoiceService : IInvoiceService
         var previousStatus = invoice.Status;
         var statusIsChanging = !string.Equals(previousStatus, request.Status, StringComparison.Ordinal);
 
-        // WP-053: enforcement is now LIVE. Both checks below run before any field is
-        // mutated, so a rejected attempt leaves the invoice completely untouched.
-        // Only run at all when the status is actually changing - a plain field edit
-        // (same status) is not a transition and is neither validated nor gated.
+        // WP-053: enforcement is now LIVE. Every check in this block runs before any
+        // field is mutated, so a rejected attempt leaves the invoice completely
+        // untouched. Only run at all when the status is actually changing - a plain
+        // field edit (same status) is not a transition and is neither validated nor
+        // gated.
         if (statusIsChanging)
         {
             // (1) Is this transition allowed at all by the acting tenant's workflow
@@ -187,6 +192,34 @@ public sealed class InvoiceService : IInvoiceService
                         invoice.Id, previousStatus, request.Status, authorizationResult.Error.Code, authorizationResult.Error.Message);
                     return Result.Failure<InvoiceDto>(authorizationResult.Error);
                 }
+            }
+
+            // (3) WP-084: every human-initiated status change requires a non-empty
+            // note. Checked last, after transition-validity/role-gating, so an
+            // attempt that isn't even a valid or authorized transition reports ITS
+            // OWN specific error rather than a possibly-misleading "note required"
+            // for an action that was never going to succeed anyway - but still
+            // before any field is mutated, so the "invoice left completely
+            // untouched on rejection" guarantee holds regardless of which check
+            // actually failed. The system's own automatic EXTRACTED ->
+            // AWAITING_REVIEW advance at ingestion never calls UpdateAsync at all -
+            // InvoiceProcessingService constructs the Invoice directly via
+            // IInvoiceRepository.AddAsync (confirmed by grepping every call site of
+            // UpdateAsync: this HTTP status-transition endpoint is the only one) -
+            // so it is structurally unaffected by this check, not specially
+            // exempted from it.
+            if (string.IsNullOrWhiteSpace(request.Notes))
+            {
+                return Result.Failure<InvoiceDto>(new Error(
+                    "Invoice.NoteRequiredForTransition",
+                    "A note is required to change an invoice's status."));
+            }
+
+            if (request.Notes.Length > FieldLimits.InvoiceNoteContent)
+            {
+                return Result.Failure<InvoiceDto>(new Error(
+                    "Invoice.InvalidNoteContent",
+                    $"Note content must not exceed {FieldLimits.InvoiceNoteContent} characters."));
             }
         }
 
@@ -229,6 +262,36 @@ public sealed class InvoiceService : IInvoiceService
                 _logger.LogWarning(
                     "Failed to stage audit log entry for invoice {InvoiceId} status change ({PreviousStatus} -> {NewStatus}): {ErrorCode} - {ErrorMessage}",
                     invoice.Id, previousStatus, request.Status, auditResult.Error.Code, auditResult.Error.Message);
+            }
+
+            // WP-084: the note validated as required above is created as part of
+            // this same transition - staged here and committed by the single
+            // SaveChangesAsync call below, never as an independent follow-up call
+            // that could succeed or fail on its own. Mirrors AddNoteAsync's own
+            // note-creation + NoteAdded audit staging exactly, just inlined so both
+            // the note and the status change share one atomic commit.
+            var note = new InvoiceNote
+            {
+                InvoiceId = invoice.Id,
+                Content = request.Notes!,
+                AuthorDisplayName = _currentUserService.DisplayName,
+            };
+            invoice.Notes.Add(note);
+
+            var noteAuditResult = await _auditService.LogAsync(
+                new RecordAuditLogRequest(
+                    Action: AuditActions.NoteAdded,
+                    EntityName: nameof(Invoice),
+                    EntityId: invoice.Id,
+                    PreviousValue: null,
+                    NewValue: request.Notes!),
+                cancellationToken);
+
+            if (noteAuditResult.IsFailure)
+            {
+                _logger.LogWarning(
+                    "Failed to stage audit log entry for note added to invoice {InvoiceId} during status change: {ErrorCode} - {ErrorMessage}",
+                    invoice.Id, noteAuditResult.Error.Code, noteAuditResult.Error.Message);
             }
         }
 

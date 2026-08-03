@@ -38,10 +38,14 @@ public sealed record CreateInvoiceRequest(
 
 /// <summary>
 /// Request shape for updating an invoice's editable fields, including
-/// <see cref="Status"/>. No transition validation is performed - "Approval
-/// workflow" is explicit WP-009 out-of-scope, so any status can be set to any
-/// other status here. A future work package is responsible for enforcing which
-/// transitions are actually valid.
+/// <see cref="Status"/>. Transition validity and role-gating are enforced by
+/// <c>IInvoiceService.UpdateAsync</c> itself as of WP-053 - this DTO carries
+/// the request, it does not describe what's allowed.
+/// <see cref="Notes"/> (WP-084) is required whenever <see cref="Status"/>
+/// actually differs from the invoice's current status - a human-initiated
+/// transition with no accompanying note is rejected before any field is
+/// mutated. Ignored (and not required) when the status is unchanged, since
+/// that is not a transition.
 /// </summary>
 public sealed record UpdateInvoiceRequest(
     string? SupplierInvoiceNumber,
@@ -51,4 +55,5 @@ public sealed record UpdateInvoiceRequest(
     decimal? NetAmount,
     decimal? Vat,
     decimal? GrossTotal,
-    string Status);
+    string Status,
+    string? Notes = null);

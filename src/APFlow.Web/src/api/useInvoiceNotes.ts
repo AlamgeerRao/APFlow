@@ -94,6 +94,13 @@ export function useInvoiceNotes(invoiceId: string | undefined): InvoiceNotesStat
 
   const noSubject = !user || !invoiceId;
 
+  // WP-084: memoized (not a fresh arrow function every render) so a caller
+  // outside this hook - NotesPanel, reacting to a WorkflowActionsPanel
+  // transition that created a note server-side - can safely include it in
+  // its own effect's dependency array without that effect re-running on
+  // every unrelated render.
+  const retry = useCallback(() => setReloadToken((t) => t + 1), []);
+
   return {
     notes: noSubject ? [] : notes,
     isLoading: noSubject ? false : isLoading,
@@ -101,6 +108,6 @@ export function useInvoiceNotes(invoiceId: string | undefined): InvoiceNotesStat
     isSubmitting,
     submitError,
     addNote,
-    retry: () => setReloadToken((t) => t + 1),
+    retry,
   };
 }

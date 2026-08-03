@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeading } from '@/components/layout/PageHeading';
 import { useInvoiceDetail } from '@/api/useInvoiceDetail';
@@ -10,6 +11,7 @@ import { AuditSummaryPanel } from '@/components/invoiceReview/AuditSummaryPanel'
 import { InvoicePdfViewer } from '@/components/invoiceReview/InvoicePdfViewer';
 import { NotesPanel } from '@/components/invoiceReview/NotesPanel';
 import { WorkflowActionsPanel } from '@/components/invoiceReview/WorkflowActionsPanel';
+import type { InvoiceDetail } from '@/types/invoiceDetail';
 import {
   InvoiceReviewLoadingState,
   InvoiceReviewErrorState,
@@ -21,11 +23,29 @@ import {
  * WP-018's Workflow Actions panel). Payment, remittance, and supplier email
  * remain explicitly out of scope (WP-018's own Out of Scope list) — no
  * affordance for any of those exists anywhere on this page.
+ *
+ * WP-084: Notes now renders directly under Workflow Actions (not after
+ * Extracted Fields/Audit Summary, a separately-scrolled section) - every
+ * transition requires a note, so the two are placed together deliberately.
+ * `notesRefreshToken` starts `undefined` (not `0`) so `NotesPanel` doesn't
+ * fire a redundant extra fetch on first mount - see its own doc comment;
+ * it only becomes a real number once a workflow action has actually
+ * created a note server-side, which is the one case this page needs to
+ * tell the independently-owned Notes panel to reload itself.
  */
 export function InvoiceReviewPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const { invoice, isLoading, error, notFound, retry, applyUpdatedInvoice } = useInvoiceDetail(invoiceId);
   const { previousId, nextId, position, total } = useInvoiceNavigation(invoiceId);
+  const [notesRefreshToken, setNotesRefreshToken] = useState<number | undefined>(undefined);
+
+  function handleStatusChanged(updated: InvoiceDetail) {
+    applyUpdatedInvoice(updated);
+  }
+
+  function handleNoteCreated() {
+    setNotesRefreshToken((token) => (token ?? 0) + 1);
+  }
 
   if (isLoading) {
     return (
@@ -73,11 +93,11 @@ export function InvoiceReviewPage() {
         </div>
 
         <div className="order-1 flex flex-col gap-6 lg:order-2">
-          <WorkflowActionsPanel invoice={invoice} onStatusChanged={applyUpdatedInvoice} />
+          <WorkflowActionsPanel invoice={invoice} onStatusChanged={handleStatusChanged} onNoteCreated={handleNoteCreated} />
+          <NotesPanel invoiceId={invoice.id} refreshToken={notesRefreshToken} />
           <InvoiceHeaderSummary invoice={invoice} />
           <ExtractedFieldsPanel fields={invoice.extractedFields} />
           <AuditSummaryPanel entries={invoice.auditEntries} />
-          <NotesPanel invoiceId={invoice.id} />
         </div>
       </div>
     </>

@@ -61,24 +61,37 @@ public class AuditLogRepositoryTests
         // docs/WP-053-Transition-Enforcement-Decisions.md.
         var toProcessing = await invoiceService.UpdateAsync(
             created.Value.Id,
-            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Processing));
+            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Processing, Notes: "Picked up for processing."));
         Assert.True(toProcessing.IsSuccess);
 
         var updateResult = await invoiceService.UpdateAsync(
             created.Value.Id,
-            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted));
+            new UpdateInvoiceRequest("INV-1", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted, Notes: "Extraction complete."));
 
         Assert.True(updateResult.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.Extracted, updateResult.Value.Status);
 
-        // Each UpdateAsync call (one SaveChangesAsync each) committed BOTH the
-        // invoice's new status AND the audit entry describing it - this is the
-        // atomic-commit design's whole point, proven against a real DbContext.
-        // Three entries total: CreateAsync's InvoiceCreated (WP-052 Part C), plus
-        // one InvoiceStatusChanged per transition (Received -> Processing ->
-        // Extracted).
+        // Each UpdateAsync call (one SaveChangesAsync each) committed the invoice's
+        // new status, the audit entry describing it, AND (WP-084) the mandatory
+        // note's own InvoiceNote row and NoteAdded audit entry - all in the same
+        // real transaction, proven against a real DbContext, not a fake. Five
+        // entries total: CreateAsync's InvoiceCreated (WP-052 Part C), plus one
+        // InvoiceStatusChanged + one NoteAdded per transition (Received ->
+        // Processing -> Extracted).
         var auditEntries = await context.AuditLogs.ToListAsync();
-        Assert.Equal(3, auditEntries.Count);
+        Assert.Equal(5, auditEntries.Count);
+
+        var noteAddedEntries = auditEntries.Where(a => a.Action == AuditActions.NoteAdded).OrderBy(a => a.CreatedAtUtc).ToList();
+        Assert.Equal(2, noteAddedEntries.Count);
+        Assert.Equal("Picked up for processing.", noteAddedEntries[0].NewValue);
+        Assert.Equal("Extraction complete.", noteAddedEntries[1].NewValue);
+
+        // WP-084: the InvoiceNote rows themselves are also really there, correctly
+        // linked to the invoice - not just the audit trail describing them.
+        var notes = await context.InvoiceNotes.Where(n => n.InvoiceId == created.Value.Id).OrderBy(n => n.CreatedAtUtc).ToListAsync();
+        Assert.Equal(2, notes.Count);
+        Assert.Equal("Picked up for processing.", notes[0].Content);
+        Assert.Equal("Extraction complete.", notes[1].Content);
 
         var statusChanges = auditEntries
             .Where(a => a.Action == AuditActions.InvoiceStatusChanged)

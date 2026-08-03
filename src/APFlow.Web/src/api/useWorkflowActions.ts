@@ -19,8 +19,13 @@ interface WorkflowActionsState {
    * PATCH endpoint already returns the updated invoice, so the caller no
    * longer needs to trigger a separate `retry()` — see
    * `WorkflowActionsPanel`'s `onStatusChanged`.
+   * `notes` (WP-084) is required by the real API for every transition -
+   * this hook does not itself validate that (the dialog already refuses
+   * to call this with an empty note; the server is the actual source of
+   * truth) - it's threaded straight through to `workflowActionClient`,
+   * which creates the linked note atomically with the status change.
    */
-  executeAction: (action: WorkflowAction) => Promise<Omit<InvoiceDetail, 'pdfUrl'> | null>;
+  executeAction: (action: WorkflowAction, notes: string) => Promise<Omit<InvoiceDetail, 'pdfUrl'> | null>;
 }
 
 /**
@@ -70,7 +75,7 @@ export function useWorkflowActions(invoiceId: string | undefined, fromStatusCode
   }, [user, invoiceId, fromStatusCode]);
 
   const executeAction = useCallback(
-    async (action: WorkflowAction): Promise<Omit<InvoiceDetail, 'pdfUrl'> | null> => {
+    async (action: WorkflowAction, notes: string): Promise<Omit<InvoiceDetail, 'pdfUrl'> | null> => {
       if (!user || !invoiceId || !fromStatusCode) return null;
 
       setIsExecuting(true);
@@ -82,6 +87,7 @@ export function useWorkflowActions(invoiceId: string | undefined, fromStatusCode
           fromStatusCode,
           action.targetStatusCode,
           user.roles,
+          notes,
         );
       } catch (err) {
         setExecuteError(err instanceof Error ? err.message : 'Unable to perform this action. Please try again.');
