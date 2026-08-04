@@ -185,10 +185,15 @@ public class InvoiceServiceTests
     [InlineData(InvoiceStatusCodes.CheckedReadyToApprove, InvoiceStatusCodes.NeedsQuery)]
     [InlineData(InvoiceStatusCodes.Rejected, InvoiceStatusCodes.AwaitingReview)]
     [InlineData(InvoiceStatusCodes.Cancelled, InvoiceStatusCodes.Received)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.CheckedReadyToApprove)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.NeedsQuery)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.Rejected)]
     public async Task UpdateAsync_RoleGatedTransition_ApReviewerRole_Rejected(string fromStatus, string toStatus)
     {
-        // WP-053 required scenario: AP_REVIEWER cannot execute ANY of the four
-        // role-gated transitions - not just the original approval one WP-051 gated.
+        // WP-053 required scenario, extended 2026-08-04 to the three
+        // NEEDS_REVIEW_FEBINA resolution edges (see RoleGatedTransitions' own doc
+        // comment): AP_REVIEWER cannot execute ANY of the seven role-gated
+        // transitions - not just the original approval one WP-051 gated.
         var (service, invoiceRepo, currentUser, policyRepo, templateRepo) = CreateServiceWithApproval();
         SeedGbSkipsTemplate(templateRepo);
         SeedGbSkipsInvoiceApprovalPolicy(policyRepo);
@@ -208,9 +213,13 @@ public class InvoiceServiceTests
     [InlineData(InvoiceStatusCodes.CheckedReadyToApprove, InvoiceStatusCodes.NeedsQuery)]
     [InlineData(InvoiceStatusCodes.Rejected, InvoiceStatusCodes.AwaitingReview)]
     [InlineData(InvoiceStatusCodes.Cancelled, InvoiceStatusCodes.Received)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.CheckedReadyToApprove)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.NeedsQuery)]
+    [InlineData(InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.Rejected)]
     public async Task UpdateAsync_RoleGatedTransition_FinanceManagerRole_Succeeds(string fromStatus, string toStatus)
     {
-        // WP-053 required scenario: FINANCE_MANAGER can execute all four.
+        // WP-053 required scenario, extended 2026-08-04: FINANCE_MANAGER can execute
+        // all seven role-gated transitions.
         var (service, invoiceRepo, currentUser, policyRepo, templateRepo) = CreateServiceWithApproval();
         SeedGbSkipsTemplate(templateRepo);
         SeedGbSkipsInvoiceApprovalPolicy(policyRepo);

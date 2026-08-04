@@ -20,12 +20,25 @@ namespace APFlow.Domain.Common.Constants;
 /// </para>
 ///
 /// <para>
-/// All four currently resolve to the same required role
+/// All seven currently resolve to the same required role
 /// (<see cref="Roles.FinanceManager"/>, per 06_Domain_Reference_Data.md §1's interim
 /// Full/Approver mapping) because they all check the same single
 /// <c>InvoiceApproval</c> policy. If a future requirement needs different roles for
 /// different transitions, that means introducing a second approval domain (and
 /// policy row), not adding a role column here.
+/// </para>
+///
+/// <para>
+/// The three <c>NEEDS_REVIEW_FEBINA</c> resolution edges were gated after the fact
+/// (found live, 2026-08-04): <c>NEEDS_REVIEW_FEBINA</c> is a named Approver's
+/// (Febina's - see 06_Domain_Reference_Data.md's GB Skips role mapping, "Full/Approver
+/// (Patrick, Febina)") personal escalation queue, but resolving out of it was left
+/// ungated when WP-053 seeded the graph, so any <c>AP_REVIEWER</c> could resolve an
+/// invoice escalated specifically for an Approver's own review - defeating the
+/// escalation's purpose. Escalating INTO the queue
+/// (<c>AWAITING_REVIEW</c>/<c>CHECKED_READY_TO_APPROVE</c> -> <c>NEEDS_REVIEW_FEBINA</c>)
+/// deliberately stays ungated - that's a reviewer flagging something for her, not a
+/// decision only she can make.
 /// </para>
 /// </summary>
 public static class RoleGatedTransitions
@@ -39,6 +52,12 @@ public static class RoleGatedTransitions
         // Reopen paths - present in BOTH templates' graphs.
         (InvoiceStatusCodes.Rejected, InvoiceStatusCodes.AwaitingReview),
         (InvoiceStatusCodes.Cancelled, InvoiceStatusCodes.Received),
+
+        // Resolving Febina's own escalation queue - GB Skips only. Escalating INTO
+        // NEEDS_REVIEW_FEBINA is deliberately NOT gated (see class doc comment).
+        (InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.CheckedReadyToApprove),
+        (InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.NeedsQuery),
+        (InvoiceStatusCodes.NeedsReviewFebina, InvoiceStatusCodes.Rejected),
     ];
 
     /// <summary>
