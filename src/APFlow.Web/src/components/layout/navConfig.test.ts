@@ -7,7 +7,7 @@ function template(overrides: Partial<WorkflowTemplate> = {}): WorkflowTemplate {
     tenantId: 'test-tenant',
     templateName: 'Test Tenant',
     statuses: [
-      { code: 'RECEIVED', name: 'Received', isTerminal: false, order: 1 },
+      { code: 'NEEDS_QUERY', name: 'Needs Query', isTerminal: false, order: 1 },
       { code: 'ARCHIVED', name: 'Archived', isTerminal: true, order: 3 },
       { code: 'AWAITING_REVIEW', name: 'Awaiting Review', isTerminal: false, order: 2 },
     ],
@@ -25,7 +25,7 @@ describe('buildInvoiceQueueLinks', () => {
   it('orders non-terminal statuses ascending by StatusReference.order, regardless of input order', () => {
     const links = buildInvoiceQueueLinks(template());
 
-    expect(links.map((link) => link.key)).toEqual(['RECEIVED', 'AWAITING_REVIEW']);
+    expect(links.map((link) => link.key)).toEqual(['NEEDS_QUERY', 'AWAITING_REVIEW']);
   });
 
   it('does not mutate the template.statuses array it was given', () => {
@@ -50,6 +50,40 @@ describe('buildInvoiceQueueLinks', () => {
     );
 
     expect(links).toEqual([]);
+  });
+
+  it('excludes RECEIVED, PROCESSING, and EXTRACTED as structurally non-actionable since WP-071, while keeping every other non-terminal status', () => {
+    const links = buildInvoiceQueueLinks(
+      template({
+        statuses: [
+          { code: 'RECEIVED', name: 'Received', isTerminal: false, order: 1 },
+          { code: 'PROCESSING', name: 'Processing', isTerminal: false, order: 2 },
+          { code: 'EXTRACTED', name: 'Extracted', isTerminal: false, order: 3 },
+          { code: 'AWAITING_REVIEW', name: 'Awaiting Review', isTerminal: false, order: 4 },
+          { code: 'NEEDS_QUERY', name: 'Needs Query', isTerminal: false, order: 5 },
+          { code: 'QUERY_RAISED', name: 'Query Raised', isTerminal: false, order: 6 },
+          { code: 'AWAITING_SUPPLIER_RESPONSE', name: 'Awaiting Supplier Response', isTerminal: false, order: 7 },
+          { code: 'APPROVED', name: 'Approved', isTerminal: false, order: 8 },
+          { code: 'REJECTED', name: 'Rejected', isTerminal: false, order: 9 },
+          { code: 'CANCELLED', name: 'Cancelled', isTerminal: false, order: 10 },
+          { code: 'READY_FOR_PAYMENT', name: 'Ready for Payment', isTerminal: false, order: 11 },
+          { code: 'PAID', name: 'Paid', isTerminal: false, order: 12 },
+          { code: 'ARCHIVED', name: 'Archived', isTerminal: true, order: 13 },
+        ],
+      }),
+    );
+
+    expect(links.map((link) => link.key)).toEqual([
+      'AWAITING_REVIEW',
+      'NEEDS_QUERY',
+      'QUERY_RAISED',
+      'AWAITING_SUPPLIER_RESPONSE',
+      'APPROVED',
+      'REJECTED',
+      'CANCELLED',
+      'READY_FOR_PAYMENT',
+      'PAID',
+    ]);
   });
 });
 

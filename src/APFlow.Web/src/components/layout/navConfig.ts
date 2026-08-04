@@ -39,15 +39,27 @@ export const STATIC_NAV_SECTIONS: Omit<NavSection, 'children'>[] = [
 ];
 
 /**
- * Builds one sub-link per non-terminal status in the acting tenant's
- * WorkflowTemplate, ordered by StatusReference.order. This is the only
- * data-driven part of the nav — it is what makes GB Skips' extra states
- * (CHECKED_READY_TO_APPROVE, NEEDS_REVIEW_FEBINA) appear without a code
- * change, per WP-014 task 2.
+ * WP-085: since WP-071, every invoice is created directly at
+ * AWAITING_REVIEW, so these three statuses are permanently unreachable as
+ * nav destinations in normal operation - a user clicking one always finds
+ * an empty folder. They remain valid statuses in the data model, template,
+ * and transition graph (a manually reopened invoice or a future
+ * non-pipeline entry path could still reach them); only the nav's own
+ * rendering is filtered here, by status code so this doesn't silently
+ * break if the template's ordering ever changes.
+ */
+const NON_ACTIONABLE_NAV_STATUS_CODES: ReadonlySet<string> = new Set(['RECEIVED', 'PROCESSING', 'EXTRACTED']);
+
+/**
+ * Builds one sub-link per non-terminal, actionable status in the acting
+ * tenant's WorkflowTemplate, ordered by StatusReference.order. This is the
+ * only data-driven part of the nav — it is what makes GB Skips' extra
+ * states (CHECKED_READY_TO_APPROVE, NEEDS_REVIEW_FEBINA) appear without a
+ * code change, per WP-014 task 2.
  */
 export function buildInvoiceQueueLinks(template: WorkflowTemplate): NavLink[] {
   return [...template.statuses]
-    .filter((status: StatusReference) => !status.isTerminal)
+    .filter((status: StatusReference) => !status.isTerminal && !NON_ACTIONABLE_NAV_STATUS_CODES.has(status.code))
     .sort((a, b) => a.order - b.order)
     .map((status) => ({
       key: status.code,
