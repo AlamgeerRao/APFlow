@@ -539,8 +539,27 @@ jobs:
     name: Deploy APFlow.Web (Development)
     runs-on: ubuntu-latest
     needs: [detect-changes, migrate-development-database]
-    # WP-078: same reasoning as deploy-api above.
-    if: needs.detect-changes.outputs.frontend-changed == 'true'
+    # WP-085: a plain `if:` (no always()/success()/failure() call) is
+    # implicitly ANDed with success() across every job in `needs` - and a
+    # SKIPPED dependency does not satisfy success(). migrate-development-database
+    # correctly skips itself on any frontend-only push (backend-changed ==
+    # 'false'), which was silently skipping this job too on every such push,
+    # even though frontend-changed was 'true' - the real WP-085 deploy never
+    # ran despite a fully green CI run. always() lifts the implicit success()
+    # AND so the explicit checks below are the only gate: still blocked if
+    # migrations genuinely failed/were cancelled, but no longer blocked by a
+    # migration step that correctly opted out of running at all. The
+    # event_name check (absent before, since it was previously an unintended
+    # side effect of the same skip-cascade this fix removes) is now explicit,
+    # not incidental: matches migrate-development-database's own restriction
+    # so a pull_request run - which never applies migrations - still can't
+    # deploy the web app either.
+    if: |
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.detect-changes.outputs.frontend-changed == 'true' &&
+      needs.migrate-development-database.result != 'failure' &&
+      needs.migrate-development-database.result != 'cancelled'
     environment:
       name: development
       url: https://app-apflow-dev-web-ryd3y6fyfloxu.azurewebsites.net

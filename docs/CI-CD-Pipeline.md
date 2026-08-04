@@ -422,10 +422,20 @@ confirm `SQL_SERVER_FQDN`, `SQL_DATABASE_NAME`, `API_APP_SERVICE_NAME`, and
 No special logic was added — GitHub Actions' default job-dependency
 behavior already does this: `migrate-development-database` only runs if
 every `backend-build-test` matrix leg and `frontend-build-test` succeeded
-(via `needs:`), and both `deploy-api`/`deploy-web` only run if the migration
-step succeeded. A failing `dotnet test`, `eslint`, `tsc -b`, `vitest run`, or
+(via `needs:`), and `deploy-api` only runs if the migration step succeeded.
+A failing `dotnet test`, `eslint`, `tsc -b`, `vitest run`, or
 `dotnet ef database update` all naturally stop the pipeline before anything
 downstream runs, with no extra conditional logic needed.
+
+**WP-085 correction:** `deploy-web` is the one exception to "only runs if
+the migration step succeeded" above — it now runs if migration *succeeded
+or was correctly skipped* (only genuine `failure`/`cancelled` blocks it).
+On a frontend-only push, `migrate-development-database` skips itself
+(`backend-changed == 'false'`), and a skipped `needs:` dependency does
+*not* satisfy the implicit `success()` every plain `if:` is ANDed with —
+so before this fix, `deploy-web` silently never ran on any frontend-only
+push, despite a fully green CI run. See the `docs/Backlog.md` entry
+(closed WP-078 item) for the full story of how this was found.
 
 ---
 
