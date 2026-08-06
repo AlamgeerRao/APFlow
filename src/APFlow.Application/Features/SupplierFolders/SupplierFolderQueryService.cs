@@ -13,6 +13,24 @@ namespace APFlow.Application.Features.SupplierFolders;
 /// </summary>
 public sealed class SupplierFolderQueryService : ISupplierFolderQueryService
 {
+    /// <summary>
+    /// WP-085 follow-up: since WP-071, every invoice is created directly at
+    /// AWAITING_REVIEW, so these three statuses are permanently unreachable in
+    /// normal operation - the folder chip always shows a zero count. WP-085
+    /// already excluded them from the Invoice Queue nav
+    /// (navConfig.ts's NON_ACTIONABLE_NAV_STATUS_CODES) but missed this
+    /// endpoint, which independently feeds the Suppliers page's folder list.
+    /// They remain valid statuses in the data model, template, and transition
+    /// graph; only this summary's rendering is filtered, by status code so
+    /// this doesn't silently break if the template's ordering ever changes.
+    /// </summary>
+    private static readonly HashSet<string> NonActionableFolderStatusCodes =
+    [
+        InvoiceStatusCodes.Received,
+        InvoiceStatusCodes.Processing,
+        InvoiceStatusCodes.Extracted,
+    ];
+
     private readonly IWorkflowQueryService _workflowQueryService;
     private readonly IInvoiceQueryService _invoiceQueryService;
 
@@ -34,7 +52,7 @@ public sealed class SupplierFolderQueryService : ISupplierFolderQueryService
         }
 
         var nonTerminalStatuses = templateResult.Value.Statuses
-            .Where(s => !s.IsTerminal)
+            .Where(s => !s.IsTerminal && !NonActionableFolderStatusCodes.Contains(s.Code))
             .OrderBy(s => s.SortOrder)
             .ToList();
 

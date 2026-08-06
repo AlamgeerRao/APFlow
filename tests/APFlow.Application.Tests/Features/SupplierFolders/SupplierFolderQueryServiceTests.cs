@@ -15,13 +15,13 @@ public class SupplierFolderQueryServiceTests
         {
             TemplateToReturn = NewTemplate(
                 (Code: "AWAITING_REVIEW", Name: "Awaiting Review", IsTerminal: false, SortOrder: 40),
-                (Code: "RECEIVED", Name: "Received", IsTerminal: false, SortOrder: 10),
+                (Code: "NEEDS_QUERY", Name: "Needs Query", IsTerminal: false, SortOrder: 10),
                 (Code: "ARCHIVED", Name: "Archived", IsTerminal: true, SortOrder: 130)),
         };
         var invoiceQuery = new FakeInvoiceQueryService
         {
             ResultFactory = parameters => Result.Success(new PagedResult<InvoiceListItemDto>(
-                [], parameters.Status == "RECEIVED" ? 3 : 7, 1, 1)),
+                [], parameters.Status == "NEEDS_QUERY" ? 3 : 7, 1, 1)),
         };
         var service = new SupplierFolderQueryService(workflowQuery, invoiceQuery);
 
@@ -29,10 +29,33 @@ public class SupplierFolderQueryServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Count); // ARCHIVED (terminal) excluded
-        Assert.Equal("RECEIVED", result.Value[0].StatusCode); // SortOrder 10 first
+        Assert.Equal("NEEDS_QUERY", result.Value[0].StatusCode); // SortOrder 10 first
         Assert.Equal(3, result.Value[0].Count);
         Assert.Equal("AWAITING_REVIEW", result.Value[1].StatusCode); // SortOrder 40 second
         Assert.Equal(7, result.Value[1].Count);
+    }
+
+    [Fact]
+    public async Task GetFolderCountsAsync_ExcludesReceivedProcessingExtracted_PermanentlyUnreachableSinceWP071()
+    {
+        var workflowQuery = new FakeWorkflowQueryService
+        {
+            TemplateToReturn = NewTemplate(
+                (Code: "RECEIVED", Name: "Received", IsTerminal: false, SortOrder: 10),
+                (Code: "PROCESSING", Name: "Processing", IsTerminal: false, SortOrder: 20),
+                (Code: "EXTRACTED", Name: "Extracted", IsTerminal: false, SortOrder: 30),
+                (Code: "AWAITING_REVIEW", Name: "Awaiting Review", IsTerminal: false, SortOrder: 40)),
+        };
+        var invoiceQuery = new FakeInvoiceQueryService
+        {
+            ResultFactory = parameters => Result.Success(new PagedResult<InvoiceListItemDto>([], 0, 1, 1)),
+        };
+        var service = new SupplierFolderQueryService(workflowQuery, invoiceQuery);
+
+        var result = await service.GetFolderCountsAsync(search: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("AWAITING_REVIEW", Assert.Single(result.Value).StatusCode);
     }
 
     [Fact]
@@ -40,7 +63,7 @@ public class SupplierFolderQueryServiceTests
     {
         var workflowQuery = new FakeWorkflowQueryService
         {
-            TemplateToReturn = NewTemplate((Code: "RECEIVED", Name: "Received", IsTerminal: false, SortOrder: 10)),
+            TemplateToReturn = NewTemplate((Code: "NEEDS_QUERY", Name: "Needs Query", IsTerminal: false, SortOrder: 10)),
         };
         var invoiceQuery = new FakeInvoiceQueryService();
         var service = new SupplierFolderQueryService(workflowQuery, invoiceQuery);
@@ -68,7 +91,7 @@ public class SupplierFolderQueryServiceTests
     {
         var workflowQuery = new FakeWorkflowQueryService
         {
-            TemplateToReturn = NewTemplate((Code: "RECEIVED", Name: "Received", IsTerminal: false, SortOrder: 10)),
+            TemplateToReturn = NewTemplate((Code: "NEEDS_QUERY", Name: "Needs Query", IsTerminal: false, SortOrder: 10)),
         };
         var invoiceQuery = new FakeInvoiceQueryService
         {
