@@ -90,4 +90,14 @@ describe('InvoiceHeaderSummary', () => {
 
     expect(screen.getByText('Invoice Number').nextSibling?.textContent).toBe('—');
   });
+
+  // WP-092: Received used to render date-only (formatDate on a truncated slice of
+  // receivedAt) while every other timestamp in the app shows date+time - this was
+  // the concrete gap WP-092 exists to close.
+  it('renders Received as date and time, not date-only', async () => {
+    renderSummary(baseInvoice);
+    await waitForStatusBadgeToSettle();
+
+    expect(screen.getByText('Received').nextSibling?.textContent).toBe('01 Jul 2026, 08:00');
+  });
 });

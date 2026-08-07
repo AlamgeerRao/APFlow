@@ -99,6 +99,7 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
           previousValue: null,
           newValue: null,
           performedAtUtc: '2026-08-01T14:45:38.663Z',
+          performedByDisplayName: 'Priya Shah',
         },
       ]),
     );
@@ -106,7 +107,7 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
     expect(result.auditEntries[0].timestamp).toBe('2026-08-01T14:45:38.663Z');
   });
 
-  it('maps performedByUserId to actor, falling back to "system" when null', () => {
+  it('falls back to "System" when performedByUserId is null and no display name was captured', () => {
     const result = mapInvoiceDetailResponse(
       responseWith([
         {
@@ -118,11 +119,52 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
           previousValue: null,
           newValue: null,
           performedAtUtc: '2026-08-01T14:45:38.663Z',
+          performedByDisplayName: null,
         },
       ]),
     );
 
-    expect(result.auditEntries[0].actor).toBe('system');
+    expect(result.auditEntries[0].actor).toBe('System');
+  });
+
+  it('prefers performedByDisplayName over performedByUserId when both are present (WP-092)', () => {
+    const result = mapInvoiceDetailResponse(
+      responseWith([
+        {
+          id: 'audit-1',
+          performedByUserId: 'a3f1c2d4-...',
+          action: 'InvoiceCreated',
+          entityName: 'Invoice',
+          entityId: 'inv-1',
+          previousValue: null,
+          newValue: null,
+          performedAtUtc: '2026-08-01T14:45:38.663Z',
+          performedByDisplayName: 'Febina',
+        },
+      ]),
+    );
+
+    expect(result.auditEntries[0].actor).toBe('Febina');
+  });
+
+  it('falls back to "Unknown user" for a historical row with a real actor but no captured display name (WP-092)', () => {
+    const result = mapInvoiceDetailResponse(
+      responseWith([
+        {
+          id: 'audit-1',
+          performedByUserId: 'a3f1c2d4-...',
+          action: 'InvoiceCreated',
+          entityName: 'Invoice',
+          entityId: 'inv-1',
+          previousValue: null,
+          newValue: null,
+          performedAtUtc: '2026-08-01T14:45:38.663Z',
+          performedByDisplayName: null,
+        },
+      ]),
+    );
+
+    expect(result.auditEntries[0].actor).toBe('Unknown user');
   });
 
   it('describes an InvoiceStatusChanged entry as "from → to"', () => {
@@ -137,6 +179,7 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
           previousValue: 'AWAITING_REVIEW',
           newValue: 'CHECKED_READY_TO_APPROVE',
           performedAtUtc: '2026-08-01T00:19:58.79Z',
+          performedByDisplayName: 'Priya Shah',
         },
       ]),
     );
@@ -156,6 +199,7 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
           previousValue: null,
           newValue: 'Approved by test-approver',
           performedAtUtc: '2026-08-01T00:20:58.78Z',
+          performedByDisplayName: 'Priya Shah',
         },
       ]),
     );
@@ -175,6 +219,7 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
           previousValue: null,
           newValue: null,
           performedAtUtc: '2026-08-01T14:45:38.663Z',
+          performedByDisplayName: 'Priya Shah',
         },
       ]),
     );

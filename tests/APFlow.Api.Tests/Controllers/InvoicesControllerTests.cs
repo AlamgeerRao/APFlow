@@ -651,7 +651,8 @@ public class InvoicesControllerTests
         EntityId: InvoiceId,
         PreviousValue: null,
         NewValue: null,
-        PerformedAtUtc: DateTimeOffset.UtcNow);
+        PerformedAtUtc: DateTimeOffset.UtcNow,
+        PerformedByDisplayName: "Test User");
 
     private sealed class FakeInvoiceService : IInvoiceService
     {

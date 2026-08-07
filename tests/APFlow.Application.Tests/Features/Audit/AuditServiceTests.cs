@@ -106,9 +106,42 @@ public class AuditServiceTests
         Assert.Equal("AuditLog.InvalidPreviousValue", result.Error.Code);
     }
 
-    private static (AuditService Service, FakeAuditLogRepository Repository) CreateService()
+    // WP-092: PerformedByDisplayName is captured from ICurrentUserService.DisplayName
+    // at staging time, same pattern as InvoiceService's AuthorDisplayName capture for
+    // InvoiceNote (WP-055).
+    [Fact]
+    public async Task LogAsync_CurrentUserHasDisplayName_StagesItAsPerformedByDisplayName()
+    {
+        var (service, repository) = CreateService(displayName: "Priya Shah");
+
+        var result = await service.LogAsync(new RecordAuditLogRequest(
+            "InvoiceStatusChanged", "Invoice", Guid.NewGuid(), "Received", "Extracted"));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(repository.AuditLogs);
+        Assert.Equal("Priya Shah", entry.PerformedByDisplayName);
+    }
+
+    // A caller's token may not carry a name claim (see CurrentUserService.DisplayName's
+    // own doc comment) - same nullable case AuditLog.PerformedByDisplayName's doc
+    // comment documents, and the same shape a historical pre-WP-092 row has.
+    [Fact]
+    public async Task LogAsync_CurrentUserHasNoDisplayName_StagesNullPerformedByDisplayName()
+    {
+        var (service, repository) = CreateService(displayName: null);
+
+        var result = await service.LogAsync(new RecordAuditLogRequest(
+            "InvoiceCreated", "Invoice", Guid.NewGuid(), null, null));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(repository.AuditLogs);
+        Assert.Null(entry.PerformedByDisplayName);
+    }
+
+    private static (AuditService Service, FakeAuditLogRepository Repository) CreateService(string? displayName = "Test User")
     {
         var repository = new FakeAuditLogRepository();
-        return (new AuditService(repository, NullLogger<AuditService>.Instance), repository);
+        var currentUserService = new FakeCurrentUserService { DisplayName = displayName };
+        return (new AuditService(repository, currentUserService, NullLogger<AuditService>.Instance), repository);
     }
 }

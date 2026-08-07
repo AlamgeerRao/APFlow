@@ -33,6 +33,22 @@ public sealed record RecordAuditLogRequest(
 /// WP-013 task-list names since a read consumer shouldn't need to know they are
 /// reused base-class fields to understand what they mean.
 /// </summary>
+/// <param name="Id">The audit log entry's own id.</param>
+/// <param name="PerformedByUserId">The actor's stable user id (or the literal string "system"), from <c>AuditEntity.CreatedBy</c>.</param>
+/// <param name="Action">What happened - see <see cref="APFlow.Domain.Common.Constants.AuditActions"/> for known values.</param>
+/// <param name="EntityName">The name of the entity type this action was performed against, e.g. "Invoice".</param>
+/// <param name="EntityId">The affected entity's id.</param>
+/// <param name="PreviousValue">A plain-text representation of the value before this action, or null if not applicable.</param>
+/// <param name="NewValue">A plain-text representation of the value after this action, or null if not applicable.</param>
+/// <param name="PerformedAtUtc">When this action was recorded, from <c>AuditEntity.CreatedAtUtc</c>.</param>
+/// <param name="PerformedByDisplayName">
+/// The actor's human-readable name (WP-092), straight off
+/// <see cref="APFlow.Domain.Entities.AuditLog.PerformedByDisplayName"/> - or null for
+/// a row with no captured name (no name claim on the actor's token at the time, or a
+/// historical row recorded before this column existed). A consumer must render a
+/// readable fallback for the null case, never <see cref="PerformedByUserId"/>'s raw
+/// guid directly.
+/// </param>
 public sealed record AuditLogDto(
     Guid Id,
     string? PerformedByUserId,
@@ -41,7 +57,8 @@ public sealed record AuditLogDto(
     Guid EntityId,
     string? PreviousValue,
     string? NewValue,
-    DateTimeOffset PerformedAtUtc);
+    DateTimeOffset PerformedAtUtc,
+    string? PerformedByDisplayName);
 
 /// <summary>
 /// Filter, paging, and sort parameters for <see cref="IAuditQueryService"/> /

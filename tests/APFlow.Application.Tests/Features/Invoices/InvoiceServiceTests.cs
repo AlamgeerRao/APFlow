@@ -848,8 +848,8 @@ public class InvoiceServiceTests
         var invoiceRepository = new FakeInvoiceRepository();
         var supplierRepository = new FakeSupplierRepository();
         var auditLogRepository = new FakeAuditLogRepository();
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
         var currentUserService = new FakeCurrentUserService();
+        var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new FakeApprovalAuthorizationService(); // defaults to always-authorized
         var service = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
@@ -874,8 +874,8 @@ public class InvoiceServiceTests
         var invoiceRepository = new FakeInvoiceRepository();
         var supplierRepository = new FakeSupplierRepository();
         var auditLogRepository = new FakeAuditLogRepository();
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
         var currentUserService = new FakeCurrentUserService();
+        var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalPolicyRepository = new FakeApprovalPolicyRepository();
         var approvalAuthorizationService = new ApprovalAuthorizationService(approvalPolicyRepository);
         var workflowTemplateRepository = new FakeWorkflowTemplateRepository();

@@ -96,13 +96,41 @@ public class AuditQueryServiceTests
         Assert.Equal("AuditLogQuery.InvalidDateRange", result.Error.Code);
     }
 
-    private static AuditLog NewEntry(string entityName = "Invoice", Guid? entityId = null) => new()
+    // WP-092: PerformedByDisplayName round-trips from entity to DTO unchanged - both
+    // the populated case (a fresh entry) and the null case (a historical row recorded
+    // before this column existed, or an actor with no name claim).
+    [Fact]
+    public async Task SearchAsync_EntryHasPerformedByDisplayName_MapsItToTheDto()
+    {
+        var (service, repository) = CreateService();
+        repository.AuditLogs.Add(NewEntry(performedByDisplayName: "Priya Shah"));
+
+        var result = await service.SearchAsync(new AuditLogQueryParameters());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Priya Shah", Assert.Single(result.Value.Items).PerformedByDisplayName);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HistoricalEntryHasNoPerformedByDisplayName_MapsNullToTheDto()
+    {
+        var (service, repository) = CreateService();
+        repository.AuditLogs.Add(NewEntry());
+
+        var result = await service.SearchAsync(new AuditLogQueryParameters());
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(Assert.Single(result.Value.Items).PerformedByDisplayName);
+    }
+
+    private static AuditLog NewEntry(string entityName = "Invoice", Guid? entityId = null, string? performedByDisplayName = null) => new()
     {
         Action = "InvoiceStatusChanged",
         EntityName = entityName,
         EntityId = entityId ?? Guid.NewGuid(),
         PreviousValue = "Received",
         NewValue = "Extracted",
+        PerformedByDisplayName = performedByDisplayName,
     };
 
     private static (AuditQueryService Service, FakeAuditLogRepository Repository) CreateService()

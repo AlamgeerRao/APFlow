@@ -37,10 +37,11 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceRepository = new InvoiceRepository(context);
         var supplierRepository = new SupplierRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var currentUserService = new FakeCurrentUserService(tenantId);
+        var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
@@ -120,10 +121,11 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceRepository = new InvoiceRepository(context);
         var supplierRepository = new SupplierRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var currentUserService = new FakeCurrentUserService(tenantId);
+        var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
@@ -182,10 +184,11 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceRepository = new InvoiceRepository(context);
         var supplierRepository = new SupplierRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var currentUserService = new FakeCurrentUserService(tenantId);
+        var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
-            invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
+            invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
