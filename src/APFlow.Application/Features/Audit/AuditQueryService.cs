@@ -68,5 +68,6 @@ public sealed class AuditQueryService : IAuditQueryService
         EntityId: log.EntityId,
         PreviousValue: log.PreviousValue,
         NewValue: log.NewValue,
-        PerformedAtUtc: log.CreatedAtUtc);
+        PerformedAtUtc: log.CreatedAtUtc,
+        PerformedByDisplayName: log.PerformedByDisplayName);
 }

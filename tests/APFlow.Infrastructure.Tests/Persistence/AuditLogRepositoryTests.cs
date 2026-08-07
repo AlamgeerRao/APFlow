@@ -31,7 +31,7 @@ public class AuditLogRepositoryTests
         using var context = CreateContext(tenantId, currentUserId: "user-42");
         var invoiceRepository = new InvoiceRepository(context);
         var auditLogRepository = new AuditLogRepository(context);
-        var auditService = new AuditService(auditLogRepository, NullLogger<AuditService>.Instance);
+        var auditService = new AuditService(auditLogRepository, new FakeCurrentUserService(tenantId, "user-42"), NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
             invoiceRepository, new SupplierRepository(context), auditService,
@@ -137,6 +137,46 @@ public class AuditLogRepositoryTests
         Assert.Equal("system", entry.CreatedBy);
     }
 
+    // WP-092: proves PerformedByDisplayName round-trips through a real AppDbContext -
+    // FakeAuditLogRepository-based AuditServiceTests can't demonstrate that, same
+    // reasoning as this class's own doc comment.
+    [Fact]
+    public async Task AddAsync_CurrentUserHasDisplayName_PersistsPerformedByDisplayName()
+    {
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId, currentUserId: "user-42");
+        var auditLogRepository = new AuditLogRepository(context);
+        var auditService = new AuditService(
+            auditLogRepository, new FakeCurrentUserService(tenantId, "user-42", "Priya Shah"), NullLogger<AuditService>.Instance);
+
+        var result = await auditService.LogAndSaveAsync(new RecordAuditLogRequest(
+            "InvoiceStatusChanged", "Invoice", Guid.NewGuid(), "Received", "Extracted"));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(await context.AuditLogs.ToListAsync());
+        Assert.Equal("Priya Shah", entry.PerformedByDisplayName);
+    }
+
+    // The "historical row" case: no name claim captured at staging time - this
+    // must persist as null, not a crash or an empty string, so the read side has
+    // something well-defined to fall back from.
+    [Fact]
+    public async Task AddAsync_CurrentUserHasNoDisplayName_PersistsNullPerformedByDisplayName()
+    {
+        var tenantId = Guid.NewGuid();
+        using var context = CreateContext(tenantId, currentUserId: "user-42");
+        var auditLogRepository = new AuditLogRepository(context);
+        var auditService = new AuditService(
+            auditLogRepository, new FakeCurrentUserService(tenantId, "user-42"), NullLogger<AuditService>.Instance);
+
+        var result = await auditService.LogAndSaveAsync(new RecordAuditLogRequest(
+            "InvoiceStatusChanged", "Invoice", Guid.NewGuid(), "Received", "Extracted"));
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(await context.AuditLogs.ToListAsync());
+        Assert.Null(entry.PerformedByDisplayName);
+    }
+
     [Fact]
     public async Task QueryAsync_FiltersByEntityNameAndEntityId()
     {
@@ -215,16 +255,17 @@ public class AuditLogRepositoryTests
 
     private sealed class FakeCurrentUserService : ICurrentUserService
     {
-        public FakeCurrentUserService(Guid tenantId, string? userId)
+        public FakeCurrentUserService(Guid tenantId, string? userId, string? displayName = null)
         {
             TenantId = tenantId.ToString();
             UserId = userId;
+            DisplayName = displayName;
         }
 
         public bool IsAuthenticated => UserId is not null;
         public string? UserId { get; }
         public string? Email => null;
-        public string? DisplayName => null;
+        public string? DisplayName { get; }
         public string? TenantId { get; }
         public IReadOnlyCollection<string> Roles => [];
         public bool IsInRole(string role) => false;

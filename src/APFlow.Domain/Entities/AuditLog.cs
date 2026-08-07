@@ -67,4 +67,22 @@ public sealed class AuditLog : TenantEntity
 
     /// <summary>A plain-text representation of the value after this action, or null if not applicable. See <see cref="PreviousValue"/>.</summary>
     public string? NewValue { get; set; }
+
+    /// <summary>
+    /// The human-readable name of the user who performed this action, e.g.
+    /// "Priya Shah" (WP-092), same pattern as
+    /// <see cref="InvoiceNote.AuthorDisplayName"/> (WP-055). Populated once, at
+    /// staging time, from <c>ICurrentUserService.DisplayName</c> on the validated
+    /// Entra token - never recomputed later, so it reflects the actor's display
+    /// name AT THE TIME the action was performed even if their Entra profile name
+    /// later changes. Deliberately separate from <see cref="AuditEntity.CreatedBy"/>
+    /// (which carries the actor's stable object id, or the literal string
+    /// <c>"system"</c>, not a display-friendly name). Nullable for two reasons:
+    /// a caller's token may not carry a name claim (see
+    /// <c>CurrentUserService.DisplayName</c>'s own doc comment), and every row
+    /// recorded before this column existed has no captured value and can never be
+    /// retroactively resolved - the read side must fall back sensibly for both
+    /// cases rather than showing a raw guid or crashing.
+    /// </summary>
+    public string? PerformedByDisplayName { get; set; }
 }

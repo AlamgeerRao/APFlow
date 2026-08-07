@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { InvoiceDetail } from '@/types/invoiceDetail';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
 import { InvoiceStatusBadge } from '@/components/invoiceQueue/InvoiceStatusBadge';
 import { ConfidenceBadge } from '@/components/invoiceReview/ConfidenceBadge';
 
@@ -38,7 +38,11 @@ export function InvoiceHeaderSummary({ invoice }: InvoiceHeaderSummaryProps) {
         <Field label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
         <Field label="Amount" value={formatCurrency(invoice.amount, invoice.currencyCode)} />
         <Field label="Status" value={<InvoiceStatusBadge statusCode={invoice.status} />} />
-        <Field label="Received" value={formatDate(invoice.receivedAt.slice(0, 10))} />
+        {/* WP-092: was date-only (formatDate on a truncated slice) while every other
+            timestamp in the app shows date+time - Received is a full ISO timestamp
+            (see InvoiceDetail.receivedAt's own doc comment), so it gets the same
+            formatDateTime treatment as Notes/Audit Summary. */}
+        <Field label="Received" value={formatDateTime(invoice.receivedAt)} />
       </dl>
     </section>
   );

@@ -64,6 +64,15 @@ export interface AuditLogResponseDto {
   previousValue: string | null;
   newValue: string | null;
   performedAtUtc: string;
+  /**
+   * WP-092: the actor's human-readable name, captured once at write time from
+   * `ICurrentUserService.DisplayName` (`AuditLogDto.PerformedByDisplayName`) -
+   * or null for a row with no captured name (no name claim on the actor's
+   * token at the time, or a historical row recorded before this column
+   * existed). `resolveActorLabel` below is where the fallback for that null
+   * case lives - never render `performedByUserId`'s raw guid directly.
+   */
+  performedByDisplayName: string | null;
 }
 
 /**
@@ -91,11 +100,25 @@ function describeAuditEntry(entry: AuditLogResponseDto): string {
   }
 }
 
+/**
+ * WP-092: prefers the captured display name; a background/system action (no
+ * authenticated caller, `CreatedBy` stamped as the literal string "system" -
+ * see `AuditLog.cs`'s own doc comment) reads as "System"; anything else with
+ * no captured name (a real actor whose token had no name claim, or a
+ * historical row from before this column existed) reads as "Unknown user" -
+ * never a raw guid, which is what `performedByUserId` alone would render.
+ */
+function resolveActorLabel(entry: AuditLogResponseDto): string {
+  if (entry.performedByDisplayName) return entry.performedByDisplayName;
+  if (!entry.performedByUserId || entry.performedByUserId === 'system') return 'System';
+  return 'Unknown user';
+}
+
 function mapAuditEntry(entry: AuditLogResponseDto): AuditEntry {
   return {
     id: entry.id,
     timestamp: entry.performedAtUtc,
-    actor: entry.performedByUserId ?? 'system',
+    actor: resolveActorLabel(entry),
     action: entry.action,
     description: describeAuditEntry(entry),
   };

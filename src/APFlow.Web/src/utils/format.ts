@@ -40,17 +40,28 @@ export function formatDate(isoDate: string | null | undefined): string {
 /**
  * Formats an ISO 8601 timestamp (date + time) for display, e.g.
  * formatDateTime('2026-07-01T08:12:00Z') -> "01 Jul 2026, 08:12". Added for
- * WP-017's Notes panel (task 3: display date/time). Deliberately not used
- * to refactor `AuditSummaryPanel`'s existing local `formatTimestamp` — that
- * component is out of scope for this work package (Development Workflow §9:
- * "do not change unrelated files").
+ * WP-017's Notes panel (task 3: display date/time).
+ *
+ * WP-092: extended to accept `null | undefined` and to never throw on an
+ * unparseable value, same fallback contract as `formatDate` above (both
+ * driven by the same real crash pattern: WP-072 found this exact
+ * RangeError: Invalid time value in `AuditSummaryPanel`'s own local,
+ * now-removed `formatTimestamp`, which had grown its own copy of this same
+ * NaN guard rather than sharing it here - consolidated as part of WP-092's
+ * "audit every timestamp display and fix inconsistencies" task, now that
+ * this component is in scope).
  */
-export function formatDateTime(isoTimestamp: string): string {
+export function formatDateTime(isoTimestamp: string | null | undefined): string {
+  if (!isoTimestamp) return '—';
+
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return '—';
+
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(isoTimestamp));
+  }).format(date);
 }

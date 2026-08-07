@@ -83,4 +83,23 @@ describe('formatDateTime', () => {
   it('formats a different timestamp correctly', () => {
     expect(formatDateTime('2026-01-05T23:45:00Z')).toBe('05 Jan 2026, 23:45');
   });
+
+  // WP-092: same fallback contract as formatDate - AuditSummaryPanel's own local
+  // formatTimestamp used to guard against exactly this (WP-072's RangeError: Invalid
+  // time value), and now relies on this shared implementation for it instead.
+  it('returns a fallback instead of throwing for null', () => {
+    expect(formatDateTime(null)).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for undefined', () => {
+    expect(formatDateTime(undefined)).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for an empty string', () => {
+    expect(formatDateTime('')).toBe('—');
+  });
+
+  it('returns a fallback instead of throwing for an unparseable string', () => {
+    expect(formatDateTime('not-a-date')).toBe('—');
+  });
 });

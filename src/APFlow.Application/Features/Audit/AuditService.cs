@@ -16,12 +16,15 @@ namespace APFlow.Application.Features.Audit;
 public sealed class AuditService : IAuditService
 {
     private readonly IAuditLogRepository _repository;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<AuditService> _logger;
 
     /// <summary>Creates a new <see cref="AuditService"/>.</summary>
-    public AuditService(IAuditLogRepository repository, ILogger<AuditService> logger)
+    public AuditService(
+        IAuditLogRepository repository, ICurrentUserService currentUserService, ILogger<AuditService> logger)
     {
         _repository = repository;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -41,6 +44,13 @@ public sealed class AuditService : IAuditService
             EntityId = request.EntityId,
             PreviousValue = request.PreviousValue,
             NewValue = request.NewValue,
+            // WP-092: PerformedByDisplayName is captured once, here, at staging
+            // time - not resolved later from CreatedBy - so it reflects the
+            // actor's display name at the time they performed the action. Same
+            // reasoning and source as InvoiceService's AuthorDisplayName capture
+            // for InvoiceNote (WP-055). See AuditLog.PerformedByDisplayName's own
+            // doc comment.
+            PerformedByDisplayName = _currentUserService.DisplayName,
         };
 
         await _repository.AddAsync(auditLog, cancellationToken);
