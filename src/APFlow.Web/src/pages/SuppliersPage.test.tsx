@@ -136,3 +136,64 @@ describe('SuppliersPage — create/edit wiring (WP-027)', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Add supplier' })).not.toBeInTheDocument());
   });
 });
+
+describe('SuppliersPage — suppliers with no invoices yet (WP-093)', () => {
+  it('surfaces a supplier with zero invoices in its own section, separate from the invoice-grouped list', async () => {
+    const brandNewSupplierDto = { ...supplierDto, id: 'supplier-002', name: 'Brand New Supplier', creditLimit: null };
+    vi.mocked(httpClient.get).mockImplementation(async (path: string) => {
+      if (path === '/api/suppliers') return [supplierDto, brandNewSupplierDto];
+      if (path === '/api/invoices/folders') return [];
+      // Only Northwind has an invoice — Brand New Supplier is absent here,
+      // exactly the case this section exists to cover.
+      if (path === '/api/invoices/suppliers') return ['Northwind Traders Ltd'];
+      if (path === '/api/invoices/grouped') {
+        return {
+          groups: [{ supplierName: 'Northwind Traders Ltd', count: 0, invoices: [] }],
+          totalSuppliers: 1,
+          page: 1,
+          pageSize: 5,
+        };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderPage(['AP_REVIEWER']);
+
+    expect(await screen.findByRole('heading', { name: 'Suppliers with no invoices yet' })).toBeInTheDocument();
+    expect(screen.getByText('Brand New Supplier')).toBeInTheDocument();
+    // Northwind has an invoice, so it belongs only to the grouped list below.
+    const noInvoicesSection = screen.getByRole('heading', { name: 'Suppliers with no invoices yet' }).closest('div');
+    expect(noInvoicesSection).not.toHaveTextContent('Northwind Traders Ltd');
+  });
+
+  it('shows a newly created supplier in this section immediately, without needing an invoice first', async () => {
+    const user = userEvent.setup();
+    const brandNewSupplierDto = { ...supplierDto, id: 'supplier-002', name: 'Brand New Supplier', creditLimit: null };
+    let created = false;
+    vi.mocked(httpClient.get).mockImplementation(async (path: string) => {
+      if (path === '/api/suppliers') return created ? [supplierDto, brandNewSupplierDto] : [supplierDto];
+      if (path === '/api/invoices/folders') return [];
+      if (path === '/api/invoices/suppliers') return ['Northwind Traders Ltd'];
+      if (path === '/api/invoices/grouped') {
+        return {
+          groups: [{ supplierName: 'Northwind Traders Ltd', count: 0, invoices: [] }],
+          totalSuppliers: 1,
+          page: 1,
+          pageSize: 5,
+        };
+      }
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    vi.mocked(httpClient.post).mockImplementation(async () => {
+      created = true;
+      return brandNewSupplierDto;
+    });
+    renderPage(['AP_REVIEWER']);
+
+    await user.click(screen.getByRole('button', { name: '+ Add supplier' }));
+    await user.type(screen.getByLabelText('Name'), 'Brand New Supplier');
+    await user.click(screen.getByRole('button', { name: 'Add supplier' }));
+
+    expect(await screen.findByRole('heading', { name: 'Suppliers with no invoices yet' })).toBeInTheDocument();
+    expect(screen.getByText('Brand New Supplier')).toBeInTheDocument();
+  });
+});

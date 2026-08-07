@@ -6,6 +6,7 @@ import { useSuppliers } from '@/api/useSuppliers';
 import { FolderList } from '@/components/supplierFolder/FolderList';
 import { SupplierFolderFilters } from '@/components/supplierFolder/SupplierFolderFilters';
 import { SupplierGroupList } from '@/components/supplierFolder/SupplierGroupList';
+import { SuppliersWithoutInvoices } from '@/components/supplierFolder/SuppliersWithoutInvoices';
 import { SupplierForm } from '@/components/supplierFolder/SupplierForm';
 import { Pagination } from '@/components/invoiceQueue/Pagination';
 import { SupplierFolderLoadingState, SupplierFolderErrorState } from '@/components/supplierFolder/SupplierFolderStates';
@@ -31,6 +32,12 @@ type FormState = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; suppl
  * arrives); `suppliersByName` bridges the two so each group heading can
  * resolve to its real `Supplier` record for editing (see
  * `SupplierGroupList`'s own doc comment).
+ *
+ * WP-093: the zero-invoice gap flagged above is closed by
+ * `SuppliersWithoutInvoices` — a supplier from `useSuppliers` with no
+ * matching entry in `view.supplierOptions` (the complete, unpaginated set
+ * of supplier names with an invoice) is surfaced in its own small section,
+ * so it's never invisible after creation.
  */
 export function SuppliersPage() {
   const { user } = useAuth();
@@ -51,6 +58,20 @@ export function SuppliersPage() {
     }
     return map;
   }, [suppliers.suppliers]);
+
+  // WP-093: `view.supplierOptions` is the complete, unpaginated set of
+  // supplier names with at least one invoice (unlike `view.result.groups`,
+  // which is a 5-per-page slice) — the correct base to diff against so a
+  // supplier isn't wrongly flagged as "no invoices yet" just for being on
+  // a page the user hasn't scrolled to.
+  const supplierNamesWithInvoices = useMemo(
+    () => new Set(view.supplierOptions.map((name) => name.trim().toLowerCase())),
+    [view.supplierOptions],
+  );
+  const suppliersWithNoInvoices = useMemo(
+    () => suppliers.suppliers.filter((supplier) => !supplierNamesWithInvoices.has(supplier.name.trim().toLowerCase())),
+    [suppliers.suppliers, supplierNamesWithInvoices],
+  );
 
   async function handleSubmit(request: Parameters<typeof suppliers.createSupplier>[0]) {
     const result =
@@ -109,6 +130,11 @@ export function SuppliersPage() {
         supplier={view.supplier}
         onSupplierChange={view.setSupplier}
         supplierOptions={view.supplierOptions}
+      />
+
+      <SuppliersWithoutInvoices
+        suppliers={suppliersWithNoInvoices}
+        onEdit={(supplier) => setFormState({ mode: 'edit', supplier })}
       />
 
       {view.isLoading && <SupplierFolderLoadingState />}

@@ -1,6 +1,6 @@
 # AP Flow — Sprint 2 Plan
 
-**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise.
+**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-031, WP-092 delivered and pushed. WP-093 now in progress.
 **Prepared by:** Chief Technical Architect
 **Numbering:** `WP-026`–`WP-045` was reserved for Sprint 2 from the start (this is why Sprint 1's post-QA fixes began at `WP-046`, skipping straight past it). Rescoped original work packages keep their original numbers below. Genuinely new work (not in the original 20) continues from **WP-087**, the first number after Sprint 1's actual last use (`WP-086`).
 
@@ -11,6 +11,35 @@
 The original Sprint 2 work packages were scoped before Sprint 1 existed in its final form. Sprint 1 ran far longer than planned specifically because the workflow engine, role-based approval gating, and the real transition graph all got built out properly along the way — which means **two original Sprint 2 work packages are now already done**, several others needed rescoping once checked against the real codebase, and Sage 50 (§8) is now a fully-scoped, deliberately-chosen approach rather than an open research question.
 
 **Verification pass status: complete.** Every work package below has been checked directly against the real source code. Six real findings changed scope from the original assumption — WP-026 (existing entity), WP-027 (naming collision with an existing page), WP-031/032 (query reason already captured by an existing mechanism), WP-038 (confirmed clean/greenfield), WP-089 (not a coding task at all), and the background-worker pattern (§3, WP-030/036/044) confirmed as one dedicated class per concern, following `EmailIngestionWorker`'s exact structure.
+
+---
+
+## Pending manual action — not urgent, do when convenient
+
+**`Mail.Send` Graph permission grant is still outstanding.** WP-031 built and unit-tested the outbound-email send capability in full, but genuinely could not complete the permission grant itself — this requires a human's one-time interactive sign-in to the mailbox's own M365 tenant (`1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf`), confirmed blocked with real evidence (a device-code login that needs a browser, and a `403 Authorization_RequestDenied` when the app tried using its own credential to grant itself the permission — an app genuinely cannot do this to itself).
+
+**To do, whenever convenient — not blocking any current work:**
+```bash
+az login --tenant 1df7da13-5ab0-4a95-a11b-1f8bbd9c5fcf
+
+GRAPH_SP_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+MAIL_SEND_ROLE_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 \
+  --query "appRoles[?value=='Mail.Send'].id" -o tsv)
+
+az ad app permission add --id 40d63c64-ff18-4028-ba92-01ca93c1c432 \
+  --api 00000003-0000-0000-c000-000000000000 \
+  --api-permissions $MAIL_SEND_ROLE_ID=Role
+
+az ad app permission grant --id 40d63c64-ff18-4028-ba92-01ca93c1c432 \
+  --api 00000003-0000-0000-c000-000000000000
+
+az ad app permission admin-consent --id 40d63c64-ff18-4028-ba92-01ca93c1c432
+
+# Confirm:
+az ad app permission list --id 40d63c64-ff18-4028-ba92-01ca93c1c432
+```
+
+**Consequence of leaving this undone:** `GraphEmailSendService.SendAsync` is fully built and wired in, but will fail live with a Graph `403` the moment it's actually exercised (WP-031's own transitions to `Query Raised`, and WP-040's remittance emails once built). Not urgent — nothing currently deployed exercises this path yet — but needed before WP-031/WP-040 can be genuinely live-verified, not just code-complete.
 
 ---
 
@@ -55,7 +84,7 @@ The **invoice approval engine, the workflow transition graph, role-gated approva
 
 ## 3. Sprint 2 work packages (original reserved numbering, WP-026–045)
 
-### WP-026 — Supplier Management (Backend Engineer)
+### WP-026 — Supplier Management (Backend Engineer) — ✅ DONE, PUSHED
 **Objective:** Extend supplier management with the fields needed for a real management screen — credit limit, payment terms, accounting reference, status.
 
 **Correction — critical, read before writing any code or migration:** a `Supplier` entity and table **already exist and are live** — `InvoiceProcessingService.ResolveSupplierAsync` (Sprint 1, WP-012) has been auto-creating `Supplier` rows since ingestion first shipped, whenever a new supplier name is seen on an extracted invoice (case-insensitive, trimmed, exact-match resolution, create-if-absent). This WP is **not** a greenfield build.
@@ -70,7 +99,7 @@ The **invoice approval engine, the workflow transition graph, role-gated approva
 
 **Dependencies:** None — first thing to build, several later WPs depend on it.
 
-### WP-027 — Supplier Management UI (Senior React Engineer)
+### WP-027 — Supplier Management UI (Senior React Engineer) — ✅ DONE, PUSHED
 
 **Confirmed — Option A:** extend the existing `SuppliersPage.tsx` with management capability, rather than building a separate screen.
 
@@ -93,7 +122,7 @@ Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not 
 **Confirmed:** Reuse `GET /api/invoices/folders` (WP-059) for status counts — no new endpoint needed for that part. Consider a "remittances pending Sage import" tile once WP-042 exists — see §8.
 **Dependencies:** None (data already exists).
 
-### WP-031 — Query Management: Outbound Supplier Email (Backend Engineer)
+### WP-031 — Query Management: Outbound Supplier Email (Backend Engineer) — ✅ DONE, PUSHED (Mail.Send grant still pending — see top of document)
 **Objective:** Actually send the query to the supplier by email.
 
 **Confirmed clean, no collisions:** `EmailService`/`IEmailService` (WP-004) only ever performed mailbox *connection verification* — no send capability exists anywhere in the codebase.
@@ -191,7 +220,8 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 | **WP-089** | Group-Based Role Assignment | Same document, Item 3 — rescoped, see below |
 | **WP-090** | Engineering Support Agent (prototype) | `docs/Support-Agent-Architecture-Plan.md` — **parked, revisit towards the end of Sprint 2** |
 | **WP-091** | Customer Support Agent (prototype) | Same document — **same parked status** |
-| **WP-092** | Consistent Timestamp Display & Audit Trail Display Names | Two real gaps found live |
+| **WP-092** | Consistent Timestamp Display & Audit Trail Display Names | Two real gaps found live — **✅ DONE, PUSHED** |
+| **WP-093** | Surface Suppliers With No Invoices Yet | Real gap found in WP-027's own delivery — **✅ DONE, not yet pushed** |
 
 ### WP-089 — Group-Based Role Assignment (Entra/Azure AD Configuration — DevOps, not a coding task)
 
@@ -207,7 +237,7 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 ---
 
-### WP-092 — Consistent Timestamp Display & Audit Trail Display Names (Backend + Frontend Engineer)
+### WP-092 — Consistent Timestamp Display & Audit Trail Display Names (Backend + Frontend Engineer) — ✅ DONE, PUSHED
 
 **Part A — Timestamps: viewer-local everywhere, including Received**
 1. Audit every place a timestamp is shown and confirm each uses the existing shared `formatDateTime` (viewer-local) formatter.
@@ -225,18 +255,34 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 ---
 
+### WP-093 — Surface Suppliers With No Invoices Yet (Senior React Engineer)
+
+**Status: ✅ Done, committed (not yet pushed/deployed/live-verified this round). See `README.md`'s status table and `docs/Backlog.md`'s Closed section.**
+
+**Priority: Medium — closes a real gap in WP-027's own "Add supplier" feature.** Found during WP-027's review: a supplier created via "+ Add supplier" is invisible on the Suppliers page again immediately after creation, because the page's existing browse view (`SupplierGroupList`) is invoice-grouped data, not a direct supplier listing — a brand-new supplier with zero invoices never appears there until its first invoice arrives. This undermines "Add supplier"'s basic promise: a user adds one and it appears to vanish, even though it's genuinely saved correctly.
+
+**Tasks:**
+1. Add a small section to `SuppliersPage` listing any `Supplier` from `useSuppliers()` (already built, WP-027) with no matching entry in the invoice-grouped list — same case-insensitive/trimmed name resolution `SupplierGroupList`'s Edit-action lookup already uses.
+2. Each entry in this new section gets the same Edit action as an invoice-grouped supplier.
+3. Live/tested confirmation: create a supplier, confirm it's immediately visible in this new section without needing an invoice first.
+
+**Dependencies:** WP-027 (already done).
+
+---
+
 ## 5. Suggested build order
 
-1. **WP-026 → WP-027** (Suppliers) — foundational, ready now.
+1. **WP-026 → WP-027** (Suppliers) — ✅ done.
 2. **WP-089 → WP-043** (role groups, then Administration) — WP-089 is a quick Entra config task.
-3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability, ready now.
+3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability. WP-031 ✅ done; WP-032/038/039/040 ready now.
 4. **WP-033/034 → WP-035 → WP-036/037** (Statements → Credit Limits → Notifications) — ready now, all confirmed clean.
 5. **WP-087/088** (real tenant migration) — parallel with anything above, gated on GB Skips' own IT.
 6. **WP-041 → WP-042** (Sage Connector) — both unblocked, ready now.
 7. **WP-030** (Dashboard) and **WP-044** (scheduled jobs) — ready now, slot in wherever convenient.
-8. **WP-092** (timestamps + audit display names) — ready now, small and self-contained.
-9. **WP-045** (QA) — near the end.
-10. **WP-090/091** (Support Agents) — parked, end of sprint.
+8. **WP-092** — ✅ done.
+9. **WP-093** — ✅ done.
+10. **WP-045** (QA) — near the end.
+11. **WP-090/091** (Support Agents) — parked, end of sprint.
 
 **Everything in this sprint is now dispatch-ready** except the two parked Support Agent items.
 
@@ -250,12 +296,13 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 ## 7. What's already resolved — no longer open
 
-- Outbound email send identity: same `invoices@` mailbox, `Mail.Send` added to the existing Graph app registration. Built once in WP-031, reused by WP-040.
+- Outbound email send identity: same `invoices@` mailbox, `Mail.Send` added to the existing Graph app registration. Built once in WP-031, reused by WP-040. **Grant itself still pending — see top of document.**
 - Support Agents: parked until later in the sprint.
 - **Sage 50 write approach:** file-based export + manual import, AP Flow tracking. Not blocked on the Grant call.
-- **Timestamp display:** viewer-local everywhere, extended to `Received` (WP-092).
-- **Audit trail display names:** resolved to a real name at write time (WP-092).
-- **WP-026/027 scope:** confirmed against the real, existing `Supplier` entity and `SuppliersPage`.
+- **Timestamp display:** viewer-local everywhere, extended to `Received` (WP-092, done).
+- **Audit trail display names:** resolved to a real name at write time (WP-092, done).
+- **WP-026/027 scope:** confirmed against the real, existing `Supplier` entity and `SuppliersPage` — both done.
+- **WP-093:** zero-invoice supplier visibility gap closed — done.
 - **WP-031/032 scope:** confirmed no separate query-reason field needed.
 - **WP-033/034/036/037/038 scope:** all confirmed genuinely greenfield — no colliding entities exist.
 - **WP-030/036/044 pattern:** confirmed — each a dedicated `BackgroundService` class following `EmailIngestionWorker`'s proven structure.
