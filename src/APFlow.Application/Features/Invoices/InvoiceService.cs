@@ -25,6 +25,7 @@ public sealed class InvoiceService : IInvoiceService
     private readonly ICurrentUserService _currentUserService;
     private readonly IApprovalAuthorizationService _approvalAuthorizationService;
     private readonly IWorkflowValidationService _workflowValidationService;
+    private readonly IEmailSendService _emailSendService;
     private readonly ILogger<InvoiceService> _logger;
 
     /// <summary>Creates a new <see cref="InvoiceService"/>.</summary>
@@ -35,6 +36,7 @@ public sealed class InvoiceService : IInvoiceService
         ICurrentUserService currentUserService,
         IApprovalAuthorizationService approvalAuthorizationService,
         IWorkflowValidationService workflowValidationService,
+        IEmailSendService emailSendService,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
@@ -43,6 +45,7 @@ public sealed class InvoiceService : IInvoiceService
         _currentUserService = currentUserService;
         _approvalAuthorizationService = approvalAuthorizationService;
         _workflowValidationService = workflowValidationService;
+        _emailSendService = emailSendService;
         _logger = logger;
     }
 
@@ -299,7 +302,80 @@ public sealed class InvoiceService : IInvoiceService
 
         _logger.LogInformation("Updated invoice {InvoiceId}. Status={Status}.", invoice.Id, invoice.Status);
 
+        // WP-031: the one piece of the query workflow Sprint 1 never built - actually
+        // emailing the supplier once a query is raised. Fired only on the specific
+        // transition INTO QueryRaised (not, say, re-saving an invoice that is
+        // already QueryRaised), using the note this same transition already
+        // required (WP-084) as the query content - docs/Sprint2-Plan.md's
+        // WP-031/032 scope note confirms no separate "query reason" field exists or
+        // is needed. Runs AFTER the status change and note have already committed:
+        // a failed or skipped send never unwinds or blocks the transition itself -
+        // see IEmailSendService.SendAsync's doc comment for why "log and continue"
+        // is the right behavior here, same reasoning as the audit-staging-failure
+        // handling above.
+        if (statusIsChanging && request.Status == InvoiceStatusCodes.QueryRaised)
+        {
+            await SendQueryEmailAsync(invoice, request.Notes!, cancellationToken);
+        }
+
         return Result.Success(ToDto(invoice));
+    }
+
+    /// <summary>
+    /// Sends the outbound query email to the invoice's supplier (WP-031), using the
+    /// mandatory transition note as the query content. Never throws and never
+    /// returns a failure to its caller - see the call site's comment for why a
+    /// failed/skipped send must not affect the already-committed status transition.
+    /// </summary>
+    private async Task SendQueryEmailAsync(Invoice invoice, string queryNote, CancellationToken cancellationToken)
+    {
+        var supplierEmail = invoice.Supplier?.Email;
+        if (string.IsNullOrWhiteSpace(supplierEmail))
+        {
+            // WP-031 decision: Supplier.Email is optional (WP-026) - a supplier with
+            // no email on file is a normal, expected state, not a data error.
+            // docs/AI/06_Domain_Reference_Data.md has no convention covering this
+            // case, so the minimal reasoned behavior is used instead: skip the send
+            // (the status transition itself has already committed and must not be
+            // blocked or unwound by this), log a warning so the gap is visible, and
+            // record the open question - should this also surface to a user
+            // somewhere in-app, e.g. an IngestionIssue-style flag? - in
+            // docs/Backlog.md rather than inventing an answer here.
+            _logger.LogWarning(
+                "Invoice {InvoiceId} transitioned to {QueryRaisedStatus} but supplier {SupplierId} has no email on file - query email not sent.",
+                invoice.Id, InvoiceStatusCodes.QueryRaised, invoice.SupplierId);
+            return;
+        }
+
+        var subject = $"Query regarding invoice {invoice.SupplierInvoiceNumber ?? invoice.Id.ToString()}";
+        var body = BuildQueryEmailBody(invoice, queryNote);
+
+        var sendResult = await _emailSendService.SendAsync(
+            new SendEmailRequest(supplierEmail, subject, body, invoice.Supplier?.Name),
+            cancellationToken);
+
+        if (sendResult.IsFailure)
+        {
+            // Same "log loudly, don't fail an already-committed operation" reasoning
+            // as the audit-log-staging-failure handling elsewhere in this class.
+            _logger.LogWarning(
+                "Failed to send query email for invoice {InvoiceId} to {SupplierEmail}: {ErrorCode} - {ErrorMessage}",
+                invoice.Id, supplierEmail, sendResult.Error.Code, sendResult.Error.Message);
+        }
+    }
+
+    private static string BuildQueryEmailBody(Invoice invoice, string queryNote)
+    {
+        var lines = new[]
+        {
+            $"A query has been raised regarding invoice {invoice.SupplierInvoiceNumber ?? invoice.Id.ToString()}.",
+            string.Empty,
+            queryNote,
+            string.Empty,
+            "Please respond to this email with any information that can help resolve the query.",
+        };
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     /// <inheritdoc />

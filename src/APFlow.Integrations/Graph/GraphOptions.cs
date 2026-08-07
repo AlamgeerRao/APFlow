@@ -26,8 +26,13 @@ public sealed class GraphOptions
 
     /// <summary>
     /// The Application (client) ID of the Graph App Registration, granted application
-    /// permissions (e.g. Mail.Read) with admin consent in the tenant identified by
-    /// <see cref="TenantId"/>.
+    /// permissions (e.g. Mail.ReadWrite for the WP-004/WP-006/WP-007 read/sync path,
+    /// Mail.Send for WP-031's outbound send path - see
+    /// docs/WP-031-Outbound-Supplier-Email-Report.md) with admin consent in the
+    /// tenant identified by <see cref="TenantId"/>. One app registration, one set of
+    /// credentials, reused by every Graph-backed service in this project - a new
+    /// capability against the same mailbox needs a new Graph permission granted to
+    /// this same app, not a second set of options/credentials.
     /// </summary>
     public string ClientId { get; init; } = string.Empty;
 

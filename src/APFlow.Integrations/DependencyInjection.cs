@@ -82,6 +82,17 @@ public static class DependencyInjection
             sp.GetRequiredService<IOptions<GraphOptions>>(),
             sp.GetRequiredService<ILogger<EmailService>>()));
 
+        // WP-031: same internal-constructor-needs-a-factory reasoning as
+        // EmailService above. Reuses the same GraphServiceClient/GraphOptions
+        // registered above (same mailbox, same app-only credential) - the only
+        // Entra-side change WP-031 needed was granting the existing app
+        // registration the additional Mail.Send Application permission.
+        services.AddSingleton<IGraphMailSender, GraphMailSender>();
+        services.AddSingleton<IEmailSendService>(sp => new GraphEmailSendService(
+            sp.GetRequiredService<IGraphMailSender>(),
+            sp.GetRequiredService<IOptions<GraphOptions>>(),
+            sp.GetRequiredService<ILogger<GraphEmailSendService>>()));
+
         // WP-006: same internal-constructor-needs-a-factory reasoning as EmailService
         // above. GraphMessageOperations' own constructor is public (only its class is
         // internal), registered via the generic form directly since nothing prevents it.

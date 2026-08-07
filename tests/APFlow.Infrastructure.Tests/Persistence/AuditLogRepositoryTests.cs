@@ -4,6 +4,7 @@ using APFlow.Application.Features.Audit;
 using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Workflow;
 using APFlow.Application.Interfaces;
+using APFlow.Domain.Common;
 using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
 using APFlow.Infrastructure.Persistence;
@@ -36,7 +37,7 @@ public class AuditLogRepositoryTests
         var invoiceService = new InvoiceService(
             invoiceRepository, new SupplierRepository(context), auditService,
             new FakeCurrentUserService(tenantId, "user-42"), approvalAuthorizationService,
-            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), new FakeEmailSendService(), NullLogger<InvoiceService>.Instance);
 
         var supplier = new Supplier { Name = "Acme Ltd", TenantId = tenantId };
         context.Suppliers.Add(supplier);
@@ -269,5 +270,16 @@ public class AuditLogRepositoryTests
         public string? TenantId { get; }
         public IReadOnlyCollection<string> Roles => [];
         public bool IsInRole(string role) => false;
+    }
+
+    /// <summary>
+    /// WP-031: not independently exercised by this test (no assertion here
+    /// transitions an invoice to QUERY_RAISED) - only present so InvoiceService's
+    /// constructor resolves. Always succeeds.
+    /// </summary>
+    private sealed class FakeEmailSendService : IEmailSendService
+    {
+        public Task<Result> SendAsync(SendEmailRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
     }
 }
