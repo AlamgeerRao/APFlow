@@ -80,7 +80,7 @@ function delay(ms: number): Promise<void> {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
   path: string,
   options: RequestOptions & { body?: unknown } = {},
 ): Promise<T> {
@@ -172,5 +172,7 @@ export const httpClient = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('POST', path, { ...options, body }),
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, { ...options, body }),
+  /** WP-027: full-field-replace update (e.g. `PUT /api/suppliers/{id}`) — never auto-retried, same reasoning as POST/PATCH. */
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>('PUT', path, { ...options, body }),
   getBlob,
 };

@@ -151,6 +151,47 @@ describe('httpClient.post/patch', () => {
   });
 });
 
+describe('httpClient.put', () => {
+  it('never retries a PUT, even on a retryable status code', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token');
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(httpClient.put('/api/suppliers/1', { name: 'Acme' })).rejects.toMatchObject({ status: 503 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the body as JSON with a Content-Type header and method PUT', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token');
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: '1', name: 'Acme' }));
+
+    await httpClient.put('/api/suppliers/1', { name: 'Acme', status: 'ACTIVE' });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(init?.method).toBe('PUT');
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(init?.body).toBe(JSON.stringify({ name: 'Acme', status: 'ACTIVE' }));
+  });
+
+  it('maps a 403 Supplier.CreditLimitForbidden ProblemDetails response to an ApiError with the code preserved', async () => {
+    vi.mocked(getAccessToken).mockResolvedValue('token');
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(
+        {
+          title: 'Supplier.CreditLimitForbidden',
+          detail: "Changing a supplier's credit limit requires the 'FINANCE_MANAGER' role.",
+          code: 'Supplier.CreditLimitForbidden',
+        },
+        403,
+      ),
+    );
+
+    await expect(httpClient.put('/api/suppliers/1', { name: 'Acme', creditLimit: 500 })).rejects.toMatchObject({
+      status: 403,
+      code: 'Supplier.CreditLimitForbidden',
+    });
+  });
+});
+
 describe('httpClient.getBlob', () => {
   it('returns a Blob for a successful binary response', async () => {
     vi.mocked(getAccessToken).mockResolvedValue('token');
