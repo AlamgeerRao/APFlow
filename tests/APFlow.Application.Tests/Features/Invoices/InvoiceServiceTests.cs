@@ -5,6 +5,7 @@ using APFlow.Application.Features.Invoices;
 using APFlow.Application.Features.Workflow;
 using APFlow.Application.Tests.Features;
 using APFlow.Application.Tests.Features.Workflow;
+using APFlow.Domain.Common;
 using APFlow.Domain.Common.Constants;
 using APFlow.Domain.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -829,6 +830,88 @@ public class InvoiceServiceTests
         Assert.Empty(invoiceRepo.Invoices[0].Notes);
     }
 
+    [Fact]
+    public async Task UpdateAsync_TransitionToQueryRaised_SupplierHasEmail_SendsQueryEmail()
+    {
+        // WP-031: the whole point of this WP - transitioning INTO QUERY_RAISED
+        // must actually send an email, using the mandatory transition note (WP-084)
+        // as the query content, to the supplier's email address (WP-026).
+        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var supplier = new Supplier { Name = "Acme Ltd", Email = "ap@acme-ltd.example" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-42", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-42", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.QueryRaised,
+            Notes: "Please confirm the VAT breakdown on this invoice."));
+
+        Assert.True(result.IsSuccess);
+        var sent = Assert.Single(emailSendService.SentEmails);
+        Assert.Equal("ap@acme-ltd.example", sent.ToAddress);
+        Assert.Equal("Acme Ltd", sent.ToDisplayName);
+        Assert.Contains("INV-42", sent.Subject);
+        Assert.Contains("Please confirm the VAT breakdown on this invoice.", sent.Body);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TransitionToQueryRaised_SupplierHasNoEmail_SkipsSend_TransitionStillSucceeds()
+    {
+        // WP-031 decision: Supplier.Email is optional (WP-026) - a supplier with no
+        // email on file must not block or fail an otherwise-valid status
+        // transition. The send is skipped and a warning logged (not asserted here -
+        // see the class-level decision note in InvoiceService.SendQueryEmailAsync).
+        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var supplier = new Supplier { Name = "No Email Ltd", Email = null };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-43", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-43", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.QueryRaised,
+            Notes: "Query note with no supplier email on file."));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InvoiceStatusCodes.QueryRaised, result.Value.Status);
+        Assert.Empty(emailSendService.SentEmails);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TransitionToQueryRaised_EmailSendFails_TransitionStillSucceeds()
+    {
+        // A Graph failure (auth, network, etc.) must not unwind or fail the status
+        // transition/note that already committed - see IEmailSendService.SendAsync's
+        // doc comment and InvoiceService.SendQueryEmailAsync's "log and continue".
+        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        emailSendService.ResultFactory = _ => Result.Failure(new Error("Email.SendFailed", "Simulated Graph failure."));
+        var supplier = new Supplier { Name = "Acme Ltd", Email = "ap@acme-ltd.example" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-44", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-44", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.QueryRaised,
+            Notes: "Query note whose email send will fail."));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(InvoiceStatusCodes.QueryRaised, result.Value.Status);
+        Assert.Single(emailSendService.SentEmails); // the send was attempted, it just failed
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TransitionToOtherStatus_DoesNotSendQueryEmail()
+    {
+        // Sanity check: the email send is specific to the QUERY_RAISED transition,
+        // not fired on every status change.
+        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var supplier = new Supplier { Name = "Acme Ltd", Email = "ap@acme-ltd.example" };
+        supplierRepo.Suppliers.Add(supplier);
+        var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-45", null, null, "GBP", 100m, 20m, 120m, null));
+
+        var result = await service.UpdateAsync(created.Value.Id, new UpdateInvoiceRequest(
+            "INV-45", null, null, "GBP", 100m, 20m, 120m, InvoiceStatusCodes.Extracted, Notes: "Moved to extracted."));
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(emailSendService.SentEmails);
+    }
+
     private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeSupplierRepository SupplierRepository) CreateService()
     {
         var (service, invoiceRepository, supplierRepository, _) = CreateServiceWithAudit();
@@ -845,16 +928,31 @@ public class InvoiceServiceTests
     /// </summary>
     private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeSupplierRepository SupplierRepository, FakeAuditLogRepository AuditLogRepository) CreateServiceWithAudit()
     {
+        var (service, invoiceRepository, supplierRepository, auditLogRepository, _) = CreateServiceWithAuditAndEmail();
+        return (service, invoiceRepository, supplierRepository, auditLogRepository);
+    }
+
+    /// <summary>
+    /// Same as <see cref="CreateServiceWithAudit"/> but also exposes the
+    /// <see cref="FakeEmailSendService"/> backing InvoiceService, for WP-031 tests
+    /// asserting on the query-raised-triggers-an-email wiring specifically. Kept as
+    /// a separate overload rather than changing CreateServiceWithAudit's return
+    /// shape, for the same "don't touch every pre-existing test's setup" reasoning
+    /// CreateServiceWithAudit itself was introduced for.
+    /// </summary>
+    private static (InvoiceService Service, FakeInvoiceRepository InvoiceRepository, FakeSupplierRepository SupplierRepository, FakeAuditLogRepository AuditLogRepository, FakeEmailSendService EmailSendService) CreateServiceWithAuditAndEmail()
+    {
         var invoiceRepository = new FakeInvoiceRepository();
         var supplierRepository = new FakeSupplierRepository();
         var auditLogRepository = new FakeAuditLogRepository();
         var currentUserService = new FakeCurrentUserService();
         var auditService = new AuditService(auditLogRepository, currentUserService, NullLogger<AuditService>.Instance);
         var approvalAuthorizationService = new FakeApprovalAuthorizationService(); // defaults to always-authorized
+        var emailSendService = new FakeEmailSendService(); // defaults to always-succeeds
         var service = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
-            new FakeWorkflowValidationService(), NullLogger<InvoiceService>.Instance); // permissive: these tests predate WP-053 and aren't about transition validation
-        return (service, invoiceRepository, supplierRepository, auditLogRepository);
+            new FakeWorkflowValidationService(), emailSendService, NullLogger<InvoiceService>.Instance); // permissive: these tests predate WP-053 and aren't about transition validation
+        return (service, invoiceRepository, supplierRepository, auditLogRepository, emailSendService);
     }
 
     /// <summary>
@@ -882,7 +980,7 @@ public class InvoiceServiceTests
         var workflowValidationService = new WorkflowValidationService(workflowTemplateRepository);
         var service = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
-            workflowValidationService, NullLogger<InvoiceService>.Instance);
+            workflowValidationService, new FakeEmailSendService(), NullLogger<InvoiceService>.Instance);
         return (service, invoiceRepository, currentUserService, approvalPolicyRepository, workflowTemplateRepository);
     }
 }

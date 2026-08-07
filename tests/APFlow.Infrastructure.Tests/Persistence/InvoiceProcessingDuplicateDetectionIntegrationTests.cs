@@ -42,7 +42,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
-            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), new FakeEmailSendService(), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
@@ -126,7 +126,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
-            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), new FakeEmailSendService(), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
@@ -189,7 +189,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var approvalAuthorizationService = new ApprovalAuthorizationService(new ApprovalPolicyRepository(context));
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
-            new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
+            new WorkflowValidationService(new WorkflowTemplateRepository(context)), new FakeEmailSendService(), NullLogger<InvoiceService>.Instance);
         var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
@@ -312,5 +312,17 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
 
         public Task<Result<InvoiceExtractionResult>> AnalyzeInvoiceAsync(byte[] pdfContent, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Success(ResultsByFileContent[pdfContent[0]]));
+    }
+
+    /// <summary>
+    /// WP-031: not independently exercised by this integration test (no assertion
+    /// here transitions an invoice to QUERY_RAISED - that path is covered by
+    /// APFlow.Application.Tests' InvoiceServiceTests instead) - only present so
+    /// InvoiceService's constructor resolves. Always succeeds.
+    /// </summary>
+    private sealed class FakeEmailSendService : IEmailSendService
+    {
+        public Task<Result> SendAsync(SendEmailRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
     }
 }
