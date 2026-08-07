@@ -529,7 +529,7 @@ public class InvoiceProcessingServiceTests
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, currentUserService, approvalAuthorizationService,
             new FakeWorkflowValidationService(), NullLogger<InvoiceService>.Instance);
-        var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
+        var supplierService = new SupplierService(supplierRepository, currentUserService, NullLogger<SupplierService>.Instance);
 
         var emailSync = new FakeEmailSyncService();
         var pdfExtraction = new FakePdfExtractionService();

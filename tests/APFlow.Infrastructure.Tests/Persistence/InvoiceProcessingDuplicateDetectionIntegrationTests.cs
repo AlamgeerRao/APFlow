@@ -42,7 +42,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
-        var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
+        var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
         var emailSync = new FakeEmailSyncService();
@@ -125,7 +125,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
-        var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
+        var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
         var emailSync = new FakeEmailSyncService();
@@ -187,7 +187,7 @@ public class InvoiceProcessingDuplicateDetectionIntegrationTests
         var invoiceService = new InvoiceService(
             invoiceRepository, supplierRepository, auditService, new FakeCurrentUserService(tenantId), approvalAuthorizationService,
             new WorkflowValidationService(new WorkflowTemplateRepository(context)), NullLogger<InvoiceService>.Instance);
-        var supplierService = new SupplierService(supplierRepository, NullLogger<SupplierService>.Instance);
+        var supplierService = new SupplierService(supplierRepository, new FakeCurrentUserService(tenantId), NullLogger<SupplierService>.Instance);
         var duplicateDetectionService = new DuplicateDetectionService(NullLogger<DuplicateDetectionService>.Instance);
 
         var emailSync = new FakeEmailSyncService();

@@ -13,6 +13,21 @@ internal static class FieldLimits
     /// <summary>Matches SupplierConfiguration's Name column.</summary>
     public const int SupplierName = 256;
 
+    /// <summary>Matches SupplierConfiguration's Code column.</summary>
+    public const int SupplierCode = 32;
+
+    /// <summary>Matches SupplierConfiguration's Email column.</summary>
+    public const int SupplierEmail = 256;
+
+    /// <summary>Matches SupplierConfiguration's Phone column.</summary>
+    public const int SupplierPhone = 32;
+
+    /// <summary>Matches SupplierConfiguration's AccountingReference column.</summary>
+    public const int SupplierAccountingReference = 64;
+
+    /// <summary>Matches SupplierConfiguration's Status column.</summary>
+    public const int SupplierStatus = 20;
+
     /// <summary>Matches InvoiceConfiguration's SupplierInvoiceNumber column.</summary>
     public const int InvoiceSupplierInvoiceNumber = 128;
 
