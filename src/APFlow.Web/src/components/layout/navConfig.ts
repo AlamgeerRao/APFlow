@@ -51,6 +51,16 @@ export const STATIC_NAV_SECTIONS: Omit<NavSection, 'children'>[] = [
 const NON_ACTIONABLE_NAV_STATUS_CODES: ReadonlySet<string> = new Set(['RECEIVED', 'PROCESSING', 'EXTRACTED']);
 
 /**
+ * Maps a StatusReference.code to its Invoice Queue route
+ * (`/invoices/:statusCode`, kebab-cased). Shared by `buildInvoiceQueueLinks`
+ * below and WP-030's Dashboard status tiles, so both link to the exact same
+ * route for a given status.
+ */
+export function statusCodeToQueuePath(statusCode: string): string {
+  return `/invoices/${statusCode.toLowerCase().replace(/_/g, '-')}`;
+}
+
+/**
  * Builds one sub-link per non-terminal, actionable status in the acting
  * tenant's WorkflowTemplate, ordered by StatusReference.order. This is the
  * only data-driven part of the nav — it is what makes GB Skips' extra
@@ -64,7 +74,7 @@ export function buildInvoiceQueueLinks(template: WorkflowTemplate): NavLink[] {
     .map((status) => ({
       key: status.code,
       label: status.name,
-      path: `/invoices/${status.code.toLowerCase().replace(/_/g, '-')}`,
+      path: statusCodeToQueuePath(status.code),
     }));
 }
 

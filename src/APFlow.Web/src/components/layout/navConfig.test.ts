@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkflowTemplate } from '@/types/workflowTemplate';
-import { buildInvoiceQueueLinks, buildNavSections, STATIC_NAV_SECTIONS } from '@/components/layout/navConfig';
+import {
+  buildInvoiceQueueLinks,
+  buildNavSections,
+  statusCodeToQueuePath,
+  STATIC_NAV_SECTIONS,
+} from '@/components/layout/navConfig';
 
 function template(overrides: Partial<WorkflowTemplate> = {}): WorkflowTemplate {
   return {
@@ -84,6 +89,17 @@ describe('buildInvoiceQueueLinks', () => {
       'READY_FOR_PAYMENT',
       'PAID',
     ]);
+  });
+});
+
+describe('statusCodeToQueuePath', () => {
+  it('kebab-cases a status code into its Invoice Queue route, matching buildInvoiceQueueLinks', () => {
+    expect(statusCodeToQueuePath('AWAITING_REVIEW')).toBe('/invoices/awaiting-review');
+    expect(statusCodeToQueuePath('CHECKED_READY_TO_APPROVE')).toBe('/invoices/checked-ready-to-approve');
+
+    const links = buildInvoiceQueueLinks(template());
+    const awaitingReview = links.find((link) => link.key === 'AWAITING_REVIEW');
+    expect(statusCodeToQueuePath('AWAITING_REVIEW')).toBe(awaitingReview?.path);
   });
 });
 

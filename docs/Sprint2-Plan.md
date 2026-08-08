@@ -117,10 +117,12 @@ Invoice Approval Engine — already done in Sprint 1 (WP-050, WP-051, WP-053, WP
 ### WP-029 — *(retired)*
 Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not reused.
 
-### WP-030 — Invoice Workflow Dashboard (Senior React Engineer)
+### WP-030 — Invoice Workflow Dashboard (Senior React Engineer) — ✅ DONE, not pushed/deployed/live-verified this round (commit only)
 **Objective:** Replace the Dashboard placeholder with real status counts and recent activity.
 **Confirmed:** Reuse `GET /api/invoices/folders` (WP-059) for status counts — no new endpoint needed for that part. Consider a "remittances pending Sage import" tile once WP-042 exists — see §8.
 **Dependencies:** None (data already exists).
+
+**Delivered:** `useDashboard` combines `supplierFolderClient.getFolderCounts` (WP-059, unchanged) with a new `dashboardClient.getRecentActivity`, which also needed no new endpoint — it reuses the already-live `GET /api/invoices` sorted by its own default field, `CreatedAtUtc`, descending, deliberately keeping its response DTO narrower than `invoiceClient.ts`'s own (only the four fields the feed renders). `StatusCountsGrid` renders one clickable tile per folder, linking to that status's Invoice Queue route via a new shared `navConfig.statusCodeToQueuePath` helper (extracted out of `buildInvoiceQueueLinks`'s own inline kebab-casing, so a tile and its matching nav sub-link can never disagree). `RecentActivityList` shows the 8 most-recently-created invoices, reusing `InvoiceStatusBadge`/`formatDateTime`, each linking to the Review Screen. New tests: `dashboardClient.test.ts`, `useDashboard.test.tsx`, `StatusCountsGrid.test.tsx`, `RecentActivityList.test.tsx`, `DashboardPage.test.tsx`, plus a `statusCodeToQueuePath` case in `navConfig.test.ts`. `tsc -p tsconfig.app.json --noEmit` and `eslint` both clean on every changed file. **Not done this round:** push, deploy, or live verification.
 
 ### WP-031 — Query Management: Outbound Supplier Email (Backend Engineer) — ✅ DONE, PUSHED (Mail.Send grant still pending — see top of document)
 **Objective:** Actually send the query to the supplier by email.
