@@ -48,8 +48,17 @@
 
 **Why this matters:** directly supports Item 1 at scale — GB Skips onboarding a new starter should mean adding them to the right group (ideally eventually driven by GB Skips' own group membership), not someone manually setting an app role in AP Flow's Entra tenant for every individual hire. This should be built **before** the Administration Portal (`WP-043`), not retrofitted onto per-user assignment after the fact.
 
-**Status:** raised during WP-064's execution (2026-08-01) as a good instinct worth doing properly — Sprint 1's four demo/test accounts were assigned roles directly, which was fine for four hand-picked accounts but doesn't scale.
+**Status: ✅ Done (2026-08-08).** Raised during WP-064's execution (2026-08-01) as a good instinct worth doing properly — Sprint 1's four demo/test accounts were assigned roles directly, which was fine for four hand-picked accounts but doesn't scale.
 
-**Timing:** Sprint 2 — do this ahead of `WP-043` (Administration Portal), so that UI is built against the group model from the start.
+**What was actually built, live in the `rameezjav` CIAM tenant (`641fc267-...`):**
+- Two Entra security groups, one per `APFlow-Api-Dev` app role: **APFlow Finance Managers** (`6e943cce-e118-4526-9a9c-d9395b1938e1`) → `FINANCE_MANAGER`, **APFlow AP Reviewers** (`4521e58d-19a5-489e-a306-9ae21237a534`) → `AP_REVIEWER`.
+- Each group holds a direct `appRoleAssignment` against the API's service principal (`0a857b93-fd20-400c-a002-f50c2d9c0c53`) for its matching role — no Azure AD Premium P1 license was needed for this (confirmed live: the Graph `POST /groups/{id}/appRoleAssignments` call succeeded on this tenant with no licensing error).
+- WP-064's four accounts (`apflow-{test,demo}-{approver,reviewer}`) moved into the matching group; their old **direct** per-user app-role assignments were deleted.
+- Live-verified via fresh ROPC tokens for both test accounts: the JWT `roles` claim is unchanged (`["AP_REVIEWER"]` / `["FINANCE_MANAGER"]`), now sourced entirely from group membership, and both tokens still succeed against a real authenticated API call. The demo pair was **not** signed in or touched beyond the group-membership change, preserving it for the actual demo (same convention WP-064 established).
+
+**Process for adding a future user (documented per task 4):**
+1. Create the user in the `rameezjav` CIAM tenant (or, once WP-087 federation exists, let their first federated sign-in create the shadow account).
+2. Add them to **APFlow Finance Managers** or **APFlow AP Reviewers** via `az ad group member add --group <group-id> --member-id <user-object-id>` (or the Entra portal). No direct `appRoleAssignment` step is needed — the group already carries the role.
+3. Nothing on the API/app side needs touching; the `roles` claim in their next-issued token reflects the group's role automatically.
 
 **Corresponds to:** `WP-089` in `docs/Sprint2-Plan.md`.

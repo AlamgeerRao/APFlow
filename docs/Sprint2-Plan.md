@@ -1,6 +1,6 @@
 # AP Flow — Sprint 2 Plan
 
-**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-031, WP-092 delivered and pushed. WP-093 now in progress.
+**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-031, WP-092, WP-093 delivered and pushed. WP-089 delivered live (Entra/Azure AD config, no code — nothing to push).
 **Prepared by:** Chief Technical Architect
 **Numbering:** `WP-026`–`WP-045` was reserved for Sprint 2 from the start (this is why Sprint 1's post-QA fixes began at `WP-046`, skipping straight past it). Rescoped original work packages keep their original numbers below. Genuinely new work (not in the original 20) continues from **WP-087**, the first number after Sprint 1's actual last use (`WP-086`).
 
@@ -217,23 +217,23 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 |---|---|---|
 | **WP-087** | GB Skips Real Tenant — SSO Federation | `docs/GB_Skips_Production_Migration_Notes.md` Item 1 |
 | **WP-088** | GB Skips Real Mailbox — App Registration | Same document, Item 2 |
-| **WP-089** | Group-Based Role Assignment | Same document, Item 3 — rescoped, see below |
+| **WP-089** | Group-Based Role Assignment | Same document, Item 3 — rescoped, see below — **✅ DONE, LIVE** |
 | **WP-090** | Engineering Support Agent (prototype) | `docs/Support-Agent-Architecture-Plan.md` — **parked, revisit towards the end of Sprint 2** |
 | **WP-091** | Customer Support Agent (prototype) | Same document — **same parked status** |
 | **WP-092** | Consistent Timestamp Display & Audit Trail Display Names | Two real gaps found live — **✅ DONE, PUSHED** |
-| **WP-093** | Surface Suppliers With No Invoices Yet | Real gap found in WP-027's own delivery — **✅ DONE, not yet pushed** |
+| **WP-093** | Surface Suppliers With No Invoices Yet | Real gap found in WP-027's own delivery — **✅ DONE, PUSHED** |
 
-### WP-089 — Group-Based Role Assignment (Entra/Azure AD Configuration — DevOps, not a coding task)
+### WP-089 — Group-Based Role Assignment (Entra/Azure AD Configuration — DevOps, not a coding task) — ✅ DONE, LIVE
 
 **Rescoped.** Roles derive entirely from the Entra JWT `roles` claim — no local `UserRole` table exists. Group-based assignment requires **zero application code changes**.
 
 **Tasks (all Entra/Azure AD configuration, no code):**
-1. Create Entra security groups — one per role.
-2. Assign each group the corresponding App Role on the API's Enterprise Application.
-3. Add WP-064's existing four test/demo users to the appropriate groups, remove direct per-user assignments — confirm live afterward.
-4. Document the process for adding a future user.
+1. ✅ Created two Entra security groups — **APFlow Finance Managers** / **APFlow AP Reviewers**, one per `APFlow-Api-Dev` app role.
+2. ✅ Assigned each group the corresponding App Role on the API's Enterprise Application (service principal `0a857b93-...`) — no P1 license needed, confirmed live.
+3. ✅ Moved WP-064's four test/demo users into the matching group, removed their direct per-user assignments — confirmed live via fresh ROPC tokens (identical `roles` claim, now group-sourced) and a real authenticated API call for both test accounts. Demo pair left untouched beyond group membership, per WP-064's established convention.
+4. ✅ Documented the process for adding a future user — see `docs/GB_Skips_Production_Migration_Notes.md` Item 3.
 
-**Dependencies:** None. Do this before WP-043.
+**Dependencies:** None. Done before WP-043, as planned.
 
 ---
 
@@ -255,9 +255,7 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 ---
 
-### WP-093 — Surface Suppliers With No Invoices Yet (Senior React Engineer)
-
-**Status: ✅ Done, committed (not yet pushed/deployed/live-verified this round). See `README.md`'s status table and `docs/Backlog.md`'s Closed section.**
+### WP-093 — Surface Suppliers With No Invoices Yet (Senior React Engineer) — ✅ DONE, PUSHED
 
 **Priority: Medium — closes a real gap in WP-027's own "Add supplier" feature.** Found during WP-027's review: a supplier created via "+ Add supplier" is invisible on the Suppliers page again immediately after creation, because the page's existing browse view (`SupplierGroupList`) is invoice-grouped data, not a direct supplier listing — a brand-new supplier with zero invoices never appears there until its first invoice arrives. This undermines "Add supplier"'s basic promise: a user adds one and it appears to vanish, even though it's genuinely saved correctly.
 
@@ -273,7 +271,7 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 ## 5. Suggested build order
 
 1. **WP-026 → WP-027** (Suppliers) — ✅ done.
-2. **WP-089 → WP-043** (role groups, then Administration) — WP-089 is a quick Entra config task.
+2. **WP-089 → WP-043** (role groups, then Administration) — WP-089 ✅ done. WP-043 now unblocked.
 3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability. WP-031 ✅ done; WP-032/038/039/040 ready now.
 4. **WP-033/034 → WP-035 → WP-036/037** (Statements → Credit Limits → Notifications) — ready now, all confirmed clean.
 5. **WP-087/088** (real tenant migration) — parallel with anything above, gated on GB Skips' own IT.
@@ -302,11 +300,11 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 - **Timestamp display:** viewer-local everywhere, extended to `Received` (WP-092, done).
 - **Audit trail display names:** resolved to a real name at write time (WP-092, done).
 - **WP-026/027 scope:** confirmed against the real, existing `Supplier` entity and `SuppliersPage` — both done.
-- **WP-093:** zero-invoice supplier visibility gap closed — done.
+- **WP-093:** zero-invoice supplier visibility gap closed — done, pushed.
 - **WP-031/032 scope:** confirmed no separate query-reason field needed.
 - **WP-033/034/036/037/038 scope:** all confirmed genuinely greenfield — no colliding entities exist.
 - **WP-030/036/044 pattern:** confirmed — each a dedicated `BackgroundService` class following `EmailIngestionWorker`'s proven structure.
-- **WP-089 scope:** confirmed as Entra/Azure AD configuration, not application code.
+- **WP-089:** confirmed as Entra/Azure AD configuration, not application code — done and live, see `docs/GB_Skips_Production_Migration_Notes.md` Item 3.
 - **WP-043:** confirmed still a genuine placeholder.
 
 ---
