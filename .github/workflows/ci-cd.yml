@@ -287,6 +287,12 @@ jobs:
           VITE_API_SCOPE: ${{ vars.ENTRA_API_SCOPE }}
           API_APP_SERVICE_NAME: ${{ vars.API_APP_SERVICE_NAME }}
           VITE_API_BASE_URL: https://${{ vars.API_APP_SERVICE_NAME }}.azurewebsites.net
+          # WP-043: the System Status page's build-info display. github.sha is
+          # a built-in context value, always populated by Actions itself - no
+          # GitHub Environment variable to configure, so it's deliberately left
+          # out of the fail-loud vars.* check below (that check exists for
+          # values a human has to remember to set; this one can't be unset).
+          VITE_BUILD_SHA: ${{ github.sha }}
         run: |
           # Checked separately from VITE_API_BASE_URL below: that variable is
           # always non-empty (it has literal https://.../azurewebsites.net

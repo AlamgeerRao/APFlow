@@ -1,9 +1,12 @@
+using System.Text.Json;
 using APFlow.Api.Configuration;
+using APFlow.Api.Contracts;
 using APFlow.Infrastructure.Persistence;
 using APFlow.Infrastructure.Storage;
 using APFlow.Integrations.Graph;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
 
@@ -18,6 +21,9 @@ namespace APFlow.Api.Extensions;
 public static class ApiServiceCollectionExtensions
 {
     private const string BearerSecuritySchemeId = "Bearer";
+
+    /// <summary>Naming policy for the health-check JSON response - see <see cref="BuildHealthCheckResponse"/>'s own doc comment for why this can't just inherit AddControllers' default.</summary>
+    private static readonly JsonSerializerOptions HealthCheckJsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     /// <summary>Named CORS policy applied to every endpoint (WP-059 Part B) - see <see cref="UseApiCors"/>.</summary>
     public const string CorsPolicyName = "ApFlowWebClient";
@@ -181,12 +187,45 @@ public static class ApiServiceCollectionExtensions
     /// perfectly healthy process). Readiness runs every check tagged "ready" (database,
     /// Graph mailbox, Blob Storage), so traffic can be routed away from an instance that can't
     /// actually serve requests without also treating that as a reason to restart it.
+    /// <see cref="WriteHealthCheckResponseAsync"/> (WP-043) gives both a JSON body with
+    /// per-check detail - previously neither had any <c>ResponseWriter</c> configured,
+    /// so the default middleware wrote only the aggregate status as plain text with no
+    /// way to see which dependency (if any) was degraded.
     /// </summary>
     public static WebApplication UseApiHealthChecks(this WebApplication app)
     {
-        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false,
+            ResponseWriter = WriteHealthCheckResponseAsync,
+        }).AllowAnonymous();
+
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("ready"),
+            ResponseWriter = WriteHealthCheckResponseAsync,
+        }).AllowAnonymous();
 
         return app;
+    }
+
+    /// <summary>
+    /// Projects a <see cref="HealthReport"/> into the wire contract WP-043's System
+    /// Status page consumes. Extracted from <see cref="WriteHealthCheckResponseAsync"/>
+    /// so it's directly unit-testable against a real <see cref="HealthReport"/>,
+    /// without needing an actual HTTP pipeline - same reasoning as
+    /// <see cref="ConfigureCorsPolicy"/>'s own extraction.
+    /// </summary>
+    public static HealthCheckResponse BuildHealthCheckResponse(HealthReport report) =>
+        new(
+            report.Status.ToString(),
+            report.Entries
+                .Select(entry => new HealthCheckEntryResponse(entry.Key, entry.Value.Status.ToString(), entry.Value.Description))
+                .ToList());
+
+    private static Task WriteHealthCheckResponseAsync(HttpContext context, HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+        return context.Response.WriteAsync(JsonSerializer.Serialize(BuildHealthCheckResponse(report), HealthCheckJsonOptions));
     }
 }

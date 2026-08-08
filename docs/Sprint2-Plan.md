@@ -1,6 +1,6 @@
 # AP Flow — Sprint 2 Plan
 
-**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-031, WP-092, WP-093 delivered and pushed. WP-089 delivered live (Entra/Azure AD config, no code — nothing to push).
+**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-030, WP-031, WP-043, WP-092, WP-093 delivered, committed. WP-089 delivered live (Entra/Azure AD config, docs pushed). WP-043 user/role-management scope permanently retired — see its entry.
 **Prepared by:** Chief Technical Architect
 **Numbering:** `WP-026`–`WP-045` was reserved for Sprint 2 from the start (this is why Sprint 1's post-QA fixes began at `WP-046`, skipping straight past it). Rescoped original work packages keep their original numbers below. Genuinely new work (not in the original 20) continues from **WP-087**, the first number after Sprint 1's actual last use (`WP-086`).
 
@@ -10,7 +10,7 @@
 
 The original Sprint 2 work packages were scoped before Sprint 1 existed in its final form. Sprint 1 ran far longer than planned specifically because the workflow engine, role-based approval gating, and the real transition graph all got built out properly along the way — which means **two original Sprint 2 work packages are now already done**, several others needed rescoping once checked against the real codebase, and Sage 50 (§8) is now a fully-scoped, deliberately-chosen approach rather than an open research question.
 
-**Verification pass status: complete.** Every work package below has been checked directly against the real source code. Six real findings changed scope from the original assumption — WP-026 (existing entity), WP-027 (naming collision with an existing page), WP-031/032 (query reason already captured by an existing mechanism), WP-038 (confirmed clean/greenfield), WP-089 (not a coding task at all), and the background-worker pattern (§3, WP-030/036/044) confirmed as one dedicated class per concern, following `EmailIngestionWorker`'s exact structure.
+**Verification pass status: complete.** Every work package below has been checked directly against the real source code. Seven real findings changed scope from the original assumption — WP-026 (existing entity), WP-027 (naming collision with an existing page), WP-031/032 (query reason already captured by an existing mechanism), WP-038 (confirmed clean/greenfield), WP-089 (not a coding task at all), the background-worker pattern (WP-030/036/044, one dedicated class per concern), and **WP-043 (user/role management permanently retired as scope, once WP-089 revealed what it would actually require — see its own entry).**
 
 ---
 
@@ -53,7 +53,7 @@ By the end of Sprint 2, GB Skips will be able to:
 - Monitor supplier credit limits and overdue invoices, with reminders.
 - Generate remittances and email them to suppliers.
 - Export approved remittances for import into Sage 50, with AP Flow tracking and flagging whenever that import is still pending — see §8.
-- Administer users, roles, and application settings from within AP Flow.
+- View system health from within AP Flow. **User/role management is not, and will not be, an AP Flow feature — permanently out of scope, see WP-043.**
 - Sign in using their own Microsoft 365 credentials, once federation with GB Skips' real tenant is set up.
 
 ---
@@ -66,7 +66,7 @@ The **invoice approval engine, the workflow transition graph, role-gated approva
 
 **Also already exists, and matters for WP-027 specifically:** a page literally named "Suppliers" (`SuppliersPage.tsx`) already exists and is live — Sprint 1's read-only "browse invoices by supplier" view (WP-019/065). WP-027 extends this page (confirmed, Option A) rather than building a separate screen.
 
-**Also confirmed, and matters for WP-089 specifically:** roles are derived entirely from the Entra JWT `roles` claim — no local `UserRole` table exists anywhere in the codebase (confirmed at WP-046).
+**Also confirmed, and matters for WP-089/WP-043 specifically:** roles are derived entirely from the Entra JWT `roles` claim — no local `UserRole` table exists anywhere in the codebase (confirmed at WP-046). WP-089 (done) proved group-based assignment needs zero application code, and does so entirely in the CIAM tenant — a piece of **shared platform infrastructure**, not tenant-scoped application data the way everything else in AP Flow is. That distinction is why WP-043's user/role piece is now permanently retired, not deferred — see its entry.
 
 **Also confirmed, and matters for WP-031/032 specifically:** `UpdateInvoiceStatusRequest.Notes` is already mandatory on every status transition (`InvoicesController.UpdateStatus`, live since WP-084) — `Invoice.NoteRequiredForTransition` rejects any transition without one, and the note is created atomically with the status change. This means the "query reason" WP-032 was originally going to need a dedicated field for **already exists**.
 
@@ -79,6 +79,8 @@ The **invoice approval engine, the workflow transition graph, role-gated approva
 **Also confirmed, and matters for WP-030/036/044 specifically:** exactly one background worker exists today, `EmailIngestionWorker` (WP-067) — a single `BackgroundService`, per-cycle DI scope (never resolving a scoped service like `AppDbContext` once at startup), all exceptions caught inside the cycle so a bad run can't take the whole API host down, timer-based `Task.Delay` loop. This is the confirmed, proven template every new scheduled job should follow — as its own dedicated class, not merged into the existing worker.
 
 **Also confirmed, and matters for WP-036 specifically:** `IngestionIssue` (WP-076) is a good, directly reusable template for notification dedup — same-key deduplication with an `OccurrenceCount`/`LastSeenUtc` pair, so a repeated condition (e.g. "credit limit still exceeded") produces one updated record per poll cycle, not a new row every time.
+
+**Also confirmed, and matters for WP-043's system-health section specifically:** `/health/live`/`/health/ready` (WP-004/WP-024) already exist and are already the authoritative health signal — no new backend health logic needed, just a UI surfacing what's already there.
 
 ---
 
@@ -117,12 +119,12 @@ Invoice Approval Engine — already done in Sprint 1 (WP-050, WP-051, WP-053, WP
 ### WP-029 — *(retired)*
 Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not reused.
 
-### WP-030 — Invoice Workflow Dashboard (Senior React Engineer) — ✅ DONE, not pushed/deployed/live-verified this round (commit only)
+### WP-030 — Invoice Workflow Dashboard (Senior React Engineer) — ✅ DONE, PUSHED
 **Objective:** Replace the Dashboard placeholder with real status counts and recent activity.
 **Confirmed:** Reuse `GET /api/invoices/folders` (WP-059) for status counts — no new endpoint needed for that part. Consider a "remittances pending Sage import" tile once WP-042 exists — see §8.
 **Dependencies:** None (data already exists).
 
-**Delivered:** `useDashboard` combines `supplierFolderClient.getFolderCounts` (WP-059, unchanged) with a new `dashboardClient.getRecentActivity`, which also needed no new endpoint — it reuses the already-live `GET /api/invoices` sorted by its own default field, `CreatedAtUtc`, descending, deliberately keeping its response DTO narrower than `invoiceClient.ts`'s own (only the four fields the feed renders). `StatusCountsGrid` renders one clickable tile per folder, linking to that status's Invoice Queue route via a new shared `navConfig.statusCodeToQueuePath` helper (extracted out of `buildInvoiceQueueLinks`'s own inline kebab-casing, so a tile and its matching nav sub-link can never disagree). `RecentActivityList` shows the 8 most-recently-created invoices, reusing `InvoiceStatusBadge`/`formatDateTime`, each linking to the Review Screen. New tests: `dashboardClient.test.ts`, `useDashboard.test.tsx`, `StatusCountsGrid.test.tsx`, `RecentActivityList.test.tsx`, `DashboardPage.test.tsx`, plus a `statusCodeToQueuePath` case in `navConfig.test.ts`. `tsc -p tsconfig.app.json --noEmit` and `eslint` both clean on every changed file. **Not done this round:** push, deploy, or live verification.
+**Delivered:** `useDashboard` combines `supplierFolderClient.getFolderCounts` (WP-059, unchanged) with a new `dashboardClient.getRecentActivity`, which also needed no new endpoint — it reuses the already-live `GET /api/invoices` sorted by its own default field, `CreatedAtUtc`, descending, deliberately keeping its response DTO narrower than `invoiceClient.ts`'s own (only the four fields the feed renders). `StatusCountsGrid` renders one clickable tile per folder, linking to that status's Invoice Queue route via a new shared `navConfig.statusCodeToQueuePath` helper (extracted out of `buildInvoiceQueueLinks`'s own inline kebab-casing, so a tile and its matching nav sub-link can never disagree). `RecentActivityList` shows the 8 most-recently-created invoices, reusing `InvoiceStatusBadge`/`formatDateTime`, each linking to the Review Screen.
 
 ### WP-031 — Query Management: Outbound Supplier Email (Backend Engineer) — ✅ DONE, PUSHED (Mail.Send grant still pending — see top of document)
 **Objective:** Actually send the query to the supplier by email.
@@ -200,10 +202,38 @@ Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not 
 
 **Dependencies:** WP-041, WP-038.
 
-### WP-043 — Administration Portal (Senior React Engineer)
-**Objective:** Manage users, roles (via WP-089's group model), application settings.
-**Confirmed:** `AdministrationPage.tsx` is genuinely still WP-014's placeholder, no prior work to account for.
-**Dependencies:** WP-089.
+### WP-043 — System Status Page (Senior React Engineer) — ✅ DONE, not pushed/deployed/live-verified this round (commit only)
+
+**Renamed from "Administration Portal," scope permanently reduced — decided 2026-08-07.**
+
+**User/role management is retired from AP Flow's scope entirely — not deferred, not read-only, not revisited later.** The reasoning: everything AP Flow manages elsewhere (invoices, suppliers, notes) is tenant-scoped application data, protected by the existing `TenantEntity` boundary. Identity and role assignment in the CIAM tenant is **shared platform infrastructure** — the same tenant that will eventually serve every future AP Flow customer, per the Second-Tenant Readiness gate. Giving any single tenant's portal a path into that, even read-only, blurs a boundary that matters far more once a second tenant exists. Keeping it out entirely, permanently, is the correct call — not a temporary simplification.
+
+**The replacement process:** GB Skips raises a request (however they'd raise any other request today — email, a call, whatever their existing channel is); a Platform Administrator actions it directly via the Entra portal or `az`, using the process already fully documented in WP-089 (`docs/GB_Skips_Production_Migration_Notes.md` Item 3). Nothing new needs building for this to work — it already works today.
+
+**Noted for later:** if the Engineering Support Agent (`docs/Support-Agent-Architecture-Plan.md`, parked as WP-090) is ever built, "raise a role-change request" is a natural future ticket type for it — a human-in-the-loop request-and-action flow, not an in-app self-service feature. Not scoped now; just worth remembering so this isn't rediscovered as a "new" idea later.
+
+**What remains, now genuinely small — this is the entire WP:**
+
+1. A simple page reusing `/health/live`/`/health/ready` directly (no new backend logic — they already exist, WP-004/WP-024) — current status, and which component is degraded if any.
+2. Display current app version/build info (already available via the deploy pipeline).
+3. Gate to any authenticated user, or `FINANCE_MANAGER` if a role gate is wanted — low stakes either way, since there's nothing sensitive left on this page. **Recommend any authenticated user** — simpler, and appropriate for read-only operational status information.
+
+**Explicitly out of scope, permanently:** user list, role display, role changes, group membership — any of it, in any form.
+
+**Application settings, notification settings, accounting provider selection** — still genuinely open/deferred from the original scope (no concrete settings identified yet; notification/Sage settings depend on WP-036/037 and WP-041/042 existing first). Revisit only if a concrete need for an in-app settings screen emerges — not built speculatively.
+
+**Dependencies:** None. Small enough to slot in wherever convenient.
+
+**Delivered — two of this WP's own assumptions turned out to be wrong, confirmed by checking the real code first rather than assumed:**
+
+1. **Task 1's "no new backend logic — they already exist" undersold what task 1 itself asks for.** `/health/live`/`/health/ready` existed and worked, but neither had a `ResponseWriter` configured anywhere (confirmed by grep) — ASP.NET Core's default health-check middleware writes only the aggregate status as plain text, with zero per-check detail. Literally satisfying "which component is degraded if any" needed one small addition: `ApiServiceCollectionExtensions.BuildHealthCheckResponse(HealthReport)` (a testable, extracted projection, same pattern `ConfigureCorsPolicy` already established) plus a JSON `ResponseWriter` wired onto both mappings. The health checks themselves are genuinely untouched — this is a response-shape addition, not new health-check logic.
+2. **Task 2's "already available via the deploy pipeline" was not true.** Grepped the whole repo and `ci-cd.yml` for any version/commit stamping — none exists anywhere. Added the smallest real fix: `VITE_BUILD_SHA: ${{ github.sha }}` in `ci-cd.yml`'s existing "Build production bundle" step, the exact same `VITE_*` injection pattern already used for `VITE_ENTRA_CLIENT_ID`/etc. (WP-022). No backend version endpoint was built — the frontend bundle's own build commit is sufficient for "which build is this," and building a backend equivalent (Kudu deployment API calls, a stamped assembly attribute) would have been speculative scope beyond what this genuinely small WP needs.
+
+**Also renamed the route/nav to match:** `/administration` → `/system-status`, nav label "Administration" → "System Status", `AdministrationPage.tsx` → `SystemStatusPage.tsx` (`git mv`, not delete+recreate). Kept "Administration" as a misleading label would have been actively wrong now that its user/role scope is permanently retired.
+
+Task 3 (any authenticated user, no role gate) needed zero code — `ProtectedRoute` never checked roles to begin with, only authentication.
+
+New tests: `HealthCheckResponseTests.cs` (3, backend), `systemStatusClient.test.ts` (4), `useSystemStatus.test.tsx` (3), `HealthReportCard.test.tsx` (4), `SystemStatusPage.test.tsx` (2). Full backend suite: 433 tests passing (up from 430). Full frontend suite: 367 tests passing (up from 354), `tsc -p tsconfig.app.json --noEmit` and `eslint` both clean.
 
 ### WP-044 — Scheduled Background Jobs (DevOps + Backend Engineer)
 **Confirmed pattern:** same as WP-036 — its own dedicated `BackgroundService` class(es), following `EmailIngestionWorker`'s exact structure, not a second hosting paradigm (no Azure Functions/WebJobs needed).
@@ -219,23 +249,23 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 |---|---|---|
 | **WP-087** | GB Skips Real Tenant — SSO Federation | `docs/GB_Skips_Production_Migration_Notes.md` Item 1 |
 | **WP-088** | GB Skips Real Mailbox — App Registration | Same document, Item 2 |
-| **WP-089** | Group-Based Role Assignment | Same document, Item 3 — rescoped, see below — **✅ DONE, LIVE** |
+| **WP-089** | Group-Based Role Assignment | Same document, Item 3 — rescoped, see below — **✅ DONE, LIVE, PUSHED** |
 | **WP-090** | Engineering Support Agent (prototype) | `docs/Support-Agent-Architecture-Plan.md` — **parked, revisit towards the end of Sprint 2** |
 | **WP-091** | Customer Support Agent (prototype) | Same document — **same parked status** |
 | **WP-092** | Consistent Timestamp Display & Audit Trail Display Names | Two real gaps found live — **✅ DONE, PUSHED** |
 | **WP-093** | Surface Suppliers With No Invoices Yet | Real gap found in WP-027's own delivery — **✅ DONE, PUSHED** |
 
-### WP-089 — Group-Based Role Assignment (Entra/Azure AD Configuration — DevOps, not a coding task) — ✅ DONE, LIVE
+### WP-089 — Group-Based Role Assignment (Entra/Azure AD Configuration — DevOps, not a coding task) — ✅ DONE, LIVE, PUSHED
 
 **Rescoped.** Roles derive entirely from the Entra JWT `roles` claim — no local `UserRole` table exists. Group-based assignment requires **zero application code changes**.
 
 **Tasks (all Entra/Azure AD configuration, no code):**
-1. ✅ Created two Entra security groups — **APFlow Finance Managers** / **APFlow AP Reviewers**, one per `APFlow-Api-Dev` app role.
-2. ✅ Assigned each group the corresponding App Role on the API's Enterprise Application (service principal `0a857b93-...`) — no P1 license needed, confirmed live.
-3. ✅ Moved WP-064's four test/demo users into the matching group, removed their direct per-user assignments — confirmed live via fresh ROPC tokens (identical `roles` claim, now group-sourced) and a real authenticated API call for both test accounts. Demo pair left untouched beyond group membership, per WP-064's established convention.
-4. ✅ Documented the process for adding a future user — see `docs/GB_Skips_Production_Migration_Notes.md` Item 3.
+1. ✅ Created two Entra security groups — **APFlow Finance Managers** (`6e943cce-...`) / **APFlow AP Reviewers** (`4521e58d-...`), one per `APFlow-Api-Dev` app role.
+2. ✅ Assigned each group the corresponding App Role on the API's Enterprise Application (service principal `0a857b93-...`) — **no P1 license needed, confirmed live** (the commonly-cited restriction is a portal UI limitation, not a Graph API one).
+3. ✅ Moved WP-064's four test/demo users into the matching group, removed their direct per-user assignments — confirmed live via fresh ROPC tokens for both test accounts (identical `roles` claim, now group-sourced) and a real authenticated `GET /api/invoices/folders` call. Demo pair moved but otherwise left untouched, per WP-064's established convention.
+4. ✅ Documented the process for adding a future user — `docs/GB_Skips_Production_Migration_Notes.md` Item 3. **This is now also the permanent, sole mechanism for all future role changes — see WP-043.**
 
-**Dependencies:** None. Done before WP-043, as planned.
+**Dependencies:** None. Done before WP-043, as planned — and directly informed WP-043's scope retirement.
 
 ---
 
@@ -259,10 +289,10 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 ### WP-093 — Surface Suppliers With No Invoices Yet (Senior React Engineer) — ✅ DONE, PUSHED
 
-**Priority: Medium — closes a real gap in WP-027's own "Add supplier" feature.** Found during WP-027's review: a supplier created via "+ Add supplier" is invisible on the Suppliers page again immediately after creation, because the page's existing browse view (`SupplierGroupList`) is invoice-grouped data, not a direct supplier listing — a brand-new supplier with zero invoices never appears there until its first invoice arrives. This undermines "Add supplier"'s basic promise: a user adds one and it appears to vanish, even though it's genuinely saved correctly.
+**Priority: Medium — closes a real gap in WP-027's own "Add supplier" feature.** Found during WP-027's review: a supplier created via "+ Add supplier" is invisible on the Suppliers page again immediately after creation, because the page's existing browse view (`SupplierGroupList`) is invoice-grouped data, not a direct supplier listing — a brand-new supplier with zero invoices never appears there until its first invoice arrives.
 
 **Tasks:**
-1. Add a small section to `SuppliersPage` listing any `Supplier` from `useSuppliers()` (already built, WP-027) with no matching entry in the invoice-grouped list — same case-insensitive/trimmed name resolution `SupplierGroupList`'s Edit-action lookup already uses.
+1. Add a small section to `SuppliersPage` listing any `Supplier` from `useSuppliers()` (already built, WP-027) with no matching entry in the invoice-grouped list.
 2. Each entry in this new section gets the same Edit action as an invoice-grouped supplier.
 3. Live/tested confirmation: create a supplier, confirm it's immediately visible in this new section without needing an invoice first.
 
@@ -273,24 +303,24 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 ## 5. Suggested build order
 
 1. **WP-026 → WP-027** (Suppliers) — ✅ done.
-2. **WP-089 → WP-043** (role groups, then Administration) — WP-089 ✅ done. WP-043 now unblocked.
+2. **WP-089 → WP-043** (role groups, then System Status) — WP-089 ✅ done; WP-043 ✅ done.
 3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability. WP-031 ✅ done; WP-032/038/039/040 ready now.
 4. **WP-033/034 → WP-035 → WP-036/037** (Statements → Credit Limits → Notifications) — ready now, all confirmed clean.
 5. **WP-087/088** (real tenant migration) — parallel with anything above, gated on GB Skips' own IT.
 6. **WP-041 → WP-042** (Sage Connector) — both unblocked, ready now.
-7. **WP-030** (Dashboard) and **WP-044** (scheduled jobs) — ready now, slot in wherever convenient.
+7. **WP-030** and **WP-044** (scheduled jobs) — WP-030 ✅ done; WP-044 ready now.
 8. **WP-092** — ✅ done.
 9. **WP-093** — ✅ done.
 10. **WP-045** (QA) — near the end.
 11. **WP-090/091** (Support Agents) — parked, end of sprint.
 
-**Everything in this sprint is now dispatch-ready** except the two parked Support Agent items.
+**Everything in this sprint is now fully dispatch-ready** except the two parked Support Agent items.
 
 ---
 
 ## 6. Open questions
 
-- None outstanding on scope. Grant/Hometech call: no longer a blocker for anything, just useful for refining WP-042's export format whenever it happens.
+- None outstanding. Grant/Hometech call: no longer a blocker for anything, just useful for refining WP-042's export format whenever it happens.
 
 ---
 
@@ -301,13 +331,13 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 - **Sage 50 write approach:** file-based export + manual import, AP Flow tracking. Not blocked on the Grant call.
 - **Timestamp display:** viewer-local everywhere, extended to `Received` (WP-092, done).
 - **Audit trail display names:** resolved to a real name at write time (WP-092, done).
-- **WP-026/027 scope:** confirmed against the real, existing `Supplier` entity and `SuppliersPage` — both done.
+- **WP-026/027/030 scope:** confirmed against the real, existing codebase — all three done.
 - **WP-093:** zero-invoice supplier visibility gap closed — done, pushed.
 - **WP-031/032 scope:** confirmed no separate query-reason field needed.
 - **WP-033/034/036/037/038 scope:** all confirmed genuinely greenfield — no colliding entities exist.
 - **WP-030/036/044 pattern:** confirmed — each a dedicated `BackgroundService` class following `EmailIngestionWorker`'s proven structure.
-- **WP-089:** confirmed as Entra/Azure AD configuration, not application code — done and live, see `docs/GB_Skips_Production_Migration_Notes.md` Item 3.
-- **WP-043:** confirmed still a genuine placeholder.
+- **WP-089:** confirmed as Entra/Azure AD configuration, not application code — done and live, see `docs/GB_Skips_Production_Migration_Notes.md` Item 3. No P1 license required.
+- **WP-043:** user/role management permanently retired as AP Flow scope. Renamed "System Status Page," reduced to health/version display only. Requests handled externally via the process WP-089 already documented. Done — both of its own scope assumptions (health response already had per-check detail; build info already available) turned out to be false, fixed as part of delivering it, not deferred.
 
 ---
 

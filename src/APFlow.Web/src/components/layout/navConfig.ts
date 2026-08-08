@@ -35,7 +35,7 @@ export const STATIC_NAV_SECTIONS: Omit<NavSection, 'children'>[] = [
   { key: 'invoice-queue', label: 'Invoice Queue', path: '/invoices' },
   { key: 'query-queue', label: 'Query Queue', path: '/queries' },
   { key: 'suppliers', label: 'Suppliers', path: '/suppliers' },
-  { key: 'administration', label: 'Administration', path: '/administration' },
+  { key: 'system-status', label: 'System Status', path: '/system-status' },
 ];
 
 /**

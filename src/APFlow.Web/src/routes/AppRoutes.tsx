@@ -8,7 +8,7 @@ import { InvoiceQueuePage } from '@/pages/InvoiceQueuePage';
 import { InvoiceReviewPage } from '@/pages/InvoiceReviewPage';
 import { QueryQueuePage } from '@/pages/QueryQueuePage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
-import { AdministrationPage } from '@/pages/AdministrationPage';
+import { SystemStatusPage } from '@/pages/SystemStatusPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 /**
@@ -35,7 +35,7 @@ export function AppRoutes() {
         <Route path="/invoices/:statusCode" element={<InvoiceQueuePage />} />
         <Route path="/queries" element={<QueryQueuePage />} />
         <Route path="/suppliers" element={<SuppliersPage />} />
-        <Route path="/administration" element={<AdministrationPage />} />
+        <Route path="/system-status" element={<SystemStatusPage />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
