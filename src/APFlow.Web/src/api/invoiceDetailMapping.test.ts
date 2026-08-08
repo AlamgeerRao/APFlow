@@ -226,4 +226,66 @@ describe('mapInvoiceDetailResponse - audit entry mapping', () => {
 
     expect(result.auditEntries[0].description).toBe('Document viewed');
   });
+
+  it('describes a QueryEmailSent entry with the recipient address (WP-032)', () => {
+    const result = mapInvoiceDetailResponse(
+      responseWith([
+        {
+          id: 'audit-1',
+          performedByUserId: 'user-1',
+          action: 'QueryEmailSent',
+          entityName: 'Invoice',
+          entityId: 'inv-1',
+          previousValue: null,
+          newValue: 'ap@acme-ltd.example',
+          performedAtUtc: '2026-08-08T09:00:00Z',
+          performedByDisplayName: 'Priya Shah',
+        },
+      ]),
+    );
+
+    expect(result.auditEntries[0].description).toBe('Query email sent to ap@acme-ltd.example');
+  });
+
+  it('describes a QueryEmailFailed entry with the recipient address (WP-032)', () => {
+    const result = mapInvoiceDetailResponse(
+      responseWith([
+        {
+          id: 'audit-1',
+          performedByUserId: 'user-1',
+          action: 'QueryEmailFailed',
+          entityName: 'Invoice',
+          entityId: 'inv-1',
+          previousValue: null,
+          newValue: 'ap@acme-ltd.example',
+          performedAtUtc: '2026-08-08T09:00:00Z',
+          performedByDisplayName: 'Priya Shah',
+        },
+      ]),
+    );
+
+    expect(result.auditEntries[0].description).toBe('Query email failed to send to ap@acme-ltd.example');
+  });
+
+  it('describes a QueryEmailSkippedNoSupplierEmail entry with a fixed message (WP-032)', () => {
+    const result = mapInvoiceDetailResponse(
+      responseWith([
+        {
+          id: 'audit-1',
+          performedByUserId: 'user-1',
+          action: 'QueryEmailSkippedNoSupplierEmail',
+          entityName: 'Invoice',
+          entityId: 'inv-1',
+          previousValue: null,
+          newValue: null,
+          performedAtUtc: '2026-08-08T09:00:00Z',
+          performedByDisplayName: 'Priya Shah',
+        },
+      ]),
+    );
+
+    expect(result.auditEntries[0].description).toBe(
+      'Query email not sent — no email address on file for this supplier',
+    );
+  });
 });

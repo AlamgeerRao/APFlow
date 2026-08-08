@@ -1,6 +1,6 @@
 # AP Flow — Sprint 2 Plan
 
-**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-030, WP-031, WP-043, WP-089, WP-092, WP-093 all delivered and confirmed pushed to `origin/main` — deploy/live-verification status not reconfirmed this round for the code-bearing ones. WP-043 user/role-management scope permanently retired — see its entry.
+**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-030, WP-031, WP-043, WP-089, WP-092, WP-093 delivered and confirmed pushed to `origin/main`; WP-032 delivered, committed only this round — deploy/live-verification status not reconfirmed this round for the code-bearing ones. WP-043 user/role-management scope permanently retired — see its entry.
 **Prepared by:** Chief Technical Architect
 **Numbering:** `WP-026`–`WP-045` was reserved for Sprint 2 from the start (this is why Sprint 1's post-QA fixes began at `WP-046`, skipping straight past it). Rescoped original work packages keep their original numbers below. Genuinely new work (not in the original 20) continues from **WP-087**, the first number after Sprint 1's actual last use (`WP-086`).
 
@@ -142,10 +142,16 @@ Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not 
 
 **Dependencies:** None now.
 
-### WP-032 — Query Management UI (Senior React Engineer)
+### WP-032 — Query Management UI (Senior React Engineer) — ✅ DONE, not yet pushed this round (commit only)
 **Objective:** Trigger sending a query, show its email-sent status.
 **Confirmed resolved:** the existing mandatory-note flow already collects the query reason. This WP surfaces that the note-driven transition to `Query Raised` also resulted in a real email being sent.
 **Dependencies:** WP-031.
+
+**Delivered — "trigger" needed zero new UI, "show its email-sent status" needed zero new API surface:**
+
+The "trigger" is the existing NEEDS_QUERY → QUERY_RAISED workflow action button (WP-018/054) — already built, already the only way to raise a query, and per the plan's own confirmation nothing new was needed there. The real gap was the second half: checking `InvoiceService.SendQueryEmailAsync` (WP-031) directly found the email's outcome (sent/failed/skipped-no-email) was **only ever logged**, never persisted anywhere queryable — there was genuinely nothing to "show." Rather than inventing a new `Invoice` field/migration for this, the outcome is now recorded as a real audit entry (three new `AuditActions`: `QueryEmailSent`/`QueryEmailFailed`/`QueryEmailSkippedNoSupplierEmail`, committed via `IAuditService.LogAndSaveAsync` as its own commit — same pattern `InvoicesController.Download`'s `DocumentViewed` entry already established). The Review screen's existing Audit Summary panel needed **zero new wiring**: WP-084 already re-queries fresh audit history after every transition, so the very same PATCH response that raises the query already includes the new audit entry. `invoiceDetailMapping.ts`'s `describeAuditEntry` gained three cases producing a human-readable line ("Query email sent to alice@supplier.com", "...failed to send to...", "...not sent — no email address on file for this supplier"). This also directly closes the exact open question WP-031 raised in `docs/Backlog.md` ("should this also surface in-app somehow?") — moved to Closed.
+
+New/updated tests: 4 `InvoiceServiceTests` extended (not new — the existing WP-031 sent/skipped/failed/other-transition tests now also assert on the real `AuditLog` rows created), 3 new `invoiceDetailMapping.test.ts` cases. Full backend suite: 433 tests passing (unchanged count — existing tests extended, not added). Full frontend suite: 370 tests passing (up from 367), `tsc -p tsconfig.app.json --noEmit` and `eslint` both clean.
 
 ### WP-033 — Statement Upload & Processing (Backend Engineer)
 **Confirmed clean:** no `Statement` entity exists anywhere in `APFlow.Domain/Entities` — genuinely greenfield.
@@ -304,7 +310,7 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 
 1. **WP-026 → WP-027** (Suppliers) — ✅ done.
 2. **WP-089 → WP-043** (role groups, then System Status) — WP-089 ✅ done; WP-043 ✅ done.
-3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability. WP-031 ✅ done; WP-032/038/039/040 ready now.
+3. **WP-031 → WP-032, and WP-038 → WP-039/WP-040** — shared outbound-email capability. WP-031 ✅ done; WP-032 ✅ done; WP-038/039/040 ready now.
 4. **WP-033/034 → WP-035 → WP-036/037** (Statements → Credit Limits → Notifications) — ready now, all confirmed clean.
 5. **WP-087/088** (real tenant migration) — parallel with anything above, gated on GB Skips' own IT.
 6. **WP-041 → WP-042** (Sage Connector) — both unblocked, ready now.
@@ -333,7 +339,7 @@ Same philosophy as the improved WP-025: UI-first, console-error-strict, real acc
 - **Audit trail display names:** resolved to a real name at write time (WP-092, done).
 - **WP-026/027/030 scope:** confirmed against the real, existing codebase — all three done.
 - **WP-093:** zero-invoice supplier visibility gap closed — done, pushed.
-- **WP-031/032 scope:** confirmed no separate query-reason field needed.
+- **WP-031/032 scope:** confirmed no separate query-reason field needed. WP-032 also confirmed no separate email-status field needed — the outcome is a real audit entry instead, done.
 - **WP-033/034/036/037/038 scope:** all confirmed genuinely greenfield — no colliding entities exist.
 - **WP-030/036/044 pattern:** confirmed — each a dedicated `BackgroundService` class following `EmailIngestionWorker`'s proven structure.
 - **WP-089:** confirmed as Entra/Azure AD configuration, not application code — done and live, see `docs/GB_Skips_Production_Migration_Notes.md` Item 3. No P1 license required.

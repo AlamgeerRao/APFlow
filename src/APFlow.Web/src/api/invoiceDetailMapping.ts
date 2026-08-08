@@ -95,6 +95,15 @@ function describeAuditEntry(entry: AuditLogResponseDto): string {
       return 'Invoice created';
     case 'InvoiceDeleted':
       return 'Invoice deleted';
+    // WP-032: surfaces WP-031's outbound query-email outcome - this is the
+    // entire "show its email-sent status" requirement, via the same audit
+    // trail every other invoice event already renders through.
+    case 'QueryEmailSent':
+      return entry.newValue ? `Query email sent to ${entry.newValue}` : 'Query email sent';
+    case 'QueryEmailFailed':
+      return entry.newValue ? `Query email failed to send to ${entry.newValue}` : 'Query email failed to send';
+    case 'QueryEmailSkippedNoSupplierEmail':
+      return 'Query email not sent — no email address on file for this supplier';
     default:
       return entry.newValue ?? entry.previousValue ?? '';
   }

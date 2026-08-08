@@ -338,12 +338,14 @@ public sealed class InvoiceService : IInvoiceService
             // case, so the minimal reasoned behavior is used instead: skip the send
             // (the status transition itself has already committed and must not be
             // blocked or unwound by this), log a warning so the gap is visible, and
-            // record the open question - should this also surface to a user
-            // somewhere in-app, e.g. an IngestionIssue-style flag? - in
-            // docs/Backlog.md rather than inventing an answer here.
+            // -WP-032: also stage an audit entry, closing the open question WP-031
+            // recorded in docs/Backlog.md ("should this also surface to a user
+            // somewhere in-app?") - yes, via the same audit trail every other
+            // invoice event already uses, rather than a new dedicated field/flag.
             _logger.LogWarning(
                 "Invoice {InvoiceId} transitioned to {QueryRaisedStatus} but supplier {SupplierId} has no email on file - query email not sent.",
                 invoice.Id, InvoiceStatusCodes.QueryRaised, invoice.SupplierId);
+            await LogQueryEmailAuditEntryAsync(invoice.Id, AuditActions.QueryEmailSkippedNoSupplierEmail, newValue: null, cancellationToken);
             return;
         }
 
@@ -361,6 +363,45 @@ public sealed class InvoiceService : IInvoiceService
             _logger.LogWarning(
                 "Failed to send query email for invoice {InvoiceId} to {SupplierEmail}: {ErrorCode} - {ErrorMessage}",
                 invoice.Id, supplierEmail, sendResult.Error.Code, sendResult.Error.Message);
+            await LogQueryEmailAuditEntryAsync(invoice.Id, AuditActions.QueryEmailFailed, supplierEmail, cancellationToken);
+            return;
+        }
+
+        await LogQueryEmailAuditEntryAsync(invoice.Id, AuditActions.QueryEmailSent, supplierEmail, cancellationToken);
+    }
+
+    /// <summary>
+    /// Stages and immediately commits a single audit entry describing the query
+    /// email's outcome (WP-032) - this is what actually satisfies "show its
+    /// email-sent status": the Review screen's Audit Summary panel already
+    /// re-queries fresh audit history after every transition (WP-084), so no new
+    /// frontend wiring is needed beyond a description for these three new
+    /// <see cref="AuditActions"/> values (see <c>invoiceDetailMapping.ts</c>).
+    /// Uses <see cref="IAuditService.LogAndSaveAsync"/>, not <see cref="IAuditService.LogAsync"/>:
+    /// this runs after <see cref="UpdateAsync"/>'s own <c>SaveChangesAsync</c> has
+    /// already committed the status change/note, so this is a genuinely separate
+    /// commit - same reasoning as <c>InvoicesController.Download</c>'s
+    /// <c>DocumentViewed</c> entry. A failure here is logged and swallowed, not
+    /// surfaced to the caller - the email attempt itself already happened (or was
+    /// deliberately skipped); a missing audit record of that is a smaller problem
+    /// than failing an already-complete operation.
+    /// </summary>
+    private async Task LogQueryEmailAuditEntryAsync(Guid invoiceId, string action, string? newValue, CancellationToken cancellationToken)
+    {
+        var auditResult = await _auditService.LogAndSaveAsync(
+            new RecordAuditLogRequest(
+                Action: action,
+                EntityName: nameof(Invoice),
+                EntityId: invoiceId,
+                PreviousValue: null,
+                NewValue: newValue),
+            cancellationToken);
+
+        if (auditResult.IsFailure)
+        {
+            _logger.LogWarning(
+                "Failed to record {Action} audit entry for invoice {InvoiceId}: {ErrorCode} - {ErrorMessage}",
+                action, invoiceId, auditResult.Error.Code, auditResult.Error.Message);
         }
     }
 

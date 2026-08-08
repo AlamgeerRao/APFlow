@@ -25,4 +25,13 @@ public static class AuditActions
 
     /// <summary>An invoice's source document was viewed/downloaded (see <c>InvoicesController.Download</c>, WP-052 Part D).</summary>
     public const string DocumentViewed = "DocumentViewed";
+
+    /// <summary>The outbound query email (WP-031) was sent successfully when an invoice transitioned to <c>QUERY_RAISED</c> (see <c>InvoiceService.SendQueryEmailAsync</c>, WP-032). <c>NewValue</c> carries the recipient address.</summary>
+    public const string QueryEmailSent = "QueryEmailSent";
+
+    /// <summary>The outbound query email (WP-031) was attempted but the send itself failed - e.g. a Graph error (see <c>InvoiceService.SendQueryEmailAsync</c>, WP-032). <c>NewValue</c> carries the recipient address; the transition itself still succeeds regardless.</summary>
+    public const string QueryEmailFailed = "QueryEmailFailed";
+
+    /// <summary>The outbound query email (WP-031) was not attempted because the supplier has no email address on file (see <c>InvoiceService.SendQueryEmailAsync</c>, WP-032) - a normal, expected state (<c>Supplier.Email</c> is optional, WP-026), not an error.</summary>
+    public const string QueryEmailSkippedNoSupplierEmail = "QueryEmailSkippedNoSupplierEmail";
 }

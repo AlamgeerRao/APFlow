@@ -836,7 +836,7 @@ public class InvoiceServiceTests
         // WP-031: the whole point of this WP - transitioning INTO QUERY_RAISED
         // must actually send an email, using the mandatory transition note (WP-084)
         // as the query content, to the supplier's email address (WP-026).
-        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var (service, _, supplierRepo, auditLogRepo, emailSendService) = CreateServiceWithAuditAndEmail();
         var supplier = new Supplier { Name = "Acme Ltd", Email = "ap@acme-ltd.example" };
         supplierRepo.Suppliers.Add(supplier);
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-42", null, null, "GBP", 100m, 20m, 120m, null));
@@ -851,6 +851,12 @@ public class InvoiceServiceTests
         Assert.Equal("Acme Ltd", sent.ToDisplayName);
         Assert.Contains("INV-42", sent.Subject);
         Assert.Contains("Please confirm the VAT breakdown on this invoice.", sent.Body);
+
+        // WP-032: the email's outcome is recorded as an audit entry - this is what
+        // actually makes the outcome visible on the Review screen.
+        var emailAudit = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.QueryEmailSent);
+        Assert.Equal(created.Value.Id, emailAudit.EntityId);
+        Assert.Equal("ap@acme-ltd.example", emailAudit.NewValue);
     }
 
     [Fact]
@@ -860,7 +866,7 @@ public class InvoiceServiceTests
         // email on file must not block or fail an otherwise-valid status
         // transition. The send is skipped and a warning logged (not asserted here -
         // see the class-level decision note in InvoiceService.SendQueryEmailAsync).
-        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var (service, _, supplierRepo, auditLogRepo, emailSendService) = CreateServiceWithAuditAndEmail();
         var supplier = new Supplier { Name = "No Email Ltd", Email = null };
         supplierRepo.Suppliers.Add(supplier);
         var created = await service.CreateAsync(new CreateInvoiceRequest(supplier.Id, "INV-43", null, null, "GBP", 100m, 20m, 120m, null));
@@ -872,6 +878,12 @@ public class InvoiceServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.QueryRaised, result.Value.Status);
         Assert.Empty(emailSendService.SentEmails);
+
+        // WP-032: the skip is itself recorded as an audit entry (not silently
+        // invisible beyond a server log line) - closes the open question WP-031
+        // raised in docs/Backlog.md.
+        var skippedAudit = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.QueryEmailSkippedNoSupplierEmail);
+        Assert.Equal(created.Value.Id, skippedAudit.EntityId);
     }
 
     [Fact]
@@ -880,7 +892,7 @@ public class InvoiceServiceTests
         // A Graph failure (auth, network, etc.) must not unwind or fail the status
         // transition/note that already committed - see IEmailSendService.SendAsync's
         // doc comment and InvoiceService.SendQueryEmailAsync's "log and continue".
-        var (service, _, supplierRepo, _, emailSendService) = CreateServiceWithAuditAndEmail();
+        var (service, _, supplierRepo, auditLogRepo, emailSendService) = CreateServiceWithAuditAndEmail();
         emailSendService.ResultFactory = _ => Result.Failure(new Error("Email.SendFailed", "Simulated Graph failure."));
         var supplier = new Supplier { Name = "Acme Ltd", Email = "ap@acme-ltd.example" };
         supplierRepo.Suppliers.Add(supplier);
@@ -893,6 +905,13 @@ public class InvoiceServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(InvoiceStatusCodes.QueryRaised, result.Value.Status);
         Assert.Single(emailSendService.SentEmails); // the send was attempted, it just failed
+
+        // WP-032: a failed send is recorded distinctly from a successful one, not
+        // silently indistinguishable from QueryEmailSent.
+        var failedAudit = Assert.Single(auditLogRepo.AuditLogs, a => a.Action == AuditActions.QueryEmailFailed);
+        Assert.Equal(created.Value.Id, failedAudit.EntityId);
+        Assert.Equal("ap@acme-ltd.example", failedAudit.NewValue);
+        Assert.DoesNotContain(auditLogRepo.AuditLogs, a => a.Action == AuditActions.QueryEmailSent);
     }
 
     [Fact]
