@@ -1,6 +1,6 @@
 # AP Flow — Sprint 2 Plan
 
-**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-030, WP-031, WP-043, WP-092, WP-093 delivered, committed. WP-089 delivered live (Entra/Azure AD config, docs pushed). WP-043 user/role-management scope permanently retired — see its entry.
+**Status:** Verification pass complete against real source code — every work package checked directly against the codebase, not just described from what it should logically do. All items in §3/§4 are dispatch-ready except where explicitly noted otherwise. WP-026, WP-027, WP-030, WP-031, WP-043, WP-089, WP-092, WP-093 all delivered and confirmed pushed to `origin/main` — deploy/live-verification status not reconfirmed this round for the code-bearing ones. WP-043 user/role-management scope permanently retired — see its entry.
 **Prepared by:** Chief Technical Architect
 **Numbering:** `WP-026`–`WP-045` was reserved for Sprint 2 from the start (this is why Sprint 1's post-QA fixes began at `WP-046`, skipping straight past it). Rescoped original work packages keep their original numbers below. Genuinely new work (not in the original 20) continues from **WP-087**, the first number after Sprint 1's actual last use (`WP-086`).
 
@@ -202,7 +202,7 @@ Invoice Workflow API — already done in Sprint 1 (WP-054). Number retired, not 
 
 **Dependencies:** WP-041, WP-038.
 
-### WP-043 — System Status Page (Senior React Engineer) — ✅ DONE, not pushed/deployed/live-verified this round (commit only)
+### WP-043 — System Status Page (Senior React Engineer) — ✅ DONE, PUSHED
 
 **Renamed from "Administration Portal," scope permanently reduced — decided 2026-08-07.**
 
